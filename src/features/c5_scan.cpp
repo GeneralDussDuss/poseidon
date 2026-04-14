@@ -87,16 +87,20 @@ void feat_c5_scan_5g(void)
     auto &d = M5Cardputer.Display;
     ui_draw_footer(";/. move  R=rescan  `=back");
     int cursor = 0;
+    int last_n = -1;
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
+            int n_now = c5_aps(nullptr, 0);
+            bool new_result = (n_now != last_n);
+            last_n = n_now;
             ui_clear_body();
-            d.setTextColor(0xF81F, COL_BG);
-            d.setCursor(4, BODY_Y + 2);
-            d.printf("C5 DUAL-BAND  (%d)", c5_aps(nullptr, 0));  /* 0 = query only */
-            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 60, 0xF81F);
+            char title[32];
+            snprintf(title, sizeof(title), "C5 DUAL-BAND (%d)", n_now);
+            ui_dashboard_chrome(title, new_result);
             draw_status_header();
+            ui_freq_bars(SCR_W - 58, BODY_Y + 2, 3, 10);
 
             c5_ap_t aps[64];
             int n = c5_aps(aps, 64);
@@ -163,15 +167,19 @@ void feat_c5_scan_zb(void)
 
     auto &d = M5Cardputer.Display;
     ui_draw_footer("`=back");
+    int last_n = -1;
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
+            c5_zb_t probe[1];
+            int n_now = c5_zbs(probe, 0);
+            bool new_frame = (n_now != last_n);
+            last_n = n_now;
             ui_clear_body();
-            d.setTextColor(0xF81F, COL_BG);
-            d.setCursor(4, BODY_Y + 2); d.print("C5 ZIGBEE SNIFF");
-            d.drawFastHLine(4, BODY_Y + 12, 130, 0xF81F);
+            ui_dashboard_chrome("C5 ZIGBEE SNIFF", new_frame);
             draw_status_header();
+            ui_freq_bars(SCR_W - 58, BODY_Y + 2, 3, 10);
 
             c5_zb_t z[32];
             int n = c5_zbs(z, 32);

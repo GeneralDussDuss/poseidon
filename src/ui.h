@@ -88,3 +88,15 @@ enum action_anim_t {
 };
 void ui_action_overlay(const char *headline, const char *subtitle,
                        action_anim_t bg, uint16_t color, uint32_t duration_ms);
+
+/* Magenta/cyan "attack dashboard" chrome: hex stream backdrop, title
+ * bar, border-flash frame, radar sweep in the corner. Call at the top
+ * of every redraw — it only paints chrome, leaving the middle rows
+ * free for per-feature status text. Set `flash_now=true` once per
+ * event (target rotate, deauth hit, handshake) for a 1-frame border
+ * strobe. */
+void ui_dashboard_chrome(const char *title, bool flash_now);
+
+/* Cyan frequency bars. Anchor them anywhere in the body. Bar values
+ * random-walk internally so consecutive calls produce smooth motion. */
+void ui_freq_bars(int x, int y, int bar_w, int bar_h_max);

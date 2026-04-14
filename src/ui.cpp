@@ -481,6 +481,39 @@ void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color)
     }
 }
 
+/* ---- magenta dashboard chrome ---- */
+
+static uint32_t s_dash_flash_until = 0;
+
+void ui_dashboard_chrome(const char *title, bool flash_now)
+{
+    auto &d = M5Cardputer.Display;
+    if (flash_now) s_dash_flash_until = millis() + 60;
+
+    /* Hex storm backdrop. */
+    ui_hexstream(0, BODY_Y + 4, SCR_W, BODY_H - 8, 0x4809);
+
+    /* Border strobe on flash. */
+    if (millis() < s_dash_flash_until) {
+        d.drawRect(0, BODY_Y, SCR_W, BODY_H, COL_MAGENTA);
+        d.drawRect(1, BODY_Y + 1, SCR_W - 2, BODY_H - 2, COL_MAGENTA);
+    }
+
+    /* Title bar. */
+    d.setTextColor(COL_MAGENTA, COL_BG);
+    d.setCursor(4, BODY_Y + 2);
+    d.print(title);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_MAGENTA);
+
+    /* Corner radar. */
+    ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, COL_MAGENTA);
+}
+
+void ui_freq_bars(int x, int y, int bar_w, int bar_h_max)
+{
+    ui_eq_bars(x, y, bar_w, bar_h_max, COL_ACCENT);
+}
+
 /* ---- full-screen action overlay ---- */
 void ui_action_overlay(const char *headline, const char *subtitle,
                        action_anim_t bg, uint16_t color, uint32_t duration_ms)

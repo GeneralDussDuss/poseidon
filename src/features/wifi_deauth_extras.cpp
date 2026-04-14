@@ -93,58 +93,40 @@ void feat_wifi_deauth_broadcast(void)
 
     /* Dramatic intro. */
     ui_action_overlay("NUKE LAUNCHED", "jamming every AP in sight",
-                      ACT_BG_GLITCH, COL_BAD, 900);
+                      ACT_BG_GLITCH, COL_MAGENTA, 900);
 
     ui_clear_body();
     ui_draw_footer("`=stop");
     uint32_t last = 0;
-    uint32_t last_flash = 0;
     int last_cur = -1;
     uint32_t last_sent = 0;
     while (true) {
         uint32_t now = millis();
 
-        /* Red border flash for 60ms whenever target rotates. */
         int cur = s_b_target_n ? (s_b_cursor % s_b_target_n) : 0;
-        if (cur != last_cur) {
-            last_cur = cur;
-            last_flash = now;
-        }
-        bool flashing = (now - last_flash) < 60;
+        bool rotated = (cur != last_cur);
+        last_cur = cur;
 
         if (now - last > 200) {
             last = now;
             ui_clear_body();
-
-            /* Hex stream backdrop — evokes packet storm. */
-            ui_hexstream(0, BODY_Y + 4, SCR_W, BODY_H - 8, 0x4800);
-
-            /* Red border on flash. */
-            if (flashing) {
-                d.drawRect(0, BODY_Y, SCR_W, BODY_H, COL_BAD);
-                d.drawRect(1, BODY_Y + 1, SCR_W - 2, BODY_H - 2, COL_BAD);
-            }
-
-            d.setTextColor(COL_BAD, COL_BG);
-            d.setCursor(4, BODY_Y + 2); d.print(">> DEAUTH ALL <<");
-            d.drawFastHLine(4, BODY_Y + 12, 120, COL_BAD);
+            ui_dashboard_chrome(">> DEAUTH ALL <<", rotated);
 
             d.setTextColor(COL_FG, COL_BG);
             d.setCursor(4, BODY_Y + 16);
             d.printf("targets: %d", s_b_target_n);
             d.setCursor(4, BODY_Y + 26);
             d.printf("frames : %lu", (unsigned long)s_b_sent);
-            uint32_t fps = (now - last > 0) ? (s_b_sent - last_sent) * 5 : 0;
+            uint32_t fps = (s_b_sent - last_sent) * 5;
             last_sent = s_b_sent;
-            d.setTextColor(fps > 40 ? COL_GOOD : COL_WARN, COL_BG);
+            d.setTextColor(fps > 40 ? COL_ACCENT : COL_WARN, COL_BG);
             d.setCursor(4, BODY_Y + 36);
             d.printf("rate   : %lu/s", (unsigned long)fps);
 
-            /* Live EQ bars pulsing with frame rate. */
-            ui_eq_bars(SCR_W - 70, BODY_Y + 16, 4, 28, COL_BAD);
+            ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 28);
 
             const db_target_t &t = s_b_targets[cur];
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(COL_MAGENTA, COL_BG);
             d.setCursor(4, BODY_Y + 50);
             d.printf("> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
             d.setTextColor(COL_DIM, COL_BG);
@@ -153,9 +135,6 @@ void feat_wifi_deauth_broadcast(void)
                      t.channel,
                      t.bssid[0], t.bssid[1], t.bssid[2],
                      t.bssid[3], t.bssid[4], t.bssid[5]);
-
-            /* Mini radar sweeping over target. */
-            ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, COL_BAD);
 
             ui_draw_status(radio_name(), "NUKE-ALL");
         }

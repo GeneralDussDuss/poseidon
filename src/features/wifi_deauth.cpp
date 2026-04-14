@@ -101,27 +101,38 @@ void feat_wifi_deauth(void)
     xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, nullptr);
 
     ui_clear_body();
-    ui_draw_footer("ESC=stop  SPACE=pause  any=ignored");
-
+    ui_draw_footer("ESC=stop  SPACE=pause");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
-    d.setCursor(4, BODY_Y + 4); d.print(">> DEAUTH <<");
-    d.setTextColor(COL_FG, COL_BG);
-    d.setCursor(4, BODY_Y + 22);
-    d.printf("%02X:%02X:%02X:%02X:%02X:%02X ch%u",
-             s_target[0], s_target[1], s_target[2],
-             s_target[3], s_target[4], s_target[5], s_channel);
 
     uint32_t last = 0;
+    uint32_t last_sent = 0;
     bool paused = false;
+    bool state_changed = true;
     while (true) {
         uint32_t now = millis();
-        if (now - last > 300) {
-            d.fillRect(0, BODY_Y + 50, SCR_W, 40, COL_BG);
-            d.setTextColor(paused ? COL_WARN : COL_GOOD, COL_BG);
-            d.setCursor(4, BODY_Y + 50);
-            d.printf("frames: %lu%s", (unsigned long)s_sent, paused ? " (paused)" : "");
+        if (now - last > 250) {
             last = now;
+            ui_clear_body();
+            ui_dashboard_chrome(">> DEAUTH <<", state_changed);
+            state_changed = false;
+
+            d.setTextColor(COL_FG, COL_BG);
+            d.setCursor(4, BODY_Y + 16);
+            d.printf("%02X:%02X:%02X:%02X:%02X:%02X",
+                     s_target[0], s_target[1], s_target[2],
+                     s_target[3], s_target[4], s_target[5]);
+            d.setTextColor(COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 26); d.printf("channel %u", s_channel);
+
+            uint32_t fps = (s_sent - last_sent) * 4;
+            last_sent = s_sent;
+            d.setTextColor(paused ? COL_WARN : COL_ACCENT, COL_BG);
+            d.setCursor(4, BODY_Y + 40);
+            d.printf("frames: %lu", (unsigned long)s_sent);
+            d.setCursor(4, BODY_Y + 50);
+            d.printf("rate  : %lu/s%s", (unsigned long)fps, paused ? " (PAUSED)" : "");
+
+            ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 36);
             ui_draw_status(radio_name(), paused ? "paused" : "flooding");
         }
         uint16_t k = input_poll();
@@ -129,6 +140,7 @@ void feat_wifi_deauth(void)
         if (k == PK_ESC) { s_running = false; break; }
         if (k == PK_SPACE) {
             paused = !paused;
+            state_changed = true;
             if (paused) { s_running = false; }
             else {
                 s_running = true;
