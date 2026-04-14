@@ -142,7 +142,7 @@ static void run_submenu(const menu_node_t *parent)
     int n = count_children(parent);
 
     ui_draw_status(radio_name(), "");
-    ui_draw_footer("letter=go  ;/.=move  ENTER=select  ESC=back");
+    ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
     draw_menu(parent, cursor);
 
     while (true) {
@@ -150,17 +150,21 @@ static void run_submenu(const menu_node_t *parent)
         if (k == PK_NONE) { delay(10); continue; }
 
         if (k == PK_ESC) return;
-        if (k == PK_UP)    { cursor = (cursor - 1 + n) % n; draw_menu(parent, cursor); continue; }
-        if (k == PK_DOWN)  { cursor = (cursor + 1) % n;     draw_menu(parent, cursor); continue; }
         if (k == PK_ENTER) {
             const menu_node_t *sel = &parent->children[cursor];
             if (sel->action) { sel->action(); }
             else if (sel->children) { run_submenu(sel); }
             ui_draw_status(radio_name(), "");
-            ui_draw_footer("letter=go  ;/.=move  ENTER=select  ESC=back");
+            ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
             draw_menu(parent, cursor);
             continue;
         }
+
+        /* Menu-level nav translation: ; = up, . = down (no FN needed).
+         * These chars also appear in text input — but input_line()
+         * handles those raw, so only menus see these as arrows. */
+        if (k == ';' || k == PK_UP)    { cursor = (cursor - 1 + n) % n; draw_menu(parent, cursor); continue; }
+        if (k == '.' || k == PK_DOWN)  { cursor = (cursor + 1) % n;     draw_menu(parent, cursor); continue; }
 
         /* Letter mnemonic — jump + execute. */
         if (k >= 0x20 && k < 0x7F) {
@@ -173,7 +177,7 @@ static void run_submenu(const menu_node_t *parent)
                     if (ch->action) { ch->action(); }
                     else if (ch->children) { run_submenu(ch); }
                     ui_draw_status(radio_name(), "");
-                    ui_draw_footer("letter=go  ;/.=move  ENTER=select  ESC=back");
+                    ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
                     draw_menu(parent, cursor);
                     break;
                 }

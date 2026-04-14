@@ -198,8 +198,10 @@ void feat_wifi_scan(void)
         if (k == PK_ESC) break;
 
         switch (k) {
-        case PK_UP:    cursor--; if (cursor < 0) cursor = 0; draw_list(cursor); break;
-        case PK_DOWN:  cursor++; draw_list(cursor); break;
+        case ';': case PK_UP:
+            cursor--; if (cursor < 0) cursor = 0; draw_list(cursor); break;
+        case '.': case PK_DOWN:
+            cursor++; draw_list(cursor); break;
         case 'r': case 'R':
             if (!s_scan_running) {
                 xTaskCreate(scan_task, "wifi_scan", 4096, nullptr, 4, nullptr);

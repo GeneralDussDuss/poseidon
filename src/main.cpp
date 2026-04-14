@@ -14,15 +14,7 @@ void setup()
     M5Cardputer.Display.setRotation(1);  /* landscape, keyboard at the bottom */
     ui_init();
 
-    ui_splash();
-    /* Wait for any keypress — gives the display time to settle and
-     * the user a moment to appreciate the drip. */
-    uint32_t until = millis() + 5000;
-    while (millis() < until) {
-        uint16_t k = input_poll();
-        if (k != PK_NONE) break;
-        delay(20);
-    }
+    ui_splash();  /* animates, then waits for a key press internally */
 }
 
 void loop()

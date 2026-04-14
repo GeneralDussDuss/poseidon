@@ -1,13 +1,25 @@
 /*
  * input.cpp — keyboard polling + modal line editor.
  *
- * M5Cardputer.Keyboard.isChange() fires on both press and release.
- * We gate on isPressed() to only emit on the press edge. The M5 driver
- * does its own debouncing, so a single physical tap maps to one event
- * followed by a release with isChange()==true, isPressed()==false.
+ * Model: input_poll() returns one event per key press. Printable chars
+ * come through as their ASCII value. Navigation keys come through as
+ * the raw punctuation char (;, ., ,, /) — the menu layer translates
+ * those into scroll actions. This keeps text entry unambiguous: when
+ * input_line() is active, ';' is ';', not UP.
+ *
+ * Special keys:
+ *   ENTER, BKSP, TAB, SPACE                    — always as PK_*
+ *   FN+backtick, Ctrl+[, Ctrl+C               — all map to PK_ESC
+ *   Arrow-like nav keys                        — returned as their raw
+ *                                                char; layer above decides
  */
 #include "input.h"
 #include "app.h"
+
+/* Last-seen debug state — shown by input_debug_draw(). */
+static uint16_t s_last_key = PK_NONE;
+
+uint16_t input_last_key(void) { return s_last_key; }
 
 uint16_t input_poll(void)
 {
@@ -17,32 +29,31 @@ uint16_t input_poll(void)
 
     auto status = M5Cardputer.Keyboard.keysState();
 
-    /* Control keys first — they take precedence over printable. */
-    if (status.enter) return PK_ENTER;
-    if (status.del)   return PK_BKSP;
-    if (status.tab)   return PK_TAB;
+    /* Control keys take precedence. */
+    if (status.enter) { s_last_key = PK_ENTER; return PK_ENTER; }
+    if (status.del)   { s_last_key = PK_BKSP;  return PK_BKSP;  }
+    if (status.tab)   { s_last_key = PK_TAB;   return PK_TAB;   }
 
-    /* Cardputer has no arrow keys; FN+;/./,// gives us four directions.
-     * FN+` is our ESC (no dedicated ESC key on the 56-key layout). */
+    /* ESC has no dedicated key on the 56-key layout. Accept:
+     *   FN + backtick (top-left combo)
+     *   Ctrl + [
+     *   Ctrl + C   (familiar "cancel") */
     if (status.fn) {
         for (char c : status.word) {
-            switch (c) {
-            case ';': return PK_UP;
-            case '.': return PK_DOWN;
-            case ',': return PK_LEFT;
-            case '/': return PK_RIGHT;
-            case '`': return PK_ESC;
-            }
+            if (c == '`') { s_last_key = PK_ESC; return PK_ESC; }
         }
     }
 
-    if (status.space) return PK_SPACE;
+    if (status.space) { s_last_key = PK_SPACE; return PK_SPACE; }
 
-    /* First printable char goes through. Ctrl+[ → ESC. */
+    /* Any other printable — return raw. */
     if (!status.word.empty()) {
         char c = status.word[0];
-        if (status.ctrl && c == '[') return PK_ESC;
-        if (status.ctrl && c == 'c') return PK_ESC;  /* Ctrl+C = cancel */
+        if (status.ctrl && (c == '[' || c == 'c' || c == 'C')) {
+            s_last_key = PK_ESC;
+            return PK_ESC;
+        }
+        s_last_key = (uint16_t)c;
         return (uint16_t)c;
     }
     return PK_NONE;
@@ -83,6 +94,12 @@ bool input_line(const char *prompt, char *out_buf, size_t out_sz)
         }
         if (k == PK_BKSP) {
             if (len > 0) { len--; out_buf[len] = '\0'; redraw(); }
+            continue;
+        }
+        if (k == PK_SPACE && len + 1 < out_sz) {
+            out_buf[len++] = ' ';
+            out_buf[len]   = '\0';
+            redraw();
             continue;
         }
         if (k >= 0x20 && k < 0x7F && len + 1 < out_sz) {

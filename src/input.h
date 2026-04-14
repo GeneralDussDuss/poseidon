@@ -28,5 +28,8 @@ enum : uint16_t {
 /* One event per key press (not repeat). Returns PK_NONE if no event. */
 uint16_t input_poll(void);
 
+/* Last key code returned (for debug overlays / diagnostics). */
+uint16_t input_last_key(void);
+
 /* Modal line editor. Returns true on ENTER, false on ESC. */
 bool input_line(const char *prompt, char *out_buf, size_t out_sz);

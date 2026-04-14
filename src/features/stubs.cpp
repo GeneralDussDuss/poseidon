@@ -39,7 +39,6 @@ static void stub_screen(const char *title, const char *detail)
 
 void feat_wifi_portal(void)      { radio_switch(RADIO_WIFI); stub_screen("EVIL PORTAL", "captive portal phishing"); }
 void feat_wifi_beacon_spam(void) { radio_switch(RADIO_WIFI); stub_screen("BEACON SPAM", "broadcast fake SSIDs"); }
-void feat_ble_scan(void)         { radio_switch(RADIO_BLE);  stub_screen("BLE SCAN", "passive scan + type detect"); }
 void feat_ble_spam(void)         { radio_switch(RADIO_BLE);  stub_screen("BLE SPAM", "Apple/Samsung/Windows popups"); }
 void feat_ble_hid(void)          { radio_switch(RADIO_BLE);  stub_screen("BAD-KB", "BLE HID keyboard attack"); }
 void feat_ir_tvbgone(void)       { stub_screen("TV-B-GONE", "kill nearby TVs"); }
