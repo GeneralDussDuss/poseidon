@@ -59,3 +59,20 @@ void ui_matrix_rain(int x, int y, int w, int h, uint16_t color);
  * arcs at (cx, cy). Ported from Evil-Cardputer's NTLM waiting anim.
  * Call in a refresh loop. Caller clears the region. */
 void ui_waves(int cx, int cy, int max_radius, uint16_t base_color);
+
+/* Radar sweep — rotating line with phosphor afterglow + dot blips.
+ * Perfect for scan-in-progress screens. Call in refresh loop. */
+void ui_radar(int cx, int cy, int radius, uint16_t color);
+
+/* Horizontal hex data stream — fake packet-capture scrolling readout.
+ * Draws 3 rows of random 2-digit hex pairs flowing right-to-left at
+ * varying speeds. Use on capture / attack screens. */
+void ui_hexstream(int x, int y, int w, int h, uint16_t color);
+
+/* Glitch block effect — random horizontal stripes in glitch colors.
+ * Use on DoS/flood screens for that hacker-chaos vibe. */
+void ui_glitch(int x, int y, int w, int h);
+
+/* Signal bars — 5 animated EQ-style bouncing bars. Good for any
+ * active-transmission indicator. Call in refresh loop. */
+void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color);

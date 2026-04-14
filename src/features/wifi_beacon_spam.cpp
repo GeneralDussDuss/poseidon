@@ -176,6 +176,8 @@ void feat_wifi_beacon_spam(void)
             d.setCursor(4, BODY_Y + 32); d.printf("sent:  %lu", (unsigned long)s_sent);
             ui_draw_status(radio_name(), "spam");
         }
+        /* Hex packet-stream readout across the bottom. */
+        ui_hexstream(4, BODY_Y + BODY_H - 30, SCR_W - 8, 28, 0xF81F);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

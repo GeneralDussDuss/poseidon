@@ -326,6 +326,161 @@ void ui_waves(int cx, int cy, int max_radius, uint16_t base_color)
     }
 }
 
+/* Color blend used by radar + others. */
+static uint16_t blend565(uint16_t a, uint16_t b, uint8_t t)
+{
+    uint8_t ar = (a >> 11) & 0x1F, ag = (a >> 5) & 0x3F, ab = a & 0x1F;
+    uint8_t br = (b >> 11) & 0x1F, bg = (b >> 5) & 0x3F, bb = b & 0x1F;
+    uint8_t r = (ar * (255 - t) + br * t) / 255;
+    uint8_t g = (ag * (255 - t) + bg * t) / 255;
+    uint8_t bl = (ab * (255 - t) + bb * t) / 255;
+    return (r << 11) | (g << 5) | bl;
+}
+
+/* ---- radar sweep ----
+ * Rotating line with phosphor fade, outer grid, and occasional contact
+ * blips that fade over time. */
+struct radar_blip_t { float a; int r; uint32_t when; };
+#define RADAR_BLIPS 6
+static radar_blip_t s_blips[RADAR_BLIPS] = {0};
+
+void ui_radar(int cx, int cy, int radius, uint16_t color)
+{
+    auto &d = M5Cardputer.Display;
+    static float s_angle = 0;
+    s_angle += 0.12f;
+    if (s_angle > 6.28318f) s_angle -= 6.28318f;
+
+    /* Outer ring + cross. */
+    d.drawCircle(cx, cy, radius, 0x0420);
+    d.drawCircle(cx, cy, radius * 2 / 3, 0x0320);
+    d.drawCircle(cx, cy, radius / 3, 0x0220);
+    d.drawFastHLine(cx - radius, cy, radius * 2, 0x0420);
+    d.drawFastVLine(cx, cy - radius, radius * 2, 0x0420);
+
+    /* Fading afterglow sweep — 30 degrees trailing. */
+    for (int i = 0; i < 15; ++i) {
+        float a = s_angle - i * 0.04f;
+        int brightness = 255 - i * 17;
+        uint16_t c = blend565(0x0000, color, (uint8_t)brightness);
+        for (int r = 0; r < radius; r += 2) {
+            int x = cx + (int)(cosf(a) * r);
+            int y = cy + (int)(sinf(a) * r);
+            d.drawPixel(x, y, c);
+        }
+    }
+
+    /* Leading edge — bright white. */
+    for (int r = 0; r < radius; ++r) {
+        int x = cx + (int)(cosf(s_angle) * r);
+        int y = cy + (int)(sinf(s_angle) * r);
+        d.drawPixel(x, y, 0xFFFF);
+    }
+
+    /* Random blips. */
+    if ((esp_random() & 0xFF) < 12) {
+        int slot = esp_random() % RADAR_BLIPS;
+        s_blips[slot].a = s_angle;
+        s_blips[slot].r = 6 + (esp_random() % (radius - 8));
+        s_blips[slot].when = millis();
+    }
+    for (int i = 0; i < RADAR_BLIPS; ++i) {
+        uint32_t age = millis() - s_blips[i].when;
+        if (age > 3000 || s_blips[i].when == 0) continue;
+        uint8_t alpha = 255 - (age * 85 / 1000);
+        int bx = cx + (int)(cosf(s_blips[i].a) * s_blips[i].r);
+        int by = cy + (int)(sinf(s_blips[i].a) * s_blips[i].r);
+        uint16_t bc = blend565(0x0000, 0xFFE0, alpha);
+        d.fillCircle(bx, by, 2, bc);
+    }
+}
+
+/* ---- hex data stream ---- */
+void ui_hexstream(int x, int y, int w, int h, uint16_t color)
+{
+    auto &d = M5Cardputer.Display;
+    static uint32_t s_phase = 0;
+    s_phase += 2;
+
+    /* Three rows, each scrolls at a different speed. */
+    int rows = h / 10;
+    if (rows > 5) rows = 5;
+    for (int r = 0; r < rows; ++r) {
+        int row_y = y + r * 10;
+        int speed = 1 + (r & 1);
+        uint32_t off = (s_phase * speed) / 3;
+        /* Clear this row. */
+        d.fillRect(x, row_y, w, 10, 0x0000);
+        /* Draw hex pairs scrolling from right. */
+        for (int col = 0; col < w / 18 + 2; ++col) {
+            uint32_t seed = (r * 7919) ^ (col + off);
+            seed = seed * 2654435761u;
+            uint8_t hi = (seed >> 8) & 0xFF;
+            int xp = x + w - (int)((col * 18 + (s_phase % 18) * speed) % (w + 18));
+            if (xp < x - 12 || xp > x + w) continue;
+            char buf[3];
+            snprintf(buf, sizeof(buf), "%02X", hi);
+            /* Occasional "fresh" byte highlights bright. */
+            uint16_t col_col = (col == 0) ? 0xFFFF : color;
+            d.setTextColor(col_col, 0x0000);
+            d.setCursor(xp, row_y + 1);
+            d.print(buf);
+        }
+    }
+}
+
+/* ---- glitch blocks ---- */
+void ui_glitch(int x, int y, int w, int h)
+{
+    auto &d = M5Cardputer.Display;
+    static uint32_t s_last = 0;
+    /* Occasional bursts only. */
+    if ((esp_random() & 0xFF) > 40) {
+        /* No glitch this frame — clear just in case of residue. */
+        if (millis() - s_last > 100) return;
+    }
+    s_last = millis();
+    static const uint16_t glitch_cols[] = {
+        0xF81F, 0x07FF, 0xFFE0, 0xF800, 0x07E0, 0x001F, 0xFFFF
+    };
+    for (int i = 0; i < 3; ++i) {
+        int sy = y + (esp_random() % h);
+        int sh = 1 + (esp_random() % 4);
+        int sx = x + (esp_random() % (w / 2));
+        int sw = (esp_random() % (w - (sx - x)));
+        uint16_t c = glitch_cols[esp_random() % (sizeof(glitch_cols)/sizeof(*glitch_cols))];
+        d.fillRect(sx, sy, sw, sh, c);
+    }
+}
+
+/* ---- EQ bars ---- */
+void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color)
+{
+    auto &d = M5Cardputer.Display;
+    /* 5 bars, each with a smoothed random target. */
+    static uint8_t level[5] = { 4, 7, 3, 8, 5 };
+    static uint8_t target[5] = { 8, 3, 9, 4, 7 };
+    static uint32_t s_last = 0;
+    if (millis() - s_last > 60) {
+        s_last = millis();
+        for (int i = 0; i < 5; ++i) {
+            if (level[i] < target[i]) level[i]++;
+            else if (level[i] > target[i]) level[i]--;
+            if (level[i] == target[i]) target[i] = esp_random() % 10;
+        }
+    }
+    for (int i = 0; i < 5; ++i) {
+        int bh = level[i] * bar_h_max / 9;
+        int bx = x + i * (bar_w + 2);
+        /* Bar trail (faded max mark). */
+        d.drawFastHLine(bx, y + bar_h_max - bh - 1, bar_w, 0x3003);
+        /* Clear below. */
+        d.fillRect(bx, y + bar_h_max - bh, bar_w, bh, color);
+        /* Empty above. */
+        d.fillRect(bx, y, bar_w, bar_h_max - bh, 0x0000);
+    }
+}
+
 /* ---- matrix rain ----
  * Column state: each column has a "head" y-position and speed.
  * Each render tick:

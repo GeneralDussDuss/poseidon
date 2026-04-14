@@ -121,8 +121,9 @@ void feat_ble_flood(void)
             d.printf("loops:    %lu", (unsigned long)s_flood_ticks);
             ui_draw_status(radio_name(), "flood");
         }
-        /* Matrix rain in right gutter while attacking. */
+        /* Matrix rain in right gutter + glitch blocks over stats band. */
         ui_matrix_rain(160, BODY_Y + 18, SCR_W - 160, BODY_H - 20, 0xF81F);
+        ui_glitch(0, BODY_Y + 40, 150, 40);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }
         if (k == PK_ESC) break;

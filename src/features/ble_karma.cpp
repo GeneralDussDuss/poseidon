@@ -122,8 +122,9 @@ void feat_ble_karma(void)
             d.setTextColor(COL_DIM, COL_BG);
             d.setCursor(4, BODY_Y + 76); d.print("rotating identity every 2s");
         }
-        /* Magenta matrix rain in the gutter. */
+        /* Magenta matrix rain + EQ pulse bars below the stats. */
         ui_matrix_rain(160, BODY_Y + 18, SCR_W - 160, BODY_H - 20, 0xF81F);
+        ui_eq_bars(4, BODY_Y + BODY_H - 22, 10, 18, 0xF81F);
 
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }

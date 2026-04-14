@@ -234,6 +234,8 @@ void feat_ble_scan(void)
             ui_draw_status(radio_name(), s_scanning ? "scan..." : "done");
             draw_list(cursor);
         }
+        /* Tiny radar sweep in the top-right corner while scanning. */
+        if (s_scanning) ui_radar(SCR_W - 18, BODY_Y + 10, 8, 0x07FF);
 
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }

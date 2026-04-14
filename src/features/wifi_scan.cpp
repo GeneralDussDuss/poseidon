@@ -203,6 +203,8 @@ void feat_wifi_scan(void)
             draw_list(cursor);
             last_redraw = millis();
         }
+        /* Radar sweep in top-right while scanning. */
+        if (s_scan_running) ui_radar(SCR_W - 16, BODY_Y + 8, 7, 0x07FF);
 
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
