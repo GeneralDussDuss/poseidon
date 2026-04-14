@@ -104,12 +104,19 @@ void feat_wifi_clients(void)
     memcpy(s_target, g_last_selected_ap.bssid, 6);
     s_target_ch = g_last_selected_ap.channel ? g_last_selected_ap.channel : 1;
 
-    s_count = 0;
+    static int s_saved_cursor = 0;
+    static uint8_t s_saved_for[6] = {0};
+    /* Only clear the client list if we're looking at a different AP. */
+    if (memcmp(s_saved_for, s_target, 6) != 0) {
+        s_count = 0;
+        s_saved_cursor = 0;
+        memcpy(s_saved_for, s_target, 6);
+    }
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(client_cb);
     esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
 
-    int cursor = 0;
+    int cursor = s_saved_cursor;
     ui_draw_footer(";/.=move  D=deauth one  `=back");
     uint32_t last = 0;
     while (true) {
@@ -189,5 +196,5 @@ void feat_wifi_clients(void)
     }
 
     esp_wifi_set_promiscuous(false);
-    g_last_selected_valid = false;
+    s_saved_cursor = cursor;
 }

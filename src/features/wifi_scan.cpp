@@ -183,18 +183,22 @@ static void show_details(const ap_t &a)
 
 void feat_wifi_scan(void)
 {
+    static int s_saved_cursor = 0;     /* remembered across re-entries */
+    static bool s_have_results = false; /* skip re-scan if last scan still fresh */
     radio_switch(RADIO_WIFI);
-    s_ap_count = 0;
     s_filter[0] = '\0';
     s_filter_open_only = false;
 
-    ui_draw_status(radio_name(), "scanning...");
+    ui_draw_status(radio_name(), s_have_results ? "cached" : "scanning...");
     ui_draw_footer("/=filter  O=open  ENTER=info  R=rescan  ESC=back");
-    draw_list(0);
+    draw_list(s_saved_cursor);
 
-    xTaskCreate(scan_task, "wifi_scan", 4096, nullptr, 4, nullptr);
+    if (!s_have_results) {
+        s_ap_count = 0;
+        xTaskCreate(scan_task, "wifi_scan", 4096, nullptr, 4, nullptr);
+    }
 
-    int cursor = 0;
+    int cursor = s_saved_cursor;
     uint32_t last_redraw = 0;
     while (true) {
         /* Keep status fresh while scan runs. */
@@ -206,9 +210,10 @@ void feat_wifi_scan(void)
         /* Radar sweep in top-right while scanning. */
         if (s_scan_running) ui_radar(SCR_W - 16, BODY_Y + 8, 7, 0x07FF);
 
+        if (s_scan_done) { s_have_results = true; s_scan_done = false; }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
-        if (k == PK_ESC) break;
+        if (k == PK_ESC) { s_saved_cursor = cursor; break; }
 
         switch (k) {
         case ';': case PK_UP:
@@ -217,6 +222,8 @@ void feat_wifi_scan(void)
             cursor++; draw_list(cursor); break;
         case 'r': case 'R':
             if (!s_scan_running) {
+                s_ap_count = 0;
+                s_have_results = false;
                 xTaskCreate(scan_task, "wifi_scan", 4096, nullptr, 4, nullptr);
             }
             break;

@@ -8,3 +8,9 @@
 *.bin
 *.elf
 build/
+c5_node/_build.bat
+c5_node/_install.bat
+c5_node/sdkconfig
+c5_node/sdkconfig.old
+c5_node/managed_components/
+c5_node/dependencies.lock

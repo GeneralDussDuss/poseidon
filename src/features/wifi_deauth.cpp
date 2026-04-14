@@ -94,7 +94,6 @@ void feat_wifi_deauth(void)
 
     if (!collect_target()) {
         esp_wifi_set_promiscuous(false);
-        g_last_selected_valid = false;
         return;
     }
 
@@ -141,5 +140,4 @@ void feat_wifi_deauth(void)
     s_running = false;
     delay(150);
     esp_wifi_set_promiscuous(false);
-    g_last_selected_valid = false;
 }

@@ -74,3 +74,8 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint16_t duration_ms;
 } posei_scan_req_t;
+
+void proto_init_msg(posei_msg_t *m, uint8_t type);
+void proto_send_broadcast(const posei_msg_t *m);
+void proto_send_to(const uint8_t mac[6], const posei_msg_t *m);
+int  proto_validate(const uint8_t *data, int len, posei_msg_t *out);

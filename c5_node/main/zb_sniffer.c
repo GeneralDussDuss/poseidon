@@ -10,6 +10,7 @@
 #include "esp_ieee802154.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>

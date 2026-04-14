@@ -7,7 +7,10 @@
 #include "proto.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <string.h>
+#include <stdlib.h>
 
 static const char *TAG = "wifi_scanner";
 
