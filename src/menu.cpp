@@ -36,6 +36,7 @@ extern void feat_ble_clone(void);
 extern void feat_ble_finder(void);
 extern void feat_ble_gatt(void);
 extern void feat_ble_flood(void);
+extern void feat_ble_karma(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
@@ -94,6 +95,7 @@ static const menu_node_t MENU_BLE[] = {
     { 'c', "Clone",     "Rebroadcast last scanned MAC",  nullptr, feat_ble_clone },
     { 'g', "GATT",      "Connect + enumerate + r/w",     nullptr, feat_ble_gatt },
     { 'x', "Flood",     "DoS connection storm → target", nullptr, feat_ble_flood },
+    { 'k', "Karma",     "Rotate identity, lure pairings", nullptr, feat_ble_karma },
     { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -175,21 +177,23 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     for (const menu_node_t *c = parent->children; c && c->hotkey; ++c, ++i) {
         int y = BODY_Y + 18 + i * 13;
         bool sel = (i == cursor);
-        /* Rounded-rect highlight for the selected row. */
+        /* Selected: deep magenta fill with cyan outline. */
+        uint16_t sel_bg = 0x3007;  /* deep cyan-purple */
         if (sel) {
-            d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0x18C7);
-            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, COL_ACCENT);
+            d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, sel_bg);
+            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0xF81F);  /* magenta outline */
+            d.drawRoundRect(3, y,     SCR_W - 6, 10, 2, 0x07FF);  /* cyan inner */
         }
-        uint16_t fg = sel ? COL_ACCENT : COL_FG;
-        /* Hotkey in accent color, always. */
-        d.setTextColor(sel ? COL_WARN : COL_ACCENT, sel ? 0x18C7 : COL_BG);
+        uint16_t line_bg = sel ? sel_bg : COL_BG;
+        /* Hotkey [X] — magenta when selected, cyan otherwise. */
+        d.setTextColor(sel ? 0xF81F : COL_ACCENT, line_bg);
         d.setCursor(6, y + 1);
         d.printf("[%c]", toupper(c->hotkey));
-        d.setTextColor(fg, sel ? 0x18C7 : COL_BG);
+        d.setTextColor(sel ? 0xFFFF : COL_FG, line_bg);
         d.setCursor(30, y + 1);
         d.print(c->label);
-        /* Chevron on submenus, dot on actions. */
-        d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
+        /* Chevron / dot indicator. */
+        d.setTextColor(sel ? 0xF81F : COL_DIM, line_bg);
         d.setCursor(SCR_W - 12, y + 1);
         d.print(c->action ? "." : ">");
     }

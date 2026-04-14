@@ -87,12 +87,14 @@ void feat_ble_flood(void)
     while (true) {
         if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 40, SCR_W, 30, COL_BG);
+            d.fillRect(0, BODY_Y + 40, 150, 30, COL_BG);
             d.setTextColor(COL_GOOD, COL_BG);
             d.setCursor(4, BODY_Y + 40);
             d.printf("attempts: %lu", (unsigned long)s_flood_count);
             ui_draw_status(radio_name(), "flood");
         }
+        /* Matrix rain in right gutter while attacking. */
+        ui_matrix_rain(160, BODY_Y + 18, SCR_W - 160, BODY_H - 20, 0xF81F);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }
         if (k == PK_ESC) break;
