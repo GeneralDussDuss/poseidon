@@ -40,10 +40,12 @@ static void broad_task(void *)
         esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
         memcpy(s_b_frame + 10, t.bssid, 6);
         memcpy(s_b_frame + 16, t.bssid, 6);
-        for (int i = 0; i < 12 && s_b_running; ++i) {
+        /* Deeper burst per target → fewer rotations per second → calmer
+         * UI while still saturating kick-frames per AP. */
+        for (int i = 0; i < 32 && s_b_running; ++i) {
             esp_wifi_80211_tx(WIFI_IF_STA, s_b_frame, sizeof(s_b_frame), false);
             s_b_sent++;
-            delay(4);
+            delay(6);
         }
         s_b_cursor++;
     }

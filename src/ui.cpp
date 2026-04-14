@@ -483,20 +483,43 @@ void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color)
 
 /* ---- magenta dashboard chrome ---- */
 
-static uint32_t s_dash_flash_until = 0;
+static uint32_t s_dash_flash_start = 0;
+static uint32_t s_dash_last_flash  = 0;
+
+/* Blend 5:6:5 color toward black by alpha (0..31). */
+static inline uint16_t dim565(uint16_t c, uint8_t alpha)
+{
+    uint8_t r = (c >> 11) & 0x1F;
+    uint8_t g = (c >>  5) & 0x3F;
+    uint8_t b =  c        & 0x1F;
+    r = (r * alpha) >> 5;
+    g = (g * alpha) >> 5;
+    b = (b * alpha) >> 5;
+    return (r << 11) | (g << 5) | b;
+}
 
 void ui_dashboard_chrome(const char *title, bool flash_now)
 {
     auto &d = M5Cardputer.Display;
-    if (flash_now) s_dash_flash_until = millis() + 60;
+    uint32_t now = millis();
+
+    /* Rate-limit flashes: ignore new triggers within 900ms of the
+     * previous one so the border doesn't strobe every frame. */
+    if (flash_now && (now - s_dash_last_flash) > 900) {
+        s_dash_flash_start = now;
+        s_dash_last_flash  = now;
+    }
 
     /* Hex storm backdrop. */
     ui_hexstream(0, BODY_Y + 4, SCR_W, BODY_H - 8, 0x4809);
 
-    /* Border strobe on flash. */
-    if (millis() < s_dash_flash_until) {
-        d.drawRect(0, BODY_Y, SCR_W, BODY_H, COL_MAGENTA);
-        d.drawRect(1, BODY_Y + 1, SCR_W - 2, BODY_H - 2, COL_MAGENTA);
+    /* Smooth fade: peak at t=0, fades to nothing over 500 ms. */
+    uint32_t dt = now - s_dash_flash_start;
+    if (dt < 500) {
+        /* alpha 31 → 0 linearly. */
+        uint8_t alpha = 31 - (dt * 31) / 500;
+        uint16_t c = dim565(COL_MAGENTA, alpha);
+        d.drawRect(0, BODY_Y, SCR_W, BODY_H, c);
     }
 
     /* Title bar. */
