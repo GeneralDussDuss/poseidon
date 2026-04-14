@@ -59,6 +59,8 @@ extern void feat_badusb(void);
 extern void feat_net_portscan(void);
 extern void feat_net_ping(void);
 extern void feat_net_dns(void);
+extern void feat_net_responder(void);
+extern void feat_net_ssdp(void);
 extern void feat_clock(void);
 
 /* ---- menu tree ---- */
@@ -196,6 +198,16 @@ static const menu_node_t MENU_NET[] = {
       "Resolve a hostname to its A record. Requires STA connection." },
     { 'c', "Connect", "Join saved WiFi network", nullptr, feat_wifi_connect,
       "Same as WiFi > Connect — saves credentials, joins a network as STA." },
+    { 'r', "Responder", "Poison LLMNR/NBT-NS/mDNS", nullptr, feat_net_responder,
+      "Classic pentest credential-capture trick. When DNS fails on a LAN, "
+      "Windows/macOS/Linux fall back to LLMNR, NBT-NS, and mDNS — we answer "
+      "every query with our IP. Targets that trust the reply send us an NTLM "
+      "auth challenge which we log to /poseidon/ntlm.log for hashcat mode 5600." },
+    { 'u', "UPnP scan", "Discover LAN UPnP devices", nullptr, feat_net_ssdp,
+      "Sends SSDP M-SEARCH to 239.255.255.250:1900 and collects responses. "
+      "Fetches each device's XML description to pull friendlyName + modelName. "
+      "Great for mapping internal IoT: routers, printers, smart TVs, cameras, "
+      "NAS, Sonos, Chromecasts. Saves to /poseidon/ssdp.csv." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
