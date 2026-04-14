@@ -8,6 +8,7 @@
 #include <math.h>
 #include <esp_system.h>
 #include <esp_random.h>
+#include <esp_heap_caps.h>
 
 /* Palette refinements — deeper blacks, sharper accents. */
 #define COL_STATUS_BG  0x0841  /* very dark blue-green */
@@ -142,26 +143,32 @@ void ui_body_println(int row, uint16_t color, const char *fmt, ...)
 void ui_slide_transition(ui_draw_fn build_new, int direction)
 {
     auto &d = M5Cardputer.Display;
-    if (!build_new) { /* nothing to do */ return; }
+    if (!build_new) return;
 
-    /* Capture the current body area into a scratch buffer. */
-    static uint16_t old_body[SCR_W * BODY_H];
+    /* Heap-alloc body snapshots for the duration of the transition.
+     * Prefer PSRAM so we don't pressure the small internal SRAM that
+     * WiFi/BLE need. ~51 KB each. If PSRAM alloc fails, skip the
+     * transition rather than panicking — caller's build_new() has
+     * already painted the target frame. */
+    const size_t body_px = (size_t)SCR_W * BODY_H;
+    uint16_t *old_body = (uint16_t *)heap_caps_malloc(body_px * 2, MALLOC_CAP_SPIRAM);
+    uint16_t *new_body = (uint16_t *)heap_caps_malloc(body_px * 2, MALLOC_CAP_SPIRAM);
+    if (!old_body || !new_body) {
+        free(old_body); free(new_body);
+        ui_clear_body();
+        build_new();
+        return;
+    }
+
     d.readRect(0, BODY_Y, SCR_W, BODY_H, old_body);
-
-    /* Let the caller paint the new body into the real framebuffer. */
     ui_clear_body();
     build_new();
-
-    /* Snapshot the new body too so we can blit mixed strips. */
-    static uint16_t new_body[SCR_W * BODY_H];
     d.readRect(0, BODY_Y, SCR_W, BODY_H, new_body);
 
-    /* 8-step slide. direction=+1 pushes old left, new in from right. */
     const int steps = 8;
     for (int s = 1; s <= steps; ++s) {
         int off = s * SCR_W / steps;
         if (direction > 0) {
-            /* Old slides left by `off`; new comes in at x = SCR_W - off. */
             d.pushImage(-off,        BODY_Y, SCR_W, BODY_H, old_body);
             d.pushImage(SCR_W - off, BODY_Y, SCR_W, BODY_H, new_body);
         } else {
@@ -170,8 +177,10 @@ void ui_slide_transition(ui_draw_fn build_new, int direction)
         }
         delay(18);
     }
-    /* Settle on the final frame. */
     d.pushImage(0, BODY_Y, SCR_W, BODY_H, new_body);
+
+    free(old_body);
+    free(new_body);
 }
 
 /* Spinner: rotating trident silhouette. Drawn as a small 3-tine shape
