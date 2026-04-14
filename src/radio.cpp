@@ -1,0 +1,60 @@
+/*
+ * radio.cpp — lazy domain switcher.
+ */
+#include "radio.h"
+#include <WiFi.h>
+#include <esp_wifi.h>
+#include <esp_bt.h>
+#include <NimBLEDevice.h>
+
+static radio_domain_t s_active = RADIO_NONE;
+
+const char *radio_name(void)
+{
+    switch (s_active) {
+    case RADIO_WIFI: return "wifi";
+    case RADIO_BLE:  return "ble";
+    default:         return "idle";
+    }
+}
+
+radio_domain_t radio_current(void) { return s_active; }
+
+static void teardown_current(void)
+{
+    switch (s_active) {
+    case RADIO_WIFI:
+        WiFi.disconnect(true, true);
+        WiFi.mode(WIFI_OFF);
+        esp_wifi_stop();
+        esp_wifi_deinit();
+        break;
+    case RADIO_BLE:
+        NimBLEDevice::deinit(true);
+        break;
+    default: break;
+    }
+    s_active = RADIO_NONE;
+    delay(100);
+}
+
+bool radio_switch(radio_domain_t target)
+{
+    if (target == s_active) return true;
+    teardown_current();
+    if (target == RADIO_NONE) return true;
+
+    switch (target) {
+    case RADIO_WIFI:
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect(true, true);
+        break;
+    case RADIO_BLE:
+        NimBLEDevice::init("POSEIDON");
+        NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+        break;
+    default: break;
+    }
+    s_active = target;
+    return true;
+}
