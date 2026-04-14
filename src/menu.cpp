@@ -302,7 +302,7 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     ui_clear_body();
     auto &d = M5Cardputer.Display;
 
-    /* Title: bold accent + underline bar. */
+    /* Title with count + scroll indicator. */
     d.setTextColor(COL_ACCENT, COL_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("%s", parent->label);
@@ -310,36 +310,67 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     d.drawFastHLine(4, BODY_Y + 12, tw + 6, COL_ACCENT);
 
     int n = count_children(parent);
-    int i = 0;
-    for (const menu_node_t *c = parent->children; c && c->hotkey; ++c, ++i) {
-        int y = BODY_Y + 18 + i * 13;
+
+    /* Windowed list: first row at BODY_Y + 18, 13px per row, 7 rows fit. */
+    const int rows       = 7;
+    const int row_h      = 13;
+    const int first_y    = BODY_Y + 18;
+    int first = cursor - rows / 2;
+    if (first < 0) first = 0;
+    if (first + rows > n) first = max(0, n - rows);
+
+    /* Position indicator in the title bar (e.g., "3/13"). */
+    if (n > rows) {
+        char pos[12];
+        snprintf(pos, sizeof(pos), "%d/%d", cursor + 1, n);
+        int pw = d.textWidth(pos);
+        d.setTextColor(COL_DIM, COL_BG);
+        d.setCursor(SCR_W - pw - 4, BODY_Y + 2);
+        d.print(pos);
+    }
+
+    for (int r = 0; r < rows && first + r < n; ++r) {
+        int i = first + r;
+        const menu_node_t *c = &parent->children[i];
+        int y = first_y + r * row_h;
         bool sel = (i == cursor);
-        /* Selected: deep magenta fill with cyan outline. */
         uint16_t sel_bg = 0x3007;  /* deep cyan-purple */
         if (sel) {
             d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, sel_bg);
-            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0xF81F);  /* magenta outline */
-            d.drawRoundRect(3, y,     SCR_W - 6, 10, 2, 0x07FF);  /* cyan inner */
+            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0xF81F);
+            d.drawRoundRect(3, y,     SCR_W - 6, 10, 2, 0x07FF);
         }
         uint16_t line_bg = sel ? sel_bg : COL_BG;
-        /* Hotkey [X] — magenta when selected, cyan otherwise. */
         d.setTextColor(sel ? 0xF81F : COL_ACCENT, line_bg);
         d.setCursor(6, y + 1);
         d.printf("[%c]", toupper(c->hotkey));
         d.setTextColor(sel ? 0xFFFF : COL_FG, line_bg);
         d.setCursor(30, y + 1);
         d.print(c->label);
-        /* Chevron / dot indicator. */
         d.setTextColor(sel ? 0xF81F : COL_DIM, line_bg);
         d.setCursor(SCR_W - 12, y + 1);
         d.print(c->action ? "." : ">");
     }
 
-    /* Hint strip for the selected item. */
+    /* Scroll arrows on the right edge when there's more above/below. */
+    if (first > 0) {
+        d.fillTriangle(SCR_W - 7, first_y - 3,
+                       SCR_W - 3, first_y - 3,
+                       SCR_W - 5, first_y - 6, 0xF81F);
+    }
+    if (first + rows < n) {
+        int ay = first_y + rows * row_h - 2;
+        d.fillTriangle(SCR_W - 7, ay,
+                       SCR_W - 3, ay,
+                       SCR_W - 5, ay + 3, 0xF81F);
+    }
+
+    /* Hint strip for the selected item, below the visible rows. */
     if (cursor >= 0 && cursor < n) {
         const menu_node_t *sel = &parent->children[cursor];
         if (sel->hint) {
-            int y = BODY_Y + 18 + n * 13 + 4;
+            int visible = (n < rows) ? n : rows;
+            int y = first_y + visible * row_h + 2;
             if (y < FOOTER_Y - 10) {
                 d.setTextColor(COL_DIM, COL_BG);
                 d.setCursor(4, y);
@@ -400,13 +431,26 @@ static void show_info(const menu_node_t *item)
     }
 }
 
+/* Slide-transition trampoline. ui_slide_transition takes a void(void)
+ * painter; we stash parent+cursor here so draw_menu has its args. */
+static const menu_node_t *s_slide_parent;
+static int                s_slide_cursor;
+static void slide_paint(void) { draw_menu(s_slide_parent, s_slide_cursor); }
+static void slide_to(const menu_node_t *p, int c, int dir) {
+    s_slide_parent = p;
+    s_slide_cursor = c;
+    ui_slide_transition(slide_paint, dir);
+}
+
+#define FOOTER_HINTS "letter=go  ;/.=move  ENTER=sel  ==info  `=back"
+
 static void run_submenu(const menu_node_t *parent)
 {
     int cursor = 0;
     int n = count_children(parent);
 
     ui_draw_status(radio_name(), "");
-    ui_draw_footer("letter=go  ;/.=move  ENTER=sel  ?=info  `=back");
+    ui_draw_footer(FOOTER_HINTS);
     draw_menu(parent, cursor);
 
     while (true) {
@@ -414,25 +458,31 @@ static void run_submenu(const menu_node_t *parent)
         if (k == PK_NONE) { delay(10); continue; }
 
         if (k == PK_ESC) return;
-        if (k == '?') {
+        if (k == '=' || k == '?') {
             show_info(&parent->children[cursor]);
             draw_menu(parent, cursor);
-            ui_draw_footer("letter=go  ;/.=move  ENTER=sel  ?=info  `=back");
+            ui_draw_footer(FOOTER_HINTS);
             continue;
         }
         if (k == PK_ENTER) {
             const menu_node_t *sel = &parent->children[cursor];
-            if (sel->action) { sel->action(); }
-            else if (sel->children) { run_submenu(sel); }
-            ui_draw_status(radio_name(), "");
-            ui_draw_footer("letter=go  ;/.=move  ENTER=sel  ?=info  `=back");
-            draw_menu(parent, cursor);
+            if (sel->action) {
+                sel->action();
+                ui_draw_status(radio_name(), "");
+                ui_draw_footer(FOOTER_HINTS);
+                draw_menu(parent, cursor);
+            } else if (sel->children) {
+                /* Slide into the child submenu. */
+                slide_to(sel, 0, +1);
+                run_submenu(sel);
+                /* Slide back to parent after child returns. */
+                ui_draw_status(radio_name(), "");
+                ui_draw_footer(FOOTER_HINTS);
+                slide_to(parent, cursor, -1);
+            }
             continue;
         }
 
-        /* Menu-level nav translation: ; = up, . = down (no FN needed).
-         * These chars also appear in text input — but input_line()
-         * handles those raw, so only menus see these as arrows. */
         if (k == ';' || k == PK_UP)    { cursor = (cursor - 1 + n) % n; draw_menu(parent, cursor); continue; }
         if (k == '.' || k == PK_DOWN)  { cursor = (cursor + 1) % n;     draw_menu(parent, cursor); continue; }
 
@@ -444,11 +494,18 @@ static void run_submenu(const menu_node_t *parent)
                 if (ch->hotkey == c) {
                     cursor = i;
                     draw_menu(parent, cursor);
-                    if (ch->action) { ch->action(); }
-                    else if (ch->children) { run_submenu(ch); }
-                    ui_draw_status(radio_name(), "");
-                    ui_draw_footer("letter=go  ;/.=move  ENTER=sel  ?=info  `=back");
-                    draw_menu(parent, cursor);
+                    if (ch->action) {
+                        ch->action();
+                        ui_draw_status(radio_name(), "");
+                        ui_draw_footer(FOOTER_HINTS);
+                        draw_menu(parent, cursor);
+                    } else if (ch->children) {
+                        slide_to(ch, 0, +1);
+                        run_submenu(ch);
+                        ui_draw_status(radio_name(), "");
+                        ui_draw_footer(FOOTER_HINTS);
+                        slide_to(parent, cursor, -1);
+                    }
                     break;
                 }
             }
