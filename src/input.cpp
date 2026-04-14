@@ -34,21 +34,14 @@ uint16_t input_poll(void)
     if (status.del)   { s_last_key = PK_BKSP;  return PK_BKSP;  }
     if (status.tab)   { s_last_key = PK_TAB;   return PK_TAB;   }
 
-    /* ESC has no dedicated key on the 56-key layout. Accept:
-     *   FN + backtick (top-left combo)
-     *   Ctrl + [
-     *   Ctrl + C   (familiar "cancel") */
-    if (status.fn) {
-        for (char c : status.word) {
-            if (c == '`') { s_last_key = PK_ESC; return PK_ESC; }
-        }
-    }
-
     if (status.space) { s_last_key = PK_SPACE; return PK_SPACE; }
 
-    /* Any other printable — return raw. */
+    /* Any other printable — return raw. Multiple aliases map to ESC:
+     *   backtick alone      (top-left of the keyboard, no modifier)
+     *   Ctrl + [ or Ctrl+C  (familiar "cancel") */
     if (!status.word.empty()) {
         char c = status.word[0];
+        if (c == '`') { s_last_key = PK_ESC; return PK_ESC; }
         if (status.ctrl && (c == '[' || c == 'c' || c == 'C')) {
             s_last_key = PK_ESC;
             return PK_ESC;

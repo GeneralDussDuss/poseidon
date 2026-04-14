@@ -12,19 +12,9 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "wifi_types.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
-
-/* Provided by wifi_scan.cpp. */
-struct ap_t {
-    char     ssid[33];
-    uint8_t  bssid[6];
-    int8_t   rssi;
-    uint8_t  channel;
-    uint8_t  auth;
-};
-extern ap_t g_last_selected_ap;
-extern bool g_last_selected_valid;
 
 static volatile bool     s_running = false;
 static volatile uint32_t s_sent    = 0;

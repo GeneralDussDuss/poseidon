@@ -14,8 +14,12 @@
 extern void feat_wifi_scan(void);
 extern void feat_wifi_deauth(void);
 extern void feat_wifi_portal(void);
+extern void feat_wifi_apclone(void);
 extern void feat_wifi_beacon_spam(void);
 extern void feat_wifi_wardrive(void);
+extern void feat_wifi_probe(void);
+extern void feat_wifi_karma(void);
+extern void feat_wifi_pmkid(void);
 extern void feat_ble_scan(void);
 extern void feat_ble_spam(void);
 extern void feat_ble_hid(void);
@@ -29,11 +33,15 @@ extern void feat_about(void);
 /* ---- menu tree ---- */
 
 static const menu_node_t MENU_WIFI[] = {
-    { 's', "Scan",        "Scan + list nearby APs with RSSI",     nullptr, feat_wifi_scan },
-    { 'd', "Deauth",      "Jam target AP (type BSSID or pick)",   nullptr, feat_wifi_deauth },
-    { 'w', "Wardrive",    "Channel-hop + GPS → WiGLE CSV",         nullptr, feat_wifi_wardrive },
-    { 'p', "Portal",      "Evil captive portal",                   nullptr, feat_wifi_portal },
+    { 's', "Scan",        "Scan + list nearby APs",                nullptr, feat_wifi_scan },
+    { 'd', "Deauth",      "Jam target AP (typed or picked)",       nullptr, feat_wifi_deauth },
+    { 'c', "AP Clone",    "Mirror scanned AP, lure clients",       nullptr, feat_wifi_apclone },
+    { 'p', "Portal",      "Evil captive portal (4 templates)",      nullptr, feat_wifi_portal },
+    { 'k', "Karma",       "Auto-respond to probe requests",        nullptr, feat_wifi_karma },
     { 'b', "Beacon spam", "Broadcast fake SSIDs",                  nullptr, feat_wifi_beacon_spam },
+    { 'r', "Probe sniff", "Log probe requests + clients",          nullptr, feat_wifi_probe },
+    { 'm', "PMKID cap",   "EAPOL M1 -> hashcat 22000",             nullptr, feat_wifi_pmkid },
+    { 'w', "Wardrive",    "Channel hop + GPS -> WiGLE CSV",        nullptr, feat_wifi_wardrive },
     { 0,   nullptr,       nullptr, nullptr, nullptr },
 };
 
@@ -142,7 +150,7 @@ static void run_submenu(const menu_node_t *parent)
     int n = count_children(parent);
 
     ui_draw_status(radio_name(), "");
-    ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
+    ui_draw_footer("letter=go  ;/.=move  ENTER=select  `=back");
     draw_menu(parent, cursor);
 
     while (true) {
@@ -155,7 +163,7 @@ static void run_submenu(const menu_node_t *parent)
             if (sel->action) { sel->action(); }
             else if (sel->children) { run_submenu(sel); }
             ui_draw_status(radio_name(), "");
-            ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
+            ui_draw_footer("letter=go  ;/.=move  ENTER=select  `=back");
             draw_menu(parent, cursor);
             continue;
         }
@@ -177,7 +185,7 @@ static void run_submenu(const menu_node_t *parent)
                     if (ch->action) { ch->action(); }
                     else if (ch->children) { run_submenu(ch); }
                     ui_draw_status(radio_name(), "");
-                    ui_draw_footer("letter=go  ;/.=move  ENTER=select  FN+`=back");
+                    ui_draw_footer("letter=go  ;/.=move  ENTER=select  `=back");
                     draw_menu(parent, cursor);
                     break;
                 }

@@ -189,7 +189,7 @@ void feat_ble_scan(void)
     s_filter[0] = '\0';
 
     ui_draw_status(radio_name(), "scan");
-    ui_draw_footer("/=filter  R=rescan  ENTER=info  FN+`=back");
+    ui_draw_footer("/=filter  R=rescan  ENTER=info  `=back");
     draw_list(0);
 
     start_scan();
@@ -241,14 +241,14 @@ void feat_ble_scan(void)
             d.setCursor(4, BODY_Y + 42); d.printf("NAME: %s", x.name[0] ? x.name : "(unnamed)");
             d.setCursor(4, BODY_Y + 54); d.printf("RSSI: %d dBm", x.rssi);
             d.setCursor(4, BODY_Y + 66); d.printf("ADDR: %s", x.is_public ? "public" : "random");
-            ui_draw_footer("FN+`=back");
+            ui_draw_footer("`=back");
             while (true) {
                 uint16_t k2 = input_poll();
                 if (k2 == PK_NONE) { delay(20); continue; }
                 if (k2 == PK_ESC) break;
             }
             draw_list(cursor);
-            ui_draw_footer("/=filter  R=rescan  ENTER=info  FN+`=back");
+            ui_draw_footer("/=filter  R=rescan  ENTER=info  `=back");
             break;
         }
         default: break;

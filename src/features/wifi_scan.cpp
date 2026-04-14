@@ -14,15 +14,8 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "wifi_types.h"
 #include <WiFi.h>
-
-struct ap_t {
-    char     ssid[33];
-    uint8_t  bssid[6];
-    int8_t   rssi;
-    uint8_t  channel;
-    uint8_t  auth;  /* WIFI_AUTH_OPEN, etc. */
-};
 
 #define MAX_APS 64
 
@@ -33,7 +26,7 @@ static volatile bool s_scan_done = false;
 static char     s_filter[24] = "";
 static bool     s_filter_open_only = false;
 
-/* We stash targets so the deauth feature can pick up a "last selected". */
+/* Shared with portal, deauth, ap-clone. Declared in wifi_types.h. */
 ap_t g_last_selected_ap = {};
 bool g_last_selected_valid = false;
 
