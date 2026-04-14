@@ -13,6 +13,7 @@
 #include "app.h"
 #include "ui.h"
 #include "input.h"
+#include "sprites/splash_sprite.h"
 #include <math.h>
 
 /* ---- helpers ---- */
@@ -35,80 +36,31 @@ static const int8_t sin64[64] = {
     -47,-41,-36,-30,-24,-18,-12, -6,  0,  6, 12, 18, 24, 30, 36, 41,
 };
 
-/* ---- metallic trident sprite ----
- * 48 wide x 72 tall, rendered live each frame so we can shift gradients.
- * Each call draws at (cx, top_y). The sprite rises from below during the
- * intro, so `clip_y` caps drawing above that line for the waterline effect.
+/* ---- sprite blitter ----
+ * Draws splash_data (56x80 pixel art) centered at (cx, sprite_top_y).
+ * Pixels equal to splash_alpha are skipped (transparency). Pixels are
+ * blended toward black by `brightness` so the sprite can fade in.
+ * `clip_y` is a y-cutoff (don't draw above this line) — used so the
+ * sprite "rises" from below a waterline.
  */
-static void draw_trident_metal(int cx, int top_y, int clip_y, uint8_t brightness)
+static void draw_sprite(int cx, int sprite_top_y, int clip_y, uint8_t brightness)
 {
     auto &d = M5Cardputer.Display;
+    int origin_x = cx - splash_w / 2;
 
-    /* Palette: shaft gets a vertical gradient from bright top to dim
-     * base. `brightness` ramps during the fade-in. */
-    uint16_t hi = blend565(0x0000, 0xFFFF, brightness);
-    uint16_t md = blend565(0x0000, COL_ACCENT, brightness);
-    uint16_t lo = blend565(0x0000, 0x4A49, brightness);  /* dim teal */
-    uint16_t sh = blend565(0x0000, 0x18C7, brightness);
-
-    auto put = [&](int x, int y, uint16_t c) {
-        if (y < clip_y) return;
-        d.drawPixel(x, y, c);
-    };
-
-    /* Crown bar (14 wide, 3 tall) with shading. */
-    for (int x = -14; x <= 14; ++x) {
-        put(cx + x, top_y + 0, md);
-        put(cx + x, top_y + 1, hi);
-        put(cx + x, top_y + 2, md);
-    }
-    /* Left / right outer tines — tapered. */
-    for (int i = 0; i < 12; ++i) {
-        int x = -14 + i / 6;
-        int y = top_y - i - 1;
-        put(cx + x,     y, md);
-        put(cx + x - 1, y, sh);
-        put(cx - x,     y, md);
-        put(cx - x + 1, y, sh);
-    }
-    /* Barbs at tine tips. */
-    for (int i = 0; i < 4; ++i) {
-        put(cx - 14 - i, top_y - 12 + i, md);
-        put(cx + 14 + i, top_y - 12 + i, md);
-    }
-    /* Center tine — bigger. */
-    for (int i = 0; i < 18; ++i) {
-        int y = top_y - i - 1;
-        put(cx - 1, y, hi);
-        put(cx,     y, md);
-        put(cx + 1, y, md);
-        put(cx + 2, y, sh);
-    }
-    /* Center tine barb (arrowhead). */
-    for (int i = 0; i < 5; ++i) {
-        int y = top_y - 18 - i;
-        for (int x = -2 + i; x <= 2 - i; ++x) put(cx + x, y, hi);
-    }
-    /* Shaft — 2 wide, gradient down. */
-    int shaft_h = 42;
-    for (int i = 0; i < shaft_h; ++i) {
-        int y = top_y + 3 + i;
-        uint8_t t = (uint8_t)(i * 180 / shaft_h);
-        uint16_t c = blend565(hi, lo, t);
-        put(cx - 1, y, c);
-        put(cx,     y, c);
-        put(cx + 1, y, blend565(c, sh, 90));
-    }
-    /* Grip rings (three, evenly spaced). */
-    for (int g = 0; g < 3; ++g) {
-        int y = top_y + 22 + g * 6;
-        for (int x = -3; x <= 3; ++x) put(cx + x, y, hi);
-        for (int x = -3; x <= 3; ++x) put(cx + x, y + 1, sh);
-    }
-    /* Spear tip below shaft. */
-    int base_y = top_y + 3 + shaft_h;
-    for (int i = 0; i < 5; ++i) {
-        for (int x = -(2 - i / 2); x <= (2 - i / 2); ++x) put(cx + x, base_y + i, md);
+    for (int y = 0; y < splash_h; ++y) {
+        int dy = sprite_top_y + y;
+        if (dy < clip_y) continue;
+        if (dy < 0 || dy >= SCR_H) continue;
+        for (int x = 0; x < splash_w; ++x) {
+            uint16_t c = splash_data[y * splash_w + x];
+            if (c == splash_alpha) continue;
+            int dx = origin_x + x;
+            if (dx < 0 || dx >= SCR_W) continue;
+            /* Fade toward black by (255 - brightness). */
+            uint16_t out = (brightness == 255) ? c : blend565(0x0000, c, brightness);
+            d.drawPixel(dx, dy, out);
+        }
     }
 }
 
@@ -215,47 +167,47 @@ void ui_splash(void)
     auto &d = M5Cardputer.Display;
     d.fillScreen(0x0000);
 
-    const int horizon = 95;
     const int cx = SCR_W / 2;
-    const int trident_final_top = 46;
+    /* Sprite sits at y=0..79, title below, subtitle + rule + version after. */
+    const int sprite_final_y = 0;
+    /* Waterline sweeps up as the sprite rises — starts at screen bottom,
+     * ends at the sprite's baseline (~y=80). */
+    const int waterline_start = SCR_H - 4;
+    const int waterline_final = splash_h - 2;
 
-    /* ---- Phase 1: rising from the deep (40 frames, ~1.2s) ---- */
+    /* ---- Phase 1: sprite rises from below screen (40 frames, ~1.2s) ---- */
     for (int f = 0; f <= 40; ++f) {
         uint32_t frame_start = millis();
-
         uint8_t bright = (uint8_t)(f * 255 / 40);
 
-        /* Background stays — only redraw animated bands. */
-        if (f == 0) draw_bg_gradient(bright);
-        else {
-            /* Refresh gradient each frame so brightness ramps smoothly. */
-            draw_bg_gradient(bright);
-        }
+        draw_bg_gradient(bright);
 
-        /* Trident top Y: starts below horizon, rises to final_top. */
-        int t_top = horizon + 40 - f * (horizon + 40 - trident_final_top) / 40;
+        /* Sprite top Y: starts at SCR_H (offscreen), rises to 0. */
+        int s_top = SCR_H - f * (SCR_H - sprite_final_y) / 40;
+        /* Waterline rises with it. */
+        int horizon = waterline_start - f * (waterline_start - waterline_final) / 40;
 
-        /* Clip: never draw trident pixels below the horizon (submerged). */
-        draw_trident_metal(cx, t_top, 0, bright);
+        /* Draw sprite but clip at the waterline (below horizon = submerged). */
+        draw_sprite(cx, s_top, 0, bright);
 
-        /* Water fills below horizon. */
+        /* Water fills below the horizon. */
         d.fillRect(0, horizon, SCR_W, SCR_H - horizon, 0x0000);
 
-        /* Caustics band just below the surface (8 px tall). */
-        draw_caustics(horizon + 1, 8, f * 3, bright);
+        /* Caustics just beneath the surface. */
+        draw_caustics(horizon + 1, 6, f * 3, bright);
 
-        /* Subtle surface line — two-color wave for extra depth. */
+        /* Surface line — animated wave. */
         for (int x = 0; x < SCR_W; ++x) {
             int w = sin64[(x * 3 + f * 5) & 63] / 16;
             d.drawPixel(x, horizon + w, COL_ACCENT);
             d.drawPixel(x, horizon + w + 1, 0x2124);
         }
 
-        /* Ripple around the trident as it pierces the surface. */
-        if (t_top > horizon - 30 && t_top < horizon + 20) {
-            int r = (f % 10) * 3 + 4;
+        /* Ripple at the sprite's emerging point. */
+        if (horizon > sprite_final_y && horizon < SCR_H - 8) {
+            int r = (f % 12) * 3 + 6;
             d.drawEllipse(cx, horizon, r, r / 3, COL_DIM);
-            d.drawEllipse(cx, horizon, r - 2, (r - 2) / 3, 0x18C7);
+            d.drawEllipse(cx, horizon, r - 3, (r - 3) / 3, 0x18C7);
         }
 
         if (input_poll() != PK_NONE) goto idle;
@@ -264,20 +216,19 @@ void ui_splash(void)
         if (e < 30) delay(30 - e);
     }
 
-    /* ---- Phase 2: god rays sweep (25 frames, ~0.75s) ---- */
-    for (int f = 0; f <= 25; ++f) {
+    /* ---- Phase 2: god rays sweep (20 frames, ~0.6s) ---- */
+    for (int f = 0; f <= 20; ++f) {
         uint32_t frame_start = millis();
-        uint8_t alpha = (uint8_t)(f * 255 / 25);
+        uint8_t alpha = (uint8_t)(f * 255 / 20);
 
-        /* Redraw water band with caustics + rays. */
-        d.fillRect(0, horizon, SCR_W, SCR_H - horizon, 0x0000);
-        draw_rays(horizon - 40, horizon, f * 2, alpha);
-        draw_caustics(horizon + 1, 8, f * 3 + 100, 255);
+        /* Redraw sprite (on top) + water band underneath it. */
+        d.fillRect(0, waterline_final, SCR_W, SCR_H - waterline_final, 0x0000);
+        draw_rays(waterline_final - 30, waterline_final, f * 2, alpha);
+        draw_caustics(waterline_final + 1, 6, f * 3 + 100, 255);
 
-        /* Reinforce surface line. */
         for (int x = 0; x < SCR_W; ++x) {
             int w = sin64[(x * 3 + f * 5 + 200) & 63] / 16;
-            d.drawPixel(x, horizon + w, COL_ACCENT);
+            d.drawPixel(x, waterline_final + w, COL_ACCENT);
         }
 
         if (input_poll() != PK_NONE) goto idle;
@@ -285,35 +236,57 @@ void ui_splash(void)
         if (e < 30) delay(30 - e);
     }
 
-    /* ---- Phase 3: title bloom + scanline (30 frames, ~0.9s) ---- */
-    for (int f = 0; f <= 30; ++f) {
+    /* ---- Phase 3: title appears below sprite (20 frames, ~0.6s) ---- */
+    for (int f = 0; f <= 20; ++f) {
         uint32_t frame_start = millis();
-        /* Clear title band each frame. */
-        d.fillRect(0, 76, SCR_W, 24, 0x0000);
+        d.fillRect(0, 85, SCR_W, 14, 0x0000);
 
-        uint8_t alpha = (uint8_t)(min(255, f * 255 / 20));
+        uint8_t alpha = (uint8_t)(min(255, f * 255 / 14));
         int scanline_x = -1;
-        if (f >= 8 && f <= 24) {
-            scanline_x = (f - 8) * SCR_W / 16;
+        if (f >= 6 && f <= 16) {
+            scanline_x = (f - 6) * SCR_W / 10;
         }
-        draw_title(alpha, scanline_x);
+
+        /* Draw title at y=85 (moved from 82 to make room for sprite). */
+        const char *title = "POSEIDON";
+        d.setTextSize(2);
+        int tw = d.textWidth(title) * 2;
+        int tx = (SCR_W - tw) / 2;
+        int ty = 85;
+
+        uint16_t glow_dim = blend565(0x0000, 0x0104, alpha);
+        uint16_t glow_hot = blend565(0x0000, COL_ACCENT, alpha);
+        d.setTextColor(glow_dim, 0);
+        d.setCursor(tx - 1, ty); d.print(title);
+        d.setCursor(tx + 1, ty); d.print(title);
+        d.setTextColor(glow_hot, 0);
+        d.setCursor(tx, ty); d.print(title);
+        d.setTextSize(1);
+
+        if (scanline_x >= 0 && scanline_x < SCR_W) {
+            for (int y = ty; y < ty + 16; ++y) {
+                d.drawPixel(scanline_x, y, 0xFFFF);
+                d.drawPixel(scanline_x - 1, y, 0x8410);
+                d.drawPixel(scanline_x + 1, y, 0x8410);
+            }
+        }
 
         if (input_poll() != PK_NONE) goto idle;
         uint32_t e = millis() - frame_start;
         if (e < 30) delay(30 - e);
     }
 
-    /* Subtitle + version + accent rule after title is fully in. */
+    /* Subtitle below title, accent rule, version. All below y=100. */
     {
         const char *sub = "commander of the deep";
-        int sw = d.textWidth(sub);
         d.setTextColor(COL_DIM, 0);
-        d.setCursor((SCR_W - sw) / 2, 106);
+        int sw = d.textWidth(sub);
+        d.setCursor((SCR_W - sw) / 2, 104);
         d.print(sub);
         for (int w = 0; w <= 100; w += 10) {
-            d.drawFastHLine((SCR_W - w) / 2, 118, w, COL_ACCENT);
+            d.drawFastHLine((SCR_W - w) / 2, 116, w, COL_ACCENT);
             if (input_poll() != PK_NONE) goto idle;
-            delay(12);
+            delay(10);
         }
         char vbuf[32];
         snprintf(vbuf, sizeof(vbuf), "v%s  any key", POSEIDON_VERSION);
@@ -324,19 +297,22 @@ void ui_splash(void)
     }
 
 idle:
-    /* ---- Phase 4: ambient idle — waves keep rolling until key ---- */
-    int phase = 0;
-    while (true) {
-        uint32_t frame_start = millis();
-        d.fillRect(0, horizon - 2, SCR_W, 12, 0x0000);
-        draw_caustics(horizon + 1, 8, phase, 255);
-        for (int x = 0; x < SCR_W; ++x) {
-            int w = sin64[(x * 3 + phase) & 63] / 16;
-            d.drawPixel(x, horizon + w, COL_ACCENT);
+    /* ---- Phase 4: ambient idle — caustics under the sprite until key ---- */
+    {
+        const int water_y = splash_h - 2;
+        int phase = 0;
+        while (true) {
+            uint32_t frame_start = millis();
+            d.fillRect(0, water_y - 1, SCR_W, 8, 0x0000);
+            draw_caustics(water_y + 1, 4, phase, 255);
+            for (int x = 0; x < SCR_W; ++x) {
+                int w = sin64[(x * 3 + phase) & 63] / 16;
+                d.drawPixel(x, water_y + w, COL_ACCENT);
+            }
+            phase += 3;
+            if (input_poll() != PK_NONE) return;
+            uint32_t e = millis() - frame_start;
+            if (e < 60) delay(60 - e);
         }
-        phase += 3;
-        if (input_poll() != PK_NONE) return;
-        uint32_t e = millis() - frame_start;
-        if (e < 60) delay(60 - e);
     }
 }
