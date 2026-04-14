@@ -15,6 +15,8 @@ extern void feat_wifi_scan(void);
 extern void feat_wifi_deauth(void);
 extern void feat_wifi_deauth_broadcast(void);
 extern void feat_wifi_deauth_detect(void);
+extern void feat_wifi_clients(void);
+extern void feat_wifi_clients_all(void);
 extern void feat_wifi_portal(void);
 extern void feat_wifi_apclone(void);
 extern void feat_wifi_beacon_spam(void);
@@ -46,6 +48,8 @@ extern void feat_clock(void);
 
 static const menu_node_t MENU_WIFI[] = {
     { 's', "Scan",        "Scan + list nearby APs",                nullptr, feat_wifi_scan },
+    { 'l', "Clients",     "Hunt ALL clients (all channels)",       nullptr, feat_wifi_clients_all },
+    { 'o', "AP Clients",  "List STAs on last-scanned AP only",     nullptr, feat_wifi_clients },
     { 'd', "Deauth",      "Jam target AP (typed or picked)",       nullptr, feat_wifi_deauth },
     { 'x', "Deauth all",  "Broadcast deauth all clients of AP",    nullptr, feat_wifi_deauth_broadcast },
     { 'e', "Deauth det.", "Passive deauth frame detector",         nullptr, feat_wifi_deauth_detect },

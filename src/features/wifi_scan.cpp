@@ -146,6 +146,7 @@ extern void feat_wifi_deauth(void);
 extern void feat_wifi_deauth_broadcast(void);
 extern void feat_wifi_apclone(void);
 extern void feat_wifi_portal(void);
+extern void feat_wifi_clients(void);
 
 /* Returns a ui_state hint — but we just call the feature directly and
  * return once it finishes. */
@@ -163,28 +164,19 @@ static void show_details(const ap_t &a)
     d.setCursor(4, BODY_Y + 42); d.printf("CH   : %u", a.channel);
     d.setCursor(4, BODY_Y + 54); d.printf("RSSI : %d dBm", a.rssi);
     d.setCursor(4, BODY_Y + 66); d.printf("AUTH : %s", auth_str(a.auth));
-    ui_draw_footer("D=deauth X=bcast C=clone P=portal `=back");
+    ui_draw_footer("D=dth X=bcast L=clnt C=clone P=portal `=back");
 
     while (true) {
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
         if (k == PK_ESC) return;
 
-        /* Ensure g_last_selected_ap is populated before calling any
-         * feature that reads it (already done by the caller). */
         switch ((char)tolower((int)k)) {
-        case 'd':
-            feat_wifi_deauth();
-            return;
-        case 'x':
-            feat_wifi_deauth_broadcast();
-            return;
-        case 'c':
-            feat_wifi_apclone();
-            return;
-        case 'p':
-            feat_wifi_portal();
-            return;
+        case 'd': feat_wifi_deauth();           return;
+        case 'x': feat_wifi_deauth_broadcast(); return;
+        case 'l': feat_wifi_clients();          return;
+        case 'c': feat_wifi_apclone();          return;
+        case 'p': feat_wifi_portal();           return;
         }
     }
 }

