@@ -359,6 +359,22 @@ static void hunt_task(void *)
 static void draw_notification(void)
 {
     if (s_notify == NTF_NONE) return;
+    /* First fire — full-screen dramatic overlay. */
+    if (s_notify_start != 0 && millis() - s_notify_start < 100) {
+        bool big = (s_notify == NTF_HS);
+        char sub[48];
+        snprintf(sub, sizeof(sub), "%.32s", s_notify_ssid);
+        if (big) {
+            M5Cardputer.Speaker.tone(1200, 120);
+            ui_action_overlay("HANDSHAKE!", sub, ACT_BG_WAVES, 0xF81F, 1600);
+            M5Cardputer.Speaker.tone(2400, 200);
+        } else {
+            M5Cardputer.Speaker.tone(1800, 100);
+            ui_action_overlay("PMKID", sub, ACT_BG_RADAR, 0x07FF, 1000);
+        }
+        s_notify = NTF_NONE;  /* overlay consumed it */
+        return;
+    }
     uint32_t age = millis() - s_notify_start;
     if (age > NOTIFY_DURATION_MS) { s_notify = NTF_NONE; return; }
 

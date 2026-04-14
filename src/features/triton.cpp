@@ -476,10 +476,25 @@ void feat_triton(void)
         uint32_t now = millis();
         uint32_t total = s_pmk + s_hs;
         if (total > prev_total) {
+            uint32_t diff = total - prev_total;
             prev_total = total;
             stoked_until = now + 5000;
-            /* tiny chime on each catch */
-            M5Cardputer.Speaker.tone(1800, 80);
+            /* Full-screen dramatic overlay. s_hs >= 1 means this was
+             * a handshake, otherwise it's a PMKID. */
+            static uint32_t prev_hs = 0;
+            bool was_hs = (s_hs > prev_hs);
+            prev_hs = s_hs;
+            char sub[48];
+            snprintf(sub, sizeof(sub), "total: %lu", (unsigned long)total);
+            if (was_hs) {
+                M5Cardputer.Speaker.tone(1200, 100);
+                ui_action_overlay("HANDSHAKE!", sub, ACT_BG_WAVES, 0xF81F, 1400);
+                M5Cardputer.Speaker.tone(2400, 160);
+            } else {
+                M5Cardputer.Speaker.tone(1800, 80);
+                ui_action_overlay("PMKID", sub, ACT_BG_RADAR, 0x07FF, 900);
+            }
+            (void)diff;
         }
 
         if (now - last_mood > 400) {

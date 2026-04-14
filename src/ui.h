@@ -76,3 +76,15 @@ void ui_glitch(int x, int y, int w, int h);
 /* Signal bars — 5 animated EQ-style bouncing bars. Good for any
  * active-transmission indicator. Call in refresh loop. */
 void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color);
+
+/* Full-screen dramatic overlay — big headline + subtitle + choice of
+ * backdrop animation. Blocks for ~duration_ms. Use for "HANDSHAKE!",
+ * "TARGET ACQUIRED", "SIGNAL LOST", etc. */
+enum action_anim_t {
+    ACT_BG_RADAR,     /* central radar sweep behind text */
+    ACT_BG_WAVES,     /* radial pulse behind text */
+    ACT_BG_MATRIX,    /* full-screen matrix rain behind text */
+    ACT_BG_GLITCH,    /* intense glitch blocks behind text */
+};
+void ui_action_overlay(const char *headline, const char *subtitle,
+                       action_anim_t bg, uint16_t color, uint32_t duration_ms);

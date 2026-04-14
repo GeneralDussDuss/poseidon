@@ -481,6 +481,84 @@ void ui_eq_bars(int x, int y, int bar_w, int bar_h_max, uint16_t color)
     }
 }
 
+/* ---- full-screen action overlay ---- */
+void ui_action_overlay(const char *headline, const char *subtitle,
+                       action_anim_t bg, uint16_t color, uint32_t duration_ms)
+{
+    auto &d = M5Cardputer.Display;
+    uint32_t start = millis();
+    uint32_t last = 0;
+    while (millis() - start < duration_ms) {
+        uint32_t elapsed = millis() - start;
+        /* First 150ms: fade-in. Last 300ms: fade-out. Otherwise full. */
+        uint8_t alpha = 255;
+        if (elapsed < 150) alpha = (uint8_t)(elapsed * 255 / 150);
+        else if (duration_ms - elapsed < 300)
+            alpha = (uint8_t)((duration_ms - elapsed) * 255 / 300);
+
+        if (millis() - last > 50) {
+            last = millis();
+            d.fillScreen(0x0000);
+            /* Background animation. */
+            switch (bg) {
+            case ACT_BG_RADAR:
+                ui_radar(SCR_W / 2, SCR_H / 2, 50, color);
+                break;
+            case ACT_BG_WAVES:
+                ui_waves(SCR_W / 2, SCR_H / 2, 60, color);
+                break;
+            case ACT_BG_MATRIX:
+                ui_matrix_rain(0, 0, SCR_W, SCR_H, color);
+                break;
+            case ACT_BG_GLITCH:
+                ui_glitch(0, 0, SCR_W, SCR_H);
+                /* Diagonal scan lines for extra chaos. */
+                for (int y = 0; y < SCR_H; y += 4) {
+                    d.drawFastHLine(0, y, SCR_W, 0x0020);
+                }
+                break;
+            }
+            /* Headline: big, centered, magenta-glow outlined. */
+            d.setTextSize(3);
+            int hw = d.textWidth(headline) * 3;
+            int hx = (SCR_W - hw) / 2;
+            int hy = SCR_H / 2 - 16;
+            uint16_t halo = blend565(0x0000, 0xF81F, alpha);
+            uint16_t hot  = blend565(0x0000, color == 0xF81F ? 0xFFFF : color, alpha);
+            /* 4-direction halo. */
+            d.setTextColor(halo, 0);
+            d.setCursor(hx - 2, hy); d.print(headline);
+            d.setCursor(hx + 2, hy); d.print(headline);
+            d.setCursor(hx, hy - 2); d.print(headline);
+            d.setCursor(hx, hy + 2); d.print(headline);
+            /* Hot core. */
+            d.setTextColor(hot, 0);
+            d.setCursor(hx, hy); d.print(headline);
+            d.setTextSize(1);
+
+            /* Subtitle below. */
+            if (subtitle && *subtitle) {
+                d.setTextColor(blend565(0x0000, 0xFFFF, alpha), 0);
+                int sw = d.textWidth(subtitle);
+                d.setCursor((SCR_W - sw) / 2, SCR_H / 2 + 16);
+                d.print(subtitle);
+            }
+
+            /* Side brackets. */
+            int bl = 10 + (int)(sinf(elapsed * 0.01f) * 4);
+            d.drawFastHLine(4, SCR_H / 2 - 18, bl, color);
+            d.drawFastVLine(4, SCR_H / 2 - 18, 4, color);
+            d.drawFastHLine(4, SCR_H / 2 + 20, bl, color);
+            d.drawFastVLine(4, SCR_H / 2 + 17, 4, color);
+            d.drawFastHLine(SCR_W - 4 - bl, SCR_H / 2 - 18, bl, color);
+            d.drawFastVLine(SCR_W - 5, SCR_H / 2 - 18, 4, color);
+            d.drawFastHLine(SCR_W - 4 - bl, SCR_H / 2 + 20, bl, color);
+            d.drawFastVLine(SCR_W - 5, SCR_H / 2 + 17, 4, color);
+        }
+        delay(20);
+    }
+}
+
 /* ---- matrix rain ----
  * Column state: each column has a "head" y-position and speed.
  * Each render tick:
