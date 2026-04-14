@@ -140,26 +140,52 @@ static void draw_list(int cursor)
     }
 }
 
+/* Other features use g_last_selected_ap. We set it here so the user
+ * can jump directly from the AP detail view into an attack. */
+extern void feat_wifi_deauth(void);
+extern void feat_wifi_deauth_broadcast(void);
+extern void feat_wifi_apclone(void);
+extern void feat_wifi_portal(void);
+
+/* Returns a ui_state hint — but we just call the feature directly and
+ * return once it finishes. */
 static void show_details(const ap_t &a)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
     d.setTextColor(COL_ACCENT, COL_BG);
     d.setCursor(4, BODY_Y + 2);  d.print("AP DETAILS");
+    d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
     d.setTextColor(COL_FG, COL_BG);
-    d.setCursor(4, BODY_Y + 18); d.printf("SSID : %s", a.ssid);
+    d.setCursor(4, BODY_Y + 18); d.printf("SSID : %.24s", a.ssid);
     d.setCursor(4, BODY_Y + 30); d.printf("BSSID: %02X:%02X:%02X:%02X:%02X:%02X",
         a.bssid[0], a.bssid[1], a.bssid[2], a.bssid[3], a.bssid[4], a.bssid[5]);
     d.setCursor(4, BODY_Y + 42); d.printf("CH   : %u", a.channel);
     d.setCursor(4, BODY_Y + 54); d.printf("RSSI : %d dBm", a.rssi);
     d.setCursor(4, BODY_Y + 66); d.printf("AUTH : %s", auth_str(a.auth));
-    ui_draw_footer("ESC=back  D=deauth  C=clone  P=portal");
+    ui_draw_footer("D=deauth X=bcast C=clone P=portal `=back");
 
     while (true) {
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
         if (k == PK_ESC) return;
-        /* Future: hotkeys D/C/P hand off BSSID to other features. */
+
+        /* Ensure g_last_selected_ap is populated before calling any
+         * feature that reads it (already done by the caller). */
+        switch ((char)tolower((int)k)) {
+        case 'd':
+            feat_wifi_deauth();
+            return;
+        case 'x':
+            feat_wifi_deauth_broadcast();
+            return;
+        case 'c':
+            feat_wifi_apclone();
+            return;
+        case 'p':
+            feat_wifi_portal();
+            return;
+        }
     }
 }
 

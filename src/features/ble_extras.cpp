@@ -67,13 +67,14 @@ class tracker_cb : public NimBLEAdvertisedDeviceCallbacks {
         t.last_seen = millis();
     }
 };
-static tracker_cb *s_tracker_cb = nullptr;
+static tracker_cb s_tracker_cb_obj;
+static tracker_cb *s_tracker_cb = &s_tracker_cb_obj;
 
 void feat_ble_tracker(void)
 {
     radio_switch(RADIO_BLE);
     s_tracker_count = 0;
-    if (!s_tracker_cb) s_tracker_cb = new tracker_cb();
+    /* s_tracker_cb is static-allocated. */
 
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setAdvertisedDeviceCallbacks(s_tracker_cb, true);
@@ -150,7 +151,8 @@ class sniff_cb : public NimBLEAdvertisedDeviceCallbacks {
         if ((s_sniff_count & 31) == 0) s_sniff_file.flush();
     }
 };
-static sniff_cb *s_sniff_cb = nullptr;
+static sniff_cb s_sniff_cb_obj;
+static sniff_cb *s_sniff_cb = &s_sniff_cb_obj;
 
 void feat_ble_sniff(void)
 {
@@ -164,7 +166,7 @@ void feat_ble_sniff(void)
     s_sniff_file.println("ms,mac,rssi,addr_type,name,adv_hex");
     s_sniff_count = 0;
 
-    if (!s_sniff_cb) s_sniff_cb = new sniff_cb();
+    /* s_sniff_cb is static-allocated. */
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setAdvertisedDeviceCallbacks(s_sniff_cb, true);
     scan->setActiveScan(false);

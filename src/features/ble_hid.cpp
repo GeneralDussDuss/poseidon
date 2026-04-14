@@ -183,8 +183,13 @@ void feat_ble_hid(void)
         }
     }
 
-    NimBLEDevice::deinit(true);
-    s_hid = nullptr;
-    s_input = nullptr;
+    /* Don't deinit here — let radio_switch() handle teardown so we
+     * don't double-deinit on the next domain transition. Disable
+     * advertising and drop the connection cleanly instead. */
+    NimBLEDevice::getAdvertising()->stop();
+    if (s_connected) {
+        /* Active server handle can't be cleanly released per-feature in
+         * the NimBLE-Arduino API; leave for domain teardown. */
+    }
     s_connected = false;
 }

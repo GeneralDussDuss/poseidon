@@ -136,13 +136,19 @@ bool mesh_begin(const char *node_name)
     s_up = true;
     s_peer_count = 0;
     s_tx = s_rx = 0;
-    xTaskCreate(mesh_task, "mesh", 4096, nullptr, 3, nullptr);
+    static TaskHandle_t s_mesh_task = nullptr;
+    xTaskCreate(mesh_task, "mesh", 4096, nullptr, 3, &s_mesh_task);
     return true;
 }
 
 void mesh_stop(void)
 {
+    if (!s_up) return;
     s_up = false;
+    /* Let the task observe s_up = false and self-delete. */
+    for (int i = 0; i < 30; ++i) {
+        if (!s_up) delay(50);
+    }
     esp_now_deinit();
     s_peer_count = 0;
 }

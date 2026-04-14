@@ -98,7 +98,10 @@ class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
     }
 };
 
-static scan_cb *s_cb = nullptr;
+/* Static-allocated so repeat-entry doesn't leak. NimBLE doesn't own
+ * the object after scan stops — it just drops the callback pointer. */
+static scan_cb s_cb_obj;
+static scan_cb *s_cb = &s_cb_obj;
 
 static bool dev_matches_filter(const ble_dev_t &d)
 {
@@ -170,7 +173,7 @@ static void draw_list(int cursor)
 static void start_scan(void)
 {
     NimBLEScan *scan = NimBLEDevice::getScan();
-    if (!s_cb) s_cb = new scan_cb();
+    /* s_cb is static-allocated; no alloc needed. */
     scan->setAdvertisedDeviceCallbacks(s_cb, /*wantDuplicates=*/true);
     scan->setActiveScan(false);
     scan->setInterval(45);

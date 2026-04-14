@@ -30,7 +30,10 @@ static void teardown_current(void)
         esp_wifi_deinit();
         break;
     case RADIO_BLE:
-        NimBLEDevice::deinit(true);
+        /* Only deinit if NimBLE is actually initialized — features that
+         * explicitly deinit on exit (ble_hid) leave a dangling state
+         * flag, and a second deinit crashes on some NimBLE builds. */
+        if (NimBLEDevice::getInitialized()) NimBLEDevice::deinit(true);
         break;
     default: break;
     }

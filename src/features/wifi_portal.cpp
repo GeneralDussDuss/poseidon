@@ -249,10 +249,8 @@ static void run_portal(void)
         if (k == PK_NONE) { delay(5); }
     }
 
-    s_http->close();
-    delete s_http; s_http = nullptr;
-    s_dns->stop();
-    delete s_dns; s_dns = nullptr;
+    if (s_http) { s_http->close(); delete s_http; s_http = nullptr; }
+    if (s_dns)  { s_dns->stop();  delete s_dns;  s_dns  = nullptr; }
     WiFi.softAPdisconnect(true);
 }
 
