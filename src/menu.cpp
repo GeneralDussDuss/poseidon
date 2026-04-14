@@ -36,6 +36,14 @@ extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
 extern void feat_triton(void);
+extern void feat_tool_sd_format(void);
+extern void feat_tool_flashlight(void);
+extern void feat_tool_screen_test(void);
+extern void feat_tool_stopwatch(void);
+extern void feat_tool_chance(void);
+extern void feat_tool_morse(void);
+extern void feat_tool_mac_rand(void);
+extern void feat_tool_calc(void);
 extern void feat_file_browser(void);
 extern void feat_settings(void);
 extern void feat_about(void);
@@ -95,6 +103,18 @@ static const menu_node_t MENU_IR[] = {
     { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 
+static const menu_node_t MENU_TOOLS[] = {
+    { 'l', "Flashlight", "Full-screen white torch",       nullptr, feat_tool_flashlight },
+    { 's', "Stopwatch",  "Timer with laps",                nullptr, feat_tool_stopwatch },
+    { 'd', "Dice/8ball", "Dice, coin flip, magic 8-ball", nullptr, feat_tool_chance },
+    { 'm', "Morse",      "Type text, sends in morse",     nullptr, feat_tool_morse },
+    { 'r', "MAC rand",   "Randomize WiFi MAC",             nullptr, feat_tool_mac_rand },
+    { 'c', "Calc",       "Simple calculator",              nullptr, feat_tool_calc },
+    { 't', "Screen test","RGB cycle + gradient",           nullptr, feat_tool_screen_test },
+    { 'f', "SD format",  "WIPE microSD card",              nullptr, feat_tool_sd_format },
+    { 0,   nullptr, nullptr, nullptr, nullptr },
+};
+
 static const menu_node_t MENU_SYS[] = {
     { 'f', "Files",     "SD card browser",                nullptr, feat_file_browser },
     { 'c', "Clock",     "Uptime / GPS clock",             nullptr, feat_clock },
@@ -110,6 +130,7 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 't', "Triton",    "gotchi pet that hunts handshakes", nullptr,   feat_triton },
     { 'u', "BadUSB",    "USB-HID payload runner",          nullptr,   feat_badusb },
     { 'n', "Network",   "Port scan / ping / DNS / connect", MENU_NET,  nullptr },
+    { 'o', "Tools",     "Flashlight / stopwatch / dice / ...", MENU_TOOLS, nullptr },
     { 'm', "Mesh",      "PigSync ESP-NOW peer mesh",       MENU_MESH, nullptr },
     { 's', "System",    "Files, clock, settings",          MENU_SYS,  nullptr },
     { 0,   nullptr, nullptr, nullptr, nullptr },
