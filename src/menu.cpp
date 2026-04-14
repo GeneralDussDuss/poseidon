@@ -22,6 +22,7 @@ extern void feat_wifi_wardrive(void);
 extern void feat_wifi_probe(void);
 extern void feat_wifi_karma(void);
 extern void feat_wifi_pmkid(void);
+extern void feat_wifi_spectrum(void);
 extern void feat_wifi_connect(void);
 extern void feat_ble_scan(void);
 extern void feat_ble_spam(void);
@@ -54,6 +55,7 @@ static const menu_node_t MENU_WIFI[] = {
     { 'b', "Beacon spam", "Broadcast fake SSIDs",                  nullptr, feat_wifi_beacon_spam },
     { 'r', "Probe sniff", "Log probe requests + clients",          nullptr, feat_wifi_probe },
     { 'm', "PMKID cap",   "EAPOL M1 -> hashcat 22000",             nullptr, feat_wifi_pmkid },
+    { 'g', "Spectrum",    "2.4 GHz live channel activity bars",    nullptr, feat_wifi_spectrum },
     { 'w', "Wardrive",    "Channel hop + GPS -> WiGLE CSV",        nullptr, feat_wifi_wardrive },
     { 'n', "Connect",     "Join saved WiFi network",                nullptr, feat_wifi_connect },
     { 0,   nullptr,       nullptr, nullptr, nullptr },
