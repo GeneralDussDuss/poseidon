@@ -134,10 +134,46 @@ static void setup_hid(const char *name)
     adv->start();
 }
 
+static int pick_disguise(void)
+{
+    auto &d = M5Cardputer.Display;
+    int cursor = 0;
+    ui_draw_footer(";/. move  ENTER=pick  R=random  `=back");
+    while (true) {
+        ui_clear_body();
+        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setCursor(4, BODY_Y + 2); d.print("BAD-KB  pick device");
+        d.drawFastHLine(4, BODY_Y + 12, 130, COL_ACCENT);
+        int rows = 6;
+        int first = cursor - rows / 2;
+        if (first < 0) first = 0;
+        if (first + rows > (int)DISG_N) first = max(0, (int)DISG_N - rows);
+        for (int r = 0; r < rows && first + r < (int)DISG_N; ++r) {
+            int i = first + r;
+            int y = BODY_Y + 18 + r * 12;
+            bool sel = (i == cursor);
+            uint16_t bg = sel ? 0x3007 : COL_BG;
+            if (sel) d.fillRect(0, y - 1, SCR_W, 12, bg);
+            d.setTextColor(sel ? 0xF81F : COL_FG, bg);
+            d.setCursor(8, y);
+            d.printf("%d  %s", i + 1, s_disguises[i]);
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(30); continue; }
+        if (k == PK_ESC) return -1;
+        if (k == ';' || k == PK_UP)   { if (cursor > 0) cursor--; }
+        if (k == '.' || k == PK_DOWN) { if (cursor + 1 < (int)DISG_N) cursor++; }
+        if (k == 'r' || k == 'R')     { return (int)(millis() % DISG_N); }
+        if (k == PK_ENTER) return cursor;
+    }
+}
+
 void feat_ble_hid(void)
 {
     radio_switch(RADIO_NONE);  /* start clean */
-    const char *name = s_disguises[millis() % DISG_N];
+    int pick = pick_disguise();
+    if (pick < 0) return;
+    const char *name = s_disguises[pick];
     setup_hid(name);
 
     ui_clear_body();

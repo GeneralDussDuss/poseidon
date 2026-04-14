@@ -61,6 +61,7 @@ extern void feat_net_ping(void);
 extern void feat_net_dns(void);
 extern void feat_net_responder(void);
 extern void feat_net_ssdp(void);
+extern void feat_net_lanrecon(void);
 extern void feat_clock(void);
 
 /* ---- menu tree ---- */
@@ -203,6 +204,13 @@ static const menu_node_t MENU_NET[] = {
       "Windows/macOS/Linux fall back to LLMNR, NBT-NS, and mDNS — we answer "
       "every query with our IP. Targets that trust the reply send us an NTLM "
       "auth challenge which we log to /poseidon/ntlm.log for hashcat mode 5600." },
+    { 'a', "LAN Recon", "Auto sweep + portscan + banners", nullptr, feat_net_lanrecon,
+      "RaspyJack-style drop-box auto recon. Once you're joined to a WiFi "
+      "network, this chains: ARP sweep of the /24 to find live hosts → "
+      "TCP portscan of 16 common ports per host → banner grab on HTTP/SSH/"
+      "Telnet → OUI vendor lookup on every MAC → full CSV export to "
+      "/poseidon/lan.csv. Result list is scrollable; ENTER on a host shows "
+      "its full port map + banner." },
     { 'u', "UPnP scan", "Discover LAN UPnP devices", nullptr, feat_net_ssdp,
       "Sends SSDP M-SEARCH to 239.255.255.250:1900 and collects responses. "
       "Fetches each device's XML description to pull friendlyName + modelName. "
