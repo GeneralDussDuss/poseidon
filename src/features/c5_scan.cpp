@@ -24,8 +24,9 @@ static void draw_status_header(void)
 
 void feat_c5_status(void)
 {
-    /* Ensure c5 layer is running. */
-    if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
+    /* Ensure c5 layer is running — go through radio_switch so BLE
+     * tears down cleanly before WiFi comes up. */
+    radio_switch(RADIO_WIFI);
     c5_begin();
 
     auto &d = M5Cardputer.Display;
@@ -74,7 +75,7 @@ void feat_c5_status(void)
 
 void feat_c5_scan_5g(void)
 {
-    if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
+    radio_switch(RADIO_WIFI);
     c5_begin();
 
     if (!c5_any_online()) {
@@ -158,7 +159,7 @@ void feat_c5_scan_5g(void)
 
 void feat_c5_scan_zb(void)
 {
-    if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
+    radio_switch(RADIO_WIFI);
     c5_begin();
     if (!c5_any_online()) { ui_toast("no C5 online", COL_BAD, 1500); return; }
 
