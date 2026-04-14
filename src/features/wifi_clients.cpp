@@ -13,6 +13,7 @@
 #include "input.h"
 #include "radio.h"
 #include "wifi_types.h"
+#include "ble_db.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -141,15 +142,24 @@ void feat_wifi_clients(void)
                     const cli_t &c = s_clients[first + r];
                     int y = BODY_Y + 28 + r * 11;
                     bool sel = (first + r == cursor);
-                    if (sel) d.fillRect(0, y - 1, SCR_W, 11, 0x18C7);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
+                    uint16_t bg = sel ? 0x18C7 : COL_BG;
+                    if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
+
+                    /* Vendor from MAC OUI (big-endian in 802.11 frames). */
+                    uint32_t oui = ((uint32_t)c.mac[0] << 16) |
+                                   ((uint32_t)c.mac[1] << 8) |
+                                    (uint32_t)c.mac[2];
+                    const char *vendor = ble_db_oui(oui);
+                    d.setTextColor(vendor ? (sel ? COL_ACCENT : COL_WARN) : COL_DIM, bg);
                     d.setCursor(4, y);
-                    d.printf("%02X:%02X:%02X:%02X:%02X:%02X",
-                             c.mac[0], c.mac[1], c.mac[2],
+                    d.printf("%-8.8s", vendor ? vendor : "?");
+                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setCursor(56, y);
+                    d.printf("%02X:%02X:%02X",
                              c.mac[3], c.mac[4], c.mac[5]);
-                    d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(138, y);
-                    d.printf("%4d %lu", c.rssi, (unsigned long)c.frames);
+                    d.setTextColor(COL_DIM, bg);
+                    d.setCursor(108, y);
+                    d.printf("%3d dB  %lu f", c.rssi, (unsigned long)c.frames);
                 }
             }
             ui_draw_status(radio_name(), "clients");

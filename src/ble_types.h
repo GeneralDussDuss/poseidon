@@ -9,7 +9,7 @@
 struct ble_target_t {
     uint8_t  addr[6];
     char     name[20];
-    char     type[10];
+    char     type[24];
     int8_t   rssi;
     bool     is_public;
     bool     have_adv;

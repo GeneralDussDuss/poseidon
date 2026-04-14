@@ -17,6 +17,7 @@
 #include "input.h"
 #include "radio.h"
 #include "ble_types.h"
+#include "ble_db.h"
 #include <NimBLEDevice.h>
 
 /* Shared with other BLE features. */
@@ -32,7 +33,7 @@ extern void feat_ble_flood(void);
 struct ble_dev_t {
     uint8_t  addr[6];
     char     name[20];
-    char     type[10];   /* "Apple", "AirTag", "HID", "BLE", ... */
+    char     type[24];   /* "AirPods Pro 2 (USB-C)", "Samsung", etc. */
     int8_t   rssi;
     bool     is_public;
 };
@@ -55,35 +56,52 @@ static void sanitize(const char *in, char *out, size_t out_sz)
     out[j] = '\0';
 }
 
-/* Best-effort type classification. */
-static const char *guess_type(NimBLEAdvertisedDevice *d)
+/* Best-effort type classification using the full ble_db tables. */
+static void classify(NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
 {
-    /* Manufacturer data. */
-    if (d->haveManufacturerData()) {
-        std::string md = d->getManufacturerData();
-        if (md.size() >= 2) {
-            uint16_t cid = (uint8_t)md[0] | ((uint8_t)md[1] << 8);
-            if (cid == 0x004C) {           /* Apple */
-                if (md.size() >= 3 && (uint8_t)md[2] == 0x12) return "AirTag";
-                if (md.size() >= 3 && (uint8_t)md[2] == 0x07) return "AirPod";
-                return "Apple";
-            }
-            if (cid == 0x0075) return "Samsung";
-            if (cid == 0x0006) return "MS";
-            if (cid == 0x00E0) return "Google";
-        }
-    }
+    /* Raw manufacturer data for the db to parse. */
+    std::string md;
+    if (d->haveManufacturerData()) md = d->getManufacturerData();
+
+    /* NimBLE stores the MAC little-endian. Reverse for display/OUI. */
+    uint8_t mac_be[6];
+    const uint8_t *raw = d->getAddress().getNative();
+    for (int i = 0; i < 6; ++i) mac_be[i] = raw[5 - i];
+
+    /* Only pass OUI if address is PUBLIC — random MACs have no OUI. */
+    const uint8_t *oui_ptr = (d->getAddressType() == BLE_ADDR_PUBLIC) ? mac_be : nullptr;
+
+    bool got = ble_db_identify(oui_ptr,
+                               md.empty() ? nullptr : (const uint8_t *)md.data(),
+                               (int)md.size(),
+                               out, out_sz);
+    if (got) return;
+
+    /* Service UUID fallback. NimBLE stringifies 16-bit UUIDs as the
+     * full 128-bit form "0000XXXX-0000-1000-8000-00805f9b34fb" where
+     * XXXX is the 16-bit value (chars 4-8), NOT the trailing 4 chars. */
     if (d->haveServiceUUID()) {
         for (int i = 0; i < d->getServiceUUIDCount(); ++i) {
             NimBLEUUID u = d->getServiceUUID(i);
-            if (u.equals(NimBLEUUID((uint16_t)0x1812))) return "HID";
-            if (u.equals(NimBLEUUID((uint16_t)0x180F))) return "Battery";
-            if (u.equals(NimBLEUUID((uint16_t)0x180D))) return "HRM";
-            if (u.equals(NimBLEUUID((uint16_t)0xFE2C))) return "FastPair";
-            if (u.equals(NimBLEUUID((uint16_t)0xFD6F))) return "Exposure";
+            std::string s = u.toString();
+            uint16_t u16 = 0;
+            bool got16 = false;
+            if (s.size() == 4) {
+                /* Already bare "XXXX" form. */
+                sscanf(s.c_str(), "%4hx", &u16);
+                got16 = true;
+            } else if (s.size() >= 8) {
+                /* Full 128-bit form: chars 4..7. */
+                sscanf(s.c_str() + 4, "%4hx", &u16);
+                got16 = true;
+            }
+            if (got16) {
+                const char *nm = ble_db_svc_uuid(u16);
+                if (nm) { snprintf(out, out_sz, "%s", nm); return; }
+            }
         }
     }
-    return "BLE";
+    snprintf(out, out_sz, "BLE");
 }
 
 class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
@@ -104,8 +122,7 @@ class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
         x.is_public = (addr.getType() == BLE_ADDR_PUBLIC);
         x.name[0] = '\0';
         if (d->haveName()) sanitize(d->getName().c_str(), x.name, sizeof(x.name));
-        strncpy(x.type, guess_type(d), sizeof(x.type) - 1);
-        x.type[sizeof(x.type) - 1] = '\0';
+        classify(d, x.type, sizeof(x.type));
     }
 };
 
@@ -170,11 +187,11 @@ static void draw_list(int cursor)
         d.setTextColor(COL_ACCENT, bg);
         d.setCursor(2, y);  d.printf("%4d", x.rssi);
         d.setTextColor(x.is_public ? COL_WARN : COL_GOOD, bg);
-        d.setCursor(32, y); d.printf("%-7.7s", x.type);
+        d.setCursor(30, y); d.printf("%-14.14s", x.type);
         d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
-        d.setCursor(80, y);
+        d.setCursor(124, y);
         if (x.name[0]) {
-            d.printf("%.20s", x.name);
+            d.printf("%.19s", x.name);
         } else {
             d.printf("%02X:%02X:%02X", x.addr[3], x.addr[4], x.addr[5]);
         }

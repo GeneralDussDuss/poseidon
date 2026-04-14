@@ -15,6 +15,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "ble_db.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -179,20 +180,33 @@ void feat_wifi_clients_all(void)
                     int y = BODY_Y + 18 + r * 10;
                     bool sel = (first + r == cursor);
                     if (sel) d.fillRect(0, y - 1, SCR_W, 10, 0x18C7);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
+
+                    /* WiFi MACs in 802.11 frames are big-endian: OUI
+                     * is the first 3 bytes. Look up vendor. */
+                    uint32_t oui = ((uint32_t)c.sta[0] << 16) |
+                                   ((uint32_t)c.sta[1] << 8)  |
+                                    (uint32_t)c.sta[2];
+                    const char *vendor = ble_db_oui(oui);
+                    if (!vendor) vendor = "?";
+
+                    /* Show vendor (colored by known/unknown) + last 3 MAC bytes. */
+                    d.setTextColor(vendor[0] == '?'
+                                   ? COL_DIM
+                                   : (sel ? COL_ACCENT : COL_WARN),
+                                   sel ? 0x18C7 : COL_BG);
                     d.setCursor(2, y);
-                    d.printf("%02X:%02X:%02X:%02X", c.sta[2], c.sta[3], c.sta[4], c.sta[5]);
+                    d.printf("%-8.8s", vendor);
+                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
+                    d.setCursor(56, y);
+                    d.printf("%02X:%02X:%02X", c.sta[3], c.sta[4], c.sta[5]);
                     d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(64, y);
+                    d.setCursor(102, y);
                     d.printf("→%02X:%02X", c.bssid[4], c.bssid[5]);
-                    d.setCursor(110, y);
+                    d.setCursor(144, y);
                     d.printf("ch%u", c.ch);
                     d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(138, y);
-                    d.printf("%4d", c.rssi);
-                    d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
                     d.setCursor(170, y);
-                    d.printf("%lu", (unsigned long)c.frames);
+                    d.printf("%4d", c.rssi);
                 }
             }
             ui_draw_status(radio_name(), s_locked ? "lock" : "hunt");

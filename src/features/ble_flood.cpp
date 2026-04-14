@@ -43,7 +43,8 @@ static void flood_task(void *arg)
     (void)arg;
     ble_addr_t target;
     target.type = g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM;
-    for (int i = 0; i < 6; ++i) target.val[i] = g_ble_target.addr[5 - i];
+    /* ble_addr_t.val is little-endian; g_ble_target.addr is already LE. */
+    memcpy(target.val, g_ble_target.addr, 6);
 
     while (s_flood_alive) {
         set_random_mac();

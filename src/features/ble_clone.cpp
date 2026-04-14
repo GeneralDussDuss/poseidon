@@ -49,10 +49,11 @@ void feat_ble_clone(void)
     }
     radio_switch(RADIO_BLE);
 
-    /* Force random static MAC to the target's (byte-reversed). */
+    /* g_ble_target.addr is stored in NimBLE's native little-endian
+     * (same as ble_hs_id_set_rnd expects). No reversal — just copy. */
     uint8_t mac[6];
-    for (int i = 0; i < 6; ++i) mac[i] = g_ble_target.addr[5 - i];
-    mac[5] |= 0xC0;
+    memcpy(mac, g_ble_target.addr, 6);
+    mac[5] |= 0xC0;  /* random static address top bits */
     ble_hs_id_set_rnd(mac);
     NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
 
