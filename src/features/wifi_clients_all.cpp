@@ -16,6 +16,7 @@
 #include "input.h"
 #include "radio.h"
 #include "ble_db.h"
+#include "dhcp_cache.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -51,6 +52,10 @@ static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
     const uint8_t *p = pkt->payload;
     if (pkt->rx_ctrl.sig_len < 24) return;
+
+    /* Try to learn a hostname from DHCP on open networks — cheap: bails
+     * fast if the frame isn't DHCP. */
+    dhcp_try_parse_802_11(p, pkt->rx_ctrl.sig_len);
 
     uint8_t fc = p[1];
     uint8_t from_ds = (fc >> 1) & 1;
@@ -181,32 +186,33 @@ void feat_wifi_clients_all(void)
                     bool sel = (first + r == cursor);
                     if (sel) d.fillRect(0, y - 1, SCR_W, 10, 0x18C7);
 
-                    /* WiFi MACs in 802.11 frames are big-endian: OUI
-                     * is the first 3 bytes. Look up vendor. */
                     uint32_t oui = ((uint32_t)c.sta[0] << 16) |
                                    ((uint32_t)c.sta[1] << 8)  |
                                     (uint32_t)c.sta[2];
-                    const char *vendor = ble_db_oui(oui);
-                    if (!vendor) vendor = "?";
+                    const char *vendor   = ble_db_oui(oui);
+                    const char *hostname = dhcp_hostname(c.sta);
 
-                    /* Show vendor (colored by known/unknown) + last 3 MAC bytes. */
-                    d.setTextColor(vendor[0] == '?'
-                                   ? COL_DIM
-                                   : (sel ? COL_ACCENT : COL_WARN),
-                                   sel ? 0x18C7 : COL_BG);
-                    d.setCursor(2, y);
-                    d.printf("%-8.8s", vendor);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(56, y);
-                    d.printf("%02X:%02X:%02X", c.sta[3], c.sta[4], c.sta[5]);
-                    d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(102, y);
+                    /* Left column: hostname wins over vendor (more specific). */
+                    uint16_t bg = sel ? 0x18C7 : COL_BG;
+                    if (hostname) {
+                        d.setTextColor(sel ? COL_ACCENT : COL_GOOD, bg);
+                        d.setCursor(2, y); d.printf("%-14.14s", hostname);
+                    } else if (vendor) {
+                        d.setTextColor(sel ? COL_ACCENT : COL_WARN, bg);
+                        d.setCursor(2, y); d.printf("%-14.14s", vendor);
+                    } else {
+                        d.setTextColor(COL_DIM, bg);
+                        d.setCursor(2, y); d.printf("?");
+                    }
+                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setCursor(88, y);
+                    d.printf("%02X:%02X", c.sta[4], c.sta[5]);
+                    d.setTextColor(COL_DIM, bg);
+                    d.setCursor(116, y);
                     d.printf("→%02X:%02X", c.bssid[4], c.bssid[5]);
-                    d.setCursor(144, y);
-                    d.printf("ch%u", c.ch);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
-                    d.setCursor(170, y);
-                    d.printf("%4d", c.rssi);
+                    d.setCursor(154, y); d.printf("ch%u", c.ch);
+                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setCursor(184, y); d.printf("%4d", c.rssi);
                 }
             }
             ui_draw_status(radio_name(), s_locked ? "lock" : "hunt");

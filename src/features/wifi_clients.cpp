@@ -14,6 +14,7 @@
 #include "radio.h"
 #include "wifi_types.h"
 #include "ble_db.h"
+#include "dhcp_cache.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -55,6 +56,9 @@ static void client_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
 
     if (memcmp(bssid, s_target, 6) != 0) return;
+
+    /* Try to scoop a hostname from DHCP on this frame. */
+    dhcp_try_parse_802_11(p, pkt->rx_ctrl.sig_len);
 
     int idx = -1;
     for (int i = 0; i < s_count; ++i) {
@@ -145,21 +149,29 @@ void feat_wifi_clients(void)
                     uint16_t bg = sel ? 0x18C7 : COL_BG;
                     if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
-                    /* Vendor from MAC OUI (big-endian in 802.11 frames). */
                     uint32_t oui = ((uint32_t)c.mac[0] << 16) |
                                    ((uint32_t)c.mac[1] << 8) |
                                     (uint32_t)c.mac[2];
-                    const char *vendor = ble_db_oui(oui);
-                    d.setTextColor(vendor ? (sel ? COL_ACCENT : COL_WARN) : COL_DIM, bg);
-                    d.setCursor(4, y);
-                    d.printf("%-8.8s", vendor ? vendor : "?");
+                    const char *vendor   = ble_db_oui(oui);
+                    const char *hostname = dhcp_hostname(c.mac);
+
+                    /* Hostname wins over vendor. */
+                    if (hostname) {
+                        d.setTextColor(sel ? COL_ACCENT : COL_GOOD, bg);
+                        d.setCursor(4, y); d.printf("%-14.14s", hostname);
+                    } else if (vendor) {
+                        d.setTextColor(sel ? COL_ACCENT : COL_WARN, bg);
+                        d.setCursor(4, y); d.printf("%-14.14s", vendor);
+                    } else {
+                        d.setTextColor(COL_DIM, bg);
+                        d.setCursor(4, y); d.print("?");
+                    }
                     d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
-                    d.setCursor(56, y);
-                    d.printf("%02X:%02X:%02X",
-                             c.mac[3], c.mac[4], c.mac[5]);
+                    d.setCursor(90, y);
+                    d.printf("%02X:%02X:%02X", c.mac[3], c.mac[4], c.mac[5]);
                     d.setTextColor(COL_DIM, bg);
-                    d.setCursor(108, y);
-                    d.printf("%3d dB  %lu f", c.rssi, (unsigned long)c.frames);
+                    d.setCursor(146, y);
+                    d.printf("%3d %lu", c.rssi, (unsigned long)c.frames);
                 }
             }
             ui_draw_status(radio_name(), "clients");
