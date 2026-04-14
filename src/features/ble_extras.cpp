@@ -103,17 +103,52 @@ void feat_ble_tracker(void)
                 d.setCursor(4, BODY_Y + 24);
                 d.print("scanning for AirTag/SmartTag/Tile");
             } else {
-                for (int i = 0; i < s_tracker_count && i < 8; ++i) {
+                /* Distance estimate from RSSI: empirical free-space
+                 *   d ≈ 10 ^ ((tx_power - rssi) / (10 * N))
+                 * with tx_power ≈ -59 dBm @ 1m and path-loss N=2.
+                 * Render as a proximity ring (CLOSE / NEAR / FAR). */
+                for (int i = 0; i < s_tracker_count && i < 6; ++i) {
                     const tracker_t &t = s_trackers[i];
-                    int y = BODY_Y + 18 + i * 11;
-                    d.setTextColor(COL_BAD, COL_BG);
+                    int y = BODY_Y + 18 + i * 13;
+
+                    const char *prox;
+                    uint16_t prox_col;
+                    if (t.rssi > -55)      { prox = "CLOSE"; prox_col = COL_BAD; }
+                    else if (t.rssi > -72) { prox = "NEAR ";  prox_col = COL_WARN; }
+                    else                   { prox = "FAR  ";  prox_col = COL_DIM; }
+
+                    d.setTextColor(prox_col, COL_BG);
                     d.setCursor(4, y);
-                    d.printf("%-9s %ddB %02X:%02X  %lus",
-                             t.type, t.rssi, t.addr[4], t.addr[5],
+                    d.printf("%-5s", prox);
+                    d.setTextColor(COL_BAD, COL_BG);
+                    d.setCursor(36, y);
+                    d.printf("%-9s %ddB", t.type, t.rssi);
+                    d.setTextColor(COL_DIM, COL_BG);
+                    d.setCursor(140, y);
+                    d.printf("%02X:%02X %lus",
+                             t.addr[4], t.addr[5],
                              (unsigned long)((millis() - t.first_seen) / 1000));
+
+                    /* Signal bar (small). */
+                    int pct = (t.rssi + 100) * 100 / 70;
+                    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+                    d.drawRect(200, y + 1, 36, 6, COL_DIM);
+                    d.fillRect(201, y + 2, 34 * pct / 100, 4, prox_col);
                 }
+                /* Alert on new detection: flash screen border + chirp. */
                 if ((size_t)s_tracker_count > last_alert_count) {
-                    M5Cardputer.Speaker.tone(3200, 120);
+                    M5Cardputer.Speaker.tone(3200, 80);
+                    delay(90);
+                    M5Cardputer.Speaker.tone(2400, 80);
+                    /* Red border flash. */
+                    for (int f = 0; f < 3; ++f) {
+                        d.drawRect(0, 0, SCR_W, SCR_H, COL_BAD);
+                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, COL_BAD);
+                        delay(60);
+                        d.drawRect(0, 0, SCR_W, SCR_H, COL_BG);
+                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, COL_BG);
+                        delay(60);
+                    }
                     last_alert_count = s_tracker_count;
                 }
             }

@@ -16,7 +16,16 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "ble_types.h"
 #include <NimBLEDevice.h>
+
+/* Shared with other BLE features. */
+ble_target_t g_ble_target = {};
+bool         g_ble_target_valid = false;
+
+extern void feat_ble_spam(void);
+extern void feat_ble_hid(void);
+extern void feat_ble_clone(void);
 
 struct ble_dev_t {
     uint8_t  addr[6];
@@ -223,32 +232,58 @@ void feat_ble_scan(void)
             draw_list(cursor);
             break;
         case PK_ENTER: {
-            /* Show detail view for the selected device. */
             int idx[BLE_MAX_DEVS];
             int n = 0;
             for (int i = 0; i < s_count; ++i)
                 if (dev_matches_filter(s_devs[i])) idx[n++] = i;
             if (n == 0 || cursor >= n) break;
             const ble_dev_t &x = s_devs[idx[cursor]];
-            ui_clear_body();
+
+            /* Populate shared target for C/F/H hotkeys. */
+            memcpy(g_ble_target.addr, x.addr, 6);
+            strncpy(g_ble_target.name, x.name, sizeof(g_ble_target.name) - 1);
+            g_ble_target.name[sizeof(g_ble_target.name) - 1] = '\0';
+            strncpy(g_ble_target.type, x.type, sizeof(g_ble_target.type) - 1);
+            g_ble_target.type[sizeof(g_ble_target.type) - 1] = '\0';
+            g_ble_target.rssi = x.rssi;
+            g_ble_target.is_public = x.is_public;
+            g_ble_target.have_adv = false;
+            g_ble_target.adv_len = 0;
+            g_ble_target_valid = true;
+
+            /* Detail view with signal bar + action hotkeys. */
             auto &d = M5Cardputer.Display;
+            ui_clear_body();
             d.setTextColor(COL_ACCENT, COL_BG);
-            d.setCursor(4, BODY_Y + 2);  d.print("BLE DEVICE");
+            d.setCursor(4, BODY_Y + 2); d.print("BLE DEVICE");
             d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
             d.setTextColor(COL_FG, COL_BG);
             d.setCursor(4, BODY_Y + 18);
-            d.printf("MAC : %02X:%02X:%02X:%02X:%02X:%02X",
+            d.printf("MAC  : %02X:%02X:%02X:%02X:%02X:%02X",
                      x.addr[0], x.addr[1], x.addr[2],
                      x.addr[3], x.addr[4], x.addr[5]);
-            d.setCursor(4, BODY_Y + 30); d.printf("TYPE: %s", x.type);
-            d.setCursor(4, BODY_Y + 42); d.printf("NAME: %s", x.name[0] ? x.name : "(unnamed)");
-            d.setCursor(4, BODY_Y + 54); d.printf("RSSI: %d dBm", x.rssi);
-            d.setCursor(4, BODY_Y + 66); d.printf("ADDR: %s", x.is_public ? "public" : "random");
-            ui_draw_footer("`=back");
+            d.setCursor(4, BODY_Y + 30); d.printf("TYPE : %s", x.type);
+            d.setCursor(4, BODY_Y + 42); d.printf("NAME : %.28s", x.name[0] ? x.name : "(unnamed)");
+            d.setCursor(4, BODY_Y + 54); d.printf("ADDR : %s", x.is_public ? "public" : "random");
+
+            /* Signal strength bar: -100 dBm → empty, -30 dBm → full. */
+            int bar_w = 120;
+            int pct = (x.rssi + 100) * 100 / 70;
+            if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+            d.setCursor(4, BODY_Y + 66); d.printf("RSSI : %d dBm", x.rssi);
+            d.drawRect(90, BODY_Y + 66, bar_w, 7, COL_DIM);
+            uint16_t col = (x.rssi > -60) ? COL_GOOD : (x.rssi > -80) ? COL_WARN : COL_BAD;
+            d.fillRect(91, BODY_Y + 67, (bar_w - 2) * pct / 100, 5, col);
+
+            ui_draw_footer("C=clone H=hid-spoof P=spam-as  `=back");
             while (true) {
                 uint16_t k2 = input_poll();
                 if (k2 == PK_NONE) { delay(20); continue; }
                 if (k2 == PK_ESC) break;
+                char ch = (char)tolower((int)k2);
+                if (ch == 'c') { feat_ble_clone(); break; }
+                if (ch == 'h') { feat_ble_hid();   break; }
+                if (ch == 'p') { feat_ble_spam();  break; }
             }
             draw_list(cursor);
             ui_draw_footer("/=filter  R=rescan  ENTER=info  `=back");
