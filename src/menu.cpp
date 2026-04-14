@@ -34,6 +34,8 @@ extern void feat_ble_sniff(void);
 extern void feat_ble_beacon(void);
 extern void feat_ble_clone(void);
 extern void feat_ble_finder(void);
+extern void feat_ble_gatt(void);
+extern void feat_ble_flood(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
@@ -90,6 +92,8 @@ static const menu_node_t MENU_BLE[] = {
     { 'n', "Sniffer",   "Log all BLE adv -> SD CSV",     nullptr, feat_ble_sniff },
     { 'b', "iBeacon",   "Broadcast an iBeacon",          nullptr, feat_ble_beacon },
     { 'c', "Clone",     "Rebroadcast last scanned MAC",  nullptr, feat_ble_clone },
+    { 'g', "GATT",      "Connect + enumerate + r/w",     nullptr, feat_ble_gatt },
+    { 'x', "Flood",     "DoS connection storm → target", nullptr, feat_ble_flood },
     { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 

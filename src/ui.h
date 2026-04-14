@@ -49,3 +49,8 @@ void ui_notify_slide(const char *title, const char *sub,
 /* Keypress ripple — brief expanding ring at screen center, runs
  * for ~120ms. Use from any screen for keystroke visual feedback. */
 void ui_ripple(int cx, int cy, uint16_t color);
+
+/* Matrix rain single-frame renderer. Call in a refresh loop — phase
+ * advances internally via millis(). Draws into a given rect. Caller
+ * is responsible for clearing the rect before the first call. */
+void ui_matrix_rain(int x, int y, int w, int h, uint16_t color);

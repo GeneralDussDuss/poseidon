@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <esp_system.h>
+#include <esp_random.h>
 
 /* Palette refinements — deeper blacks, sharper accents. */
 #define COL_STATUS_BG  0x0841  /* very dark blue-green */
@@ -255,5 +256,81 @@ void ui_ripple(int cx, int cy, uint16_t color)
         d.drawCircle(cx, cy, r, color);
         delay(20);
         d.drawCircle(cx, cy, r, COL_BG);
+    }
+}
+
+/* ---- matrix rain ----
+ * Column state: each column has a "head" y-position and speed.
+ * Each render tick:
+ *   - draws a fresh bright glyph at head
+ *   - draws a fading trail above
+ *   - advances head down; resets when off-screen
+ * Glyph pool: printable katakana-ish via random printable chars.
+ */
+#define MATRIX_COLS 20
+static int8_t  mx_head[MATRIX_COLS];      /* -1 = inactive */
+static uint8_t mx_speed[MATRIX_COLS];
+static char    mx_glyph[MATRIX_COLS];
+static uint32_t mx_last_tick = 0;
+static bool     mx_initialized = false;
+
+void ui_matrix_rain(int x, int y, int w, int h, uint16_t color)
+{
+    auto &d = M5Cardputer.Display;
+    /* Font cell: 6×8 default. Column spacing ~6px, row spacing ~8. */
+    int col_w = 6;
+    int row_h = 8;
+    int n_cols = w / col_w;
+    if (n_cols > MATRIX_COLS) n_cols = MATRIX_COLS;
+    int rows = h / row_h;
+
+    if (!mx_initialized) {
+        for (int c = 0; c < MATRIX_COLS; ++c) {
+            mx_head[c] = -1;
+            mx_speed[c] = 0;
+            mx_glyph[c] = '?';
+        }
+        mx_initialized = true;
+    }
+
+    uint32_t now = millis();
+    bool advance = (now - mx_last_tick > 80);
+    if (advance) mx_last_tick = now;
+
+    for (int c = 0; c < n_cols; ++c) {
+        if (mx_head[c] < 0) {
+            /* Chance to spawn a new rain drop. */
+            if ((esp_random() & 0xFF) < 10) {
+                mx_head[c] = 0;
+                mx_speed[c] = 1 + (esp_random() & 1);
+            }
+            continue;
+        }
+        /* Draw fading trail. */
+        for (int t = 0; t < 5; ++t) {
+            int ty = mx_head[c] - t;
+            if (ty < 0 || ty >= rows) continue;
+            uint16_t tcol = (t == 0) ? 0xFFFF : color;
+            if (t == 1) tcol = color;
+            else if (t == 2) tcol = 0x0440;  /* dim */
+            else if (t >= 3) tcol = 0x0220;
+            d.setTextColor(tcol, COL_BG);
+            d.setCursor(x + c * col_w, y + ty * row_h);
+            char g = 0x21 + (char)(esp_random() % 0x5D);
+            d.printf("%c", g);
+        }
+        if (advance) {
+            /* Erase the tail row below the 5-char trail. */
+            int erase_y = mx_head[c] - 5;
+            if (erase_y >= 0 && erase_y < rows) {
+                d.fillRect(x + c * col_w, y + erase_y * row_h, col_w, row_h, COL_BG);
+            }
+            mx_head[c] += mx_speed[c];
+            if (mx_head[c] >= rows + 5) {
+                mx_head[c] = -1;  /* done */
+                /* Also wipe any leftover pixels in this column. */
+                d.fillRect(x + c * col_w, y, col_w, h, COL_BG);
+            }
+        }
     }
 }

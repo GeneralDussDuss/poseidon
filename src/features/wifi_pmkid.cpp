@@ -465,10 +465,14 @@ void feat_wifi_pmkid(void)
             d.setTextColor(COL_DIM, COL_BG);
             d.setCursor(4, BODY_Y + 82); d.print("/poseidon/hashcat.22000");
             ui_draw_status(radio_name(), s_hunt ? "hunt" : "capture");
-
-            /* Notification overlay drawn on top of stats. */
-            draw_notification();
         }
+        /* Matrix rain on the right gutter (looks sick + signals "working"). */
+        ui_matrix_rain(160, BODY_Y + 18, SCR_W - 160, BODY_H - 20,
+                       s_hunt ? COL_BAD : COL_GOOD);
+
+        /* Notification overlay drawn on top of everything. */
+        draw_notification();
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

@@ -26,6 +26,8 @@ bool         g_ble_target_valid = false;
 extern void feat_ble_spam(void);
 extern void feat_ble_hid(void);
 extern void feat_ble_clone(void);
+extern void feat_ble_gatt(void);
+extern void feat_ble_flood(void);
 
 struct ble_dev_t {
     uint8_t  addr[6];
@@ -275,14 +277,16 @@ void feat_ble_scan(void)
             uint16_t col = (x.rssi > -60) ? COL_GOOD : (x.rssi > -80) ? COL_WARN : COL_BAD;
             d.fillRect(91, BODY_Y + 67, (bar_w - 2) * pct / 100, 5, col);
 
-            ui_draw_footer("C=clone H=hid-spoof P=spam-as  `=back");
+            ui_draw_footer("G=gatt C=clone H=hid X=flood P=spam `=back");
             while (true) {
                 uint16_t k2 = input_poll();
                 if (k2 == PK_NONE) { delay(20); continue; }
                 if (k2 == PK_ESC) break;
                 char ch = (char)tolower((int)k2);
+                if (ch == 'g') { feat_ble_gatt();  break; }
                 if (ch == 'c') { feat_ble_clone(); break; }
                 if (ch == 'h') { feat_ble_hid();   break; }
+                if (ch == 'x') { feat_ble_flood(); break; }
                 if (ch == 'p') { feat_ble_spam();  break; }
             }
             draw_list(cursor);
