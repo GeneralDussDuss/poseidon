@@ -37,7 +37,6 @@ static void stub_screen(const char *title, const char *detail)
     }
 }
 
-void feat_wifi_deauth(void)      { radio_switch(RADIO_WIFI); stub_screen("WIFI DEAUTH", "type BSSID or pick from scan"); }
 void feat_wifi_portal(void)      { radio_switch(RADIO_WIFI); stub_screen("EVIL PORTAL", "captive portal phishing"); }
 void feat_wifi_beacon_spam(void) { radio_switch(RADIO_WIFI); stub_screen("BEACON SPAM", "broadcast fake SSIDs"); }
 void feat_ble_scan(void)         { radio_switch(RADIO_BLE);  stub_screen("BLE SCAN", "passive scan + type detect"); }

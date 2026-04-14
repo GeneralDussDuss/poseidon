@@ -15,11 +15,13 @@ extern void feat_wifi_scan(void);
 extern void feat_wifi_deauth(void);
 extern void feat_wifi_portal(void);
 extern void feat_wifi_beacon_spam(void);
+extern void feat_wifi_wardrive(void);
 extern void feat_ble_scan(void);
 extern void feat_ble_spam(void);
 extern void feat_ble_hid(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
+extern void feat_mesh(void);
 extern void feat_file_browser(void);
 extern void feat_settings(void);
 extern void feat_about(void);
@@ -29,9 +31,15 @@ extern void feat_about(void);
 static const menu_node_t MENU_WIFI[] = {
     { 's', "Scan",        "Scan + list nearby APs with RSSI",     nullptr, feat_wifi_scan },
     { 'd', "Deauth",      "Jam target AP (type BSSID or pick)",   nullptr, feat_wifi_deauth },
+    { 'w', "Wardrive",    "Channel-hop + GPS → WiGLE CSV",         nullptr, feat_wifi_wardrive },
     { 'p', "Portal",      "Evil captive portal",                   nullptr, feat_wifi_portal },
     { 'b', "Beacon spam", "Broadcast fake SSIDs",                  nullptr, feat_wifi_beacon_spam },
     { 0,   nullptr,       nullptr, nullptr, nullptr },
+};
+
+static const menu_node_t MENU_MESH[] = {
+    { 's', "Status",    "Live peer table + broadcast",    nullptr, feat_mesh },
+    { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 
 static const menu_node_t MENU_BLE[] = {
@@ -55,10 +63,11 @@ static const menu_node_t MENU_SYS[] = {
 };
 
 const menu_node_t MENU_ROOT_CHILDREN[] = {
-    { 'w', "WiFi",      "WiFi recon and attacks",         MENU_WIFI, nullptr },
-    { 'b', "Bluetooth", "BLE scan / spam / HID",          MENU_BLE,  nullptr },
-    { 'i', "IR",        "Infrared blaster",               MENU_IR,   nullptr },
-    { 's', "System",    "Files, settings, about",         MENU_SYS,  nullptr },
+    { 'w', "WiFi",      "WiFi recon + attacks + wardrive", MENU_WIFI, nullptr },
+    { 'b', "Bluetooth", "BLE scan / spam / HID",           MENU_BLE,  nullptr },
+    { 'i', "IR",        "Infrared blaster",                MENU_IR,   nullptr },
+    { 'm', "Mesh",      "PigSync ESP-NOW peer mesh",       MENU_MESH, nullptr },
+    { 's', "System",    "Files, settings, about",          MENU_SYS,  nullptr },
     { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -81,32 +90,46 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     ui_clear_body();
     auto &d = M5Cardputer.Display;
 
-    /* Title line. */
+    /* Title: bold accent + underline bar. */
     d.setTextColor(COL_ACCENT, COL_BG);
     d.setCursor(4, BODY_Y + 2);
-    d.printf("> %s", parent->label);
+    d.printf("%s", parent->label);
+    int tw = d.textWidth(parent->label);
+    d.drawFastHLine(4, BODY_Y + 12, tw + 6, COL_ACCENT);
 
     int n = count_children(parent);
     int i = 0;
     for (const menu_node_t *c = parent->children; c && c->hotkey; ++c, ++i) {
-        int y = BODY_Y + 16 + i * 12;
+        int y = BODY_Y + 18 + i * 13;
         bool sel = (i == cursor);
-        uint16_t fg = sel ? COL_BG : COL_FG;
-        uint16_t bg = sel ? COL_ACCENT : COL_BG;
-        if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
-        d.setTextColor(fg, bg);
-        d.setCursor(4, y);
-        d.printf("[%c] %s", toupper(c->hotkey), c->label);
+        /* Rounded-rect highlight for the selected row. */
+        if (sel) {
+            d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0x18C7);
+            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, COL_ACCENT);
+        }
+        uint16_t fg = sel ? COL_ACCENT : COL_FG;
+        /* Hotkey in accent color, always. */
+        d.setTextColor(sel ? COL_WARN : COL_ACCENT, sel ? 0x18C7 : COL_BG);
+        d.setCursor(6, y + 1);
+        d.printf("[%c]", toupper(c->hotkey));
+        d.setTextColor(fg, sel ? 0x18C7 : COL_BG);
+        d.setCursor(30, y + 1);
+        d.print(c->label);
+        /* Chevron on submenus, dot on actions. */
+        d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
+        d.setCursor(SCR_W - 12, y + 1);
+        d.print(c->action ? "." : ">");
     }
 
-    /* Hint row — pulled from selected item. */
+    /* Hint strip for the selected item. */
     if (cursor >= 0 && cursor < n) {
         const menu_node_t *sel = &parent->children[cursor];
         if (sel->hint) {
-            d.setTextColor(COL_DIM, COL_BG);
-            int y = BODY_Y + 16 + n * 12 + 4;
+            int y = BODY_Y + 18 + n * 13 + 4;
             if (y < FOOTER_Y - 10) {
+                d.setTextColor(COL_DIM, COL_BG);
                 d.setCursor(4, y);
+                d.print("» ");
                 d.print(sel->hint);
             }
         }
