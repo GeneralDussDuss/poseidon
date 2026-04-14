@@ -35,6 +35,7 @@ extern void feat_ble_beacon(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
+extern void feat_triton(void);
 extern void feat_file_browser(void);
 extern void feat_settings(void);
 extern void feat_about(void);
@@ -106,6 +107,7 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 'w', "WiFi",      "WiFi recon + attacks + wardrive", MENU_WIFI, nullptr },
     { 'b', "Bluetooth", "BLE scan / spam / HID / tracker", MENU_BLE,  nullptr },
     { 'i', "IR",        "Infrared blaster + remote",       MENU_IR,   nullptr },
+    { 't', "Triton",    "gotchi pet that hunts handshakes", nullptr,   feat_triton },
     { 'u', "BadUSB",    "USB-HID payload runner",          nullptr,   feat_badusb },
     { 'n', "Network",   "Port scan / ping / DNS / connect", MENU_NET,  nullptr },
     { 'm', "Mesh",      "PigSync ESP-NOW peer mesh",       MENU_MESH, nullptr },
