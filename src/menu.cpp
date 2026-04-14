@@ -44,6 +44,9 @@ extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
 extern void feat_triton(void);
+extern void feat_c5_status(void);
+extern void feat_c5_scan_5g(void);
+extern void feat_c5_scan_zb(void);
 extern void feat_tool_sd_format(void);
 extern void feat_tool_flashlight(void);
 extern void feat_tool_screen_test(void);
@@ -124,6 +127,24 @@ static const menu_node_t MENU_MESH[] = {
       "ESP-NOW presence beacon + peer table. Broadcasts a HELLO frame every 5s "
       "with name/heap/GPS. Eviction after 30s silence. The enabler for the "
       "C5 drop-node C2 concept when those boards arrive." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
+static const menu_node_t MENU_C5[] = {
+    { 's', "Status", "Show connected C5 nodes", nullptr, feat_c5_status,
+      "Live peer table of C5 nodes. Auto-connects via ESP-NOW HELLO. P pings "
+      "every peer, S broadcasts STOP to halt any running scan. Status dot in "
+      "the corner is green when any C5 is online, red when none are." },
+    { '5', "Scan 5G+2G", "Remote dual-band WiFi scan", nullptr, feat_c5_scan_5g,
+      "Sends CMD_SCAN_5G to every C5 peer. Each C5 runs a dual-band WiFi scan "
+      "(2.4 + 5 GHz) and streams results back in batches of 4 APs per ESP-NOW "
+      "frame. We dedup by BSSID and sort by RSSI. 5G APs tagged with a "
+      "magenta 5G badge, 2G in cyan. First pocket tool that can see 5 GHz." },
+    { 'z', "Zigbee sniff", "Remote 802.15.4 capture", nullptr, feat_c5_scan_zb,
+      "Sends CMD_SCAN_ZB with 0xFF (channel hop 11-26). C5 puts its 802.15.4 "
+      "radio in promisc and streams frame summaries (channel, RSSI, type, PAN, "
+      "addresses) back over ESP-NOW. Catches Zigbee beacons, Thread packets, "
+      "smart locks/bulbs, anything on 802.15.4 in range." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -302,6 +323,11 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "ESP-NOW presence beacon. Broadcasts our name/heap/GPS to other "
       "POSEIDON or compatible devices in range. Foundation for the "
       "multi-device C2 concept." },
+    { '5', "C5 nodes", "Remote 5GHz + Zigbee via C5 mesh", MENU_C5, nullptr,
+      "Control external ESP32-C5 drop-nodes over ESP-NOW. C5 is the only "
+      "ESP chip with 5 GHz WiFi + 802.15.4 radios. When your C5 node boots "
+      "nearby it auto-connects (green dot in status bar). Commands stream "
+      "results back: dual-band scan, Zigbee/Thread sniff, remote deauth." },
     { 's', "System", "Files, clock, settings", MENU_SYS, nullptr,
       "Device utilities: SD browser, clock, settings (WiFi creds, prefs, "
       "reboot), about." },
