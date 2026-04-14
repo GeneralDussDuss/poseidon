@@ -466,9 +466,8 @@ void feat_wifi_pmkid(void)
             d.setCursor(4, BODY_Y + 82); d.print("/poseidon/hashcat.22000");
             ui_draw_status(radio_name(), s_hunt ? "hunt" : "capture");
         }
-        /* Matrix rain on the right gutter (looks sick + signals "working"). */
-        ui_matrix_rain(160, BODY_Y + 18, SCR_W - 160, BODY_H - 20,
-                       s_hunt ? COL_BAD : COL_GOOD);
+        /* Radial wave pulse + matrix rain gutter. */
+        ui_waves(200, BODY_Y + BODY_H / 2, 40, s_hunt ? COL_BAD : COL_GOOD);
 
         /* Notification overlay drawn on top of everything. */
         draw_notification();

@@ -39,6 +39,7 @@ extern void feat_ble_flood(void);
 extern void feat_ble_karma(void);
 extern void feat_ble_sourapple(void);
 extern void feat_ble_findmy(void);
+extern void feat_ble_toys(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
@@ -176,6 +177,11 @@ static const menu_node_t MENU_BLE[] = {
       "Broadcasts fake Apple Find My / AirTag advertisements with random "
       "rotating keys. Passing iPhones with Find My enabled relay your 'tags' "
       "to iCloud's location service. Modes: 1 tag, flock of 8, flock of 32." },
+    { 'd', "Salty Deep", "Wireless toy scanner + controller", nullptr, feat_ble_toys,
+      "Scans for Lovense / WeVibe / Satisfyer / Svakom / Kiiroo / Lelo / "
+      "Magic Motion devices. Connect to a Lovense and control vibration "
+      "intensity 0-20 via the keyboard. Number keys 1-9 jump to a level; "
+      "; and . nudge up/down; SPACE or 0 stops." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

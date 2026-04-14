@@ -54,3 +54,8 @@ void ui_ripple(int cx, int cy, uint16_t color);
  * advances internally via millis(). Draws into a given rect. Caller
  * is responsible for clearing the rect before the first call. */
 void ui_matrix_rain(int x, int y, int w, int h, uint16_t color);
+
+/* Radial wave pulse animation — 3 expanding glow rings + sweeping
+ * arcs at (cx, cy). Ported from Evil-Cardputer's NTLM waiting anim.
+ * Call in a refresh loop. Caller clears the region. */
+void ui_waves(int cx, int cy, int max_radius, uint16_t base_color);

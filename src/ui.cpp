@@ -259,6 +259,73 @@ void ui_ripple(int cx, int cy, uint16_t color)
     }
 }
 
+/* ---- radial waves + arcs (ported from Evil-Cardputer) ---- */
+
+static inline uint16_t hsv565(uint16_t hue, uint8_t sat, uint8_t val)
+{
+    /* Hue 0..360 → sector. Quick HSV→RGB565. */
+    uint8_t region = (hue / 60) % 6;
+    uint16_t f = (hue % 60) * 255 / 60;
+    uint8_t p = (val * (255 - sat)) / 255;
+    uint8_t q = (val * (255 - (sat * f) / 255)) / 255;
+    uint8_t t = (val * (255 - (sat * (255 - f)) / 255)) / 255;
+    uint8_t r = 0, g = 0, b = 0;
+    switch (region) {
+    case 0: r = val; g = t;   b = p;   break;
+    case 1: r = q;   g = val; b = p;   break;
+    case 2: r = p;   g = val; b = t;   break;
+    case 3: r = p;   g = q;   b = val; break;
+    case 4: r = t;   g = p;   b = val; break;
+    case 5: r = val; g = p;   b = q;   break;
+    }
+    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+}
+
+void ui_waves(int cx, int cy, int max_radius, uint16_t base_color)
+{
+    auto &d = M5Cardputer.Display;
+    uint32_t t = millis() / 16;  /* logical tick */
+
+    /* Central glow (3 concentric disks). */
+    for (int i = 3; i >= 1; --i) {
+        uint8_t v = 40 * i;
+        d.fillCircle(cx, cy, 10 + i * 3, hsv565(280, 200, v));
+    }
+    d.fillCircle(cx, cy, 4, 0xFFFF);
+
+    /* 3 expanding ring waves with hue drift. */
+    for (int i = 0; i < 3; ++i) {
+        float k = ((t * 0.015f) + i * 0.33f);
+        k -= (int)k;  /* wrap 0..1 */
+        float e = -0.5f * (cosf(3.14159f * k) - 1.0f);  /* ease-in-out */
+        int r = (int)(e * max_radius);
+        if (r <= 0) continue;
+        for (int j = 0; j < 3; ++j) {
+            int rr = r - j;
+            if (rr <= 0) continue;
+            uint16_t hue = ((uint16_t)(280 + 30 * sinf(t * 0.01f + i))) % 360;
+            uint8_t val = (uint8_t)max(30, 220 - j * 40);
+            d.drawCircle(cx, cy, rr, hsv565(hue, 220, val));
+        }
+    }
+    (void)base_color;
+
+    /* Two sweeping arcs at fixed radii. */
+    float sweep = t * 0.05f;
+    for (int a = 0; a < 2; ++a) {
+        float base = sweep + a * 2.1f;
+        int r = 16 + a * 14;
+        float start = base;
+        float end   = base + 1.4f;
+        for (float ang = start; ang <= end; ang += 0.08f) {
+            int x = cx + (int)(cosf(ang) * r);
+            int y = cy + (int)(sinf(ang) * r);
+            uint8_t v = 180 + (int)(50 * sinf(ang - (start+end)*0.5f));
+            d.drawPixel(x, y, hsv565(210, 200, v));
+        }
+    }
+}
+
 /* ---- matrix rain ----
  * Column state: each column has a "head" y-position and speed.
  * Each render tick:
