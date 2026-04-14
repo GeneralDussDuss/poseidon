@@ -23,6 +23,7 @@ struct menu_node_t {
     const char *hint;            /* short description shown in footer */
     const menu_node_t *children; /* array of children (terminated by {0}) */
     menu_action_fn     action;   /* if non-null, leaf node fires this */
+    const char *info;            /* long-form info shown on ?-key press */
 };
 
 /* Enter the main menu loop. Returns when user quits (rare). */
