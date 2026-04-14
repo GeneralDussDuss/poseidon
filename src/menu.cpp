@@ -37,6 +37,8 @@ extern void feat_ble_finder(void);
 extern void feat_ble_gatt(void);
 extern void feat_ble_flood(void);
 extern void feat_ble_karma(void);
+extern void feat_ble_sourapple(void);
+extern void feat_ble_findmy(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
@@ -96,6 +98,8 @@ static const menu_node_t MENU_BLE[] = {
     { 'g', "GATT",      "Connect + enumerate + r/w",     nullptr, feat_ble_gatt },
     { 'x', "Flood",     "DoS connection storm → target", nullptr, feat_ble_flood },
     { 'k', "Karma",     "Rotate identity, lure pairings", nullptr, feat_ble_karma },
+    { 'a', "SourApple", "iOS 17 notification DoS",       nullptr, feat_ble_sourapple },
+    { 'y', "Find My",   "Fake AirTag broadcaster",       nullptr, feat_ble_findmy },
     { 0,   nullptr, nullptr, nullptr, nullptr },
 };
 

@@ -1,26 +1,24 @@
 /*
- * splash.cpp — Neptune engraving splash with animated matrix rain.
+ * splash.cpp — Hokusai Great Wave full-screen splash.
  *
- * Based on Agostino Carracci's "Neptune" (c. 1588-1595), public
- * domain via Wikimedia Commons, converted to 94x120 RGB565.
+ * Public domain via Wikimedia Commons, converted to 201x135 RGB565.
+ * The image fills the full display height; ~20px side margins get
+ * matrix-rain animation.
  *
- * Animation phases:
- *   1. Fade-in: black screen → engraving ramps brightness
- *   2. Matrix rain spawns around the figure
- *   3. Title "POSEIDON" slides in from below with magenta glow
- *   4. Accent rule grows outward
- *   5. Ambient idle — rain + shimmer until any keypress
+ * Phases:
+ *   1. Fade-in from black via per-pixel brightness ramp
+ *   2. Magenta scanline sweeps top→bottom (materialization effect)
+ *   3. POSEIDON title glows on at the bottom, magenta halo
+ *   4. Idle: matrix rain drips in the side gutters until key press
  */
 #include "app.h"
 #include "ui.h"
 #include "input.h"
 #include "sprites/splash_sprite.h"
-#include <math.h>
 #include <esp_random.h>
 
-/* Theme colors — magenta accent restored per user request. */
-#define COL_MAGENTA_ACCENT 0xF81F
-#define COL_MAGENTA_DEEP   0x9013
+#define C_MAG_HI 0xF81F
+#define C_MAG_LO 0x9013
 
 static uint16_t blend565(uint16_t a, uint16_t b, uint8_t t)
 {
@@ -32,12 +30,12 @@ static uint16_t blend565(uint16_t a, uint16_t b, uint8_t t)
     return (r << 11) | (g << 5) | bl;
 }
 
-/* Blit the sprite with a fade multiplier (0..255). */
-static void draw_engraving(int cx, int cy, uint8_t brightness)
+/* Draw the sprite centered, fade multiplier 0..255. */
+static void draw_wave(uint8_t brightness)
 {
     auto &d = M5Cardputer.Display;
-    int ox = cx - splash_w / 2;
-    int oy = cy - splash_h / 2;
+    int ox = (SCR_W - splash_w) / 2;
+    int oy = (SCR_H - splash_h) / 2;
     for (int y = 0; y < splash_h; ++y) {
         int dy = oy + y;
         if (dy < 0 || dy >= SCR_H) continue;
@@ -52,100 +50,76 @@ static void draw_engraving(int cx, int cy, uint8_t brightness)
     }
 }
 
-/* Horizontal scanline sweep — one bright line races across the
- * engraving for a "materializing" effect. */
-static void draw_scanline(int y, uint16_t color)
-{
-    auto &d = M5Cardputer.Display;
-    if (y < 0 || y >= SCR_H) return;
-    d.drawFastHLine(0, y, SCR_W, color);
-}
-
 void ui_splash(void)
 {
     auto &d = M5Cardputer.Display;
     d.fillScreen(0x0000);
 
-    int cx = SCR_W / 2;
-    int cy = 60;  /* engraving centered upper half */
-
-    /* ---- Phase 1: engraving fade-in with scanline sweep ---- */
-    for (int f = 0; f <= 30; ++f) {
+    /* ---- Phase 1: fade in with magenta scanline sweep ---- */
+    for (int f = 0; f <= 25; ++f) {
         uint32_t frame_start = millis();
-        uint8_t bright = (uint8_t)(f * 255 / 30);
-
-        /* Full-screen clear each frame for clean fade. */
+        uint8_t bright = (uint8_t)(f * 255 / 25);
         d.fillScreen(0x0000);
-        draw_engraving(cx, cy, bright);
-
-        /* Scanline sweeps top→bottom over the sprite range. */
-        int sy = (cy - splash_h / 2) + (f * splash_h / 30);
-        draw_scanline(sy,     COL_MAGENTA_ACCENT);
-        draw_scanline(sy + 1, COL_MAGENTA_DEEP);
-
+        draw_wave(bright);
+        /* Scanline — full width, moves top→bottom. */
+        int sy = f * SCR_H / 25;
+        d.drawFastHLine(0, sy,     SCR_W, C_MAG_HI);
+        d.drawFastHLine(0, sy + 1, SCR_W, C_MAG_LO);
         if (input_poll() != PK_NONE) goto idle;
         uint32_t e = millis() - frame_start;
         if (e < 30) delay(30 - e);
     }
 
-    /* ---- Phase 2: title slides in from below with magenta glow ---- */
+    /* ---- Phase 2: title glows on at bottom ---- */
     {
         const char *title = "POSEIDON";
         d.setTextSize(2);
         int tw = d.textWidth(title) * 2;
         int tx = (SCR_W - tw) / 2;
-        int final_y = 120;
-        int start_y = SCR_H + 4;
-        for (int f = 0; f <= 12; ++f) {
-            int y = start_y + (final_y - start_y) * f / 12;
-            /* Wipe just the title band. */
-            d.fillRect(0, 118, SCR_W, 14, 0x0000);
-            /* Glow layers. */
-            d.setTextColor(COL_MAGENTA_DEEP, 0);
-            d.setCursor(tx - 1, y); d.print(title);
-            d.setCursor(tx + 1, y); d.print(title);
-            d.setTextColor(COL_MAGENTA_ACCENT, 0);
-            d.setCursor(tx, y); d.print(title);
+        int ty = SCR_H - 18;
 
+        /* Clear title band. */
+        d.fillRect(0, ty - 2, SCR_W, 18, 0x0000);
+
+        for (int f = 0; f <= 14; ++f) {
+            uint8_t a = (uint8_t)(f * 255 / 14);
+            /* Magenta shadow/glow. */
+            uint16_t halo = blend565(0x0000, C_MAG_LO, a);
+            uint16_t hot  = blend565(0x0000, C_MAG_HI, a);
+            /* Redraw title every frame so it brightens. */
+            d.fillRect(0, ty - 2, SCR_W, 18, 0x0000);
+            d.setTextColor(halo, 0);
+            d.setCursor(tx - 1, ty); d.print(title);
+            d.setCursor(tx + 1, ty); d.print(title);
+            d.setCursor(tx, ty - 1); d.print(title);
+            d.setCursor(tx, ty + 1); d.print(title);
+            d.setTextColor(hot, 0);
+            d.setCursor(tx, ty); d.print(title);
             if (input_poll() != PK_NONE) goto idle;
-            delay(22);
+            delay(30);
         }
         d.setTextSize(1);
     }
 
-    /* ---- Phase 3: accent rule grows outward ---- */
-    for (int w = 0; w <= 120; w += 8) {
-        d.drawFastHLine((SCR_W - w) / 2, 132, w, COL_MAGENTA_ACCENT);
-        if (input_poll() != PK_NONE) goto idle;
-        delay(12);
-    }
-
-    /* "commander of the deep" subtitle under the title. */
-    {
-        const char *sub = "commander of the deep";
-        d.setTextColor(0x7BEF, 0);
-        int sw = d.textWidth(sub);
-        d.setCursor((SCR_W - sw) / 2, 125);
-        d.print(sub);
-    }
-
 idle:
-    /* ---- Phase 4: ambient — matrix rain flanks the engraving ---- */
+    /* ---- Phase 3: idle — matrix rain in the side margins ---- */
     while (true) {
-        /* Re-draw the sprite periodically so rain doesn't paint over it
-         * permanently (matrix rain only draws in its own region though). */
-        ui_matrix_rain(0, 2, 50, 118, COL_MAGENTA_ACCENT);
-        ui_matrix_rain(190, 2, 50, 118, COL_MAGENTA_DEEP);
+        int left_margin  = (SCR_W - splash_w) / 2;
+        int right_start  = left_margin + splash_w;
+        if (left_margin > 0)
+            ui_matrix_rain(0, 0, left_margin, SCR_H, C_MAG_HI);
+        if (right_start < SCR_W)
+            ui_matrix_rain(right_start, 0, SCR_W - right_start, SCR_H, C_MAG_LO);
 
-        /* Subtle twinkle on the accent rule. */
-        if ((esp_random() & 0xFF) < 30) {
-            int x = 60 + (esp_random() % 120);
-            d.drawPixel(x, 132, 0xFFFF);
-            delay(30);
-            d.drawPixel(x, 132, COL_MAGENTA_ACCENT);
+        /* Occasional magenta twinkle at the title underline. */
+        if ((esp_random() & 0xFF) < 20) {
+            int x = left_margin + (esp_random() % splash_w);
+            d.drawPixel(x, SCR_H - 2, 0xFFFF);
+            delay(40);
+            d.drawPixel(x, SCR_H - 2, C_MAG_HI);
         }
 
         if (input_poll() != PK_NONE) return;
-        delay(60);
+        delay(80);
     }
 }

