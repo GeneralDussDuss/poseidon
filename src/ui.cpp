@@ -371,11 +371,15 @@ void ui_radar(int cx, int cy, int radius, uint16_t color)
         d.drawPixel(x, y, 0xFFFF);
     }
 
-    /* Random blips. */
+    /* Random blips. Guard against small radius: callers pass r=8 in
+     * corner-radar slots, which would make (radius - 8) == 0 and
+     * esp_random() % 0 is a hardware divide-by-zero panic. */
+    int blip_range = radius - 8;
+    if (blip_range < 1) blip_range = 1;
     if ((esp_random() & 0xFF) < 12) {
         int slot = esp_random() % RADAR_BLIPS;
         s_blips[slot].a = s_angle;
-        s_blips[slot].r = 6 + (esp_random() % (radius - 8));
+        s_blips[slot].r = 6 + (esp_random() % blip_range);
         s_blips[slot].when = millis();
     }
     for (int i = 0; i < RADAR_BLIPS; ++i) {
