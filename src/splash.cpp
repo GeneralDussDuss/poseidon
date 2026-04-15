@@ -14,6 +14,7 @@
 #include "app.h"
 #include "ui.h"
 #include "input.h"
+#include "version.h"
 #include "sprites/splash_sprite.h"
 #include <esp_random.h>
 
@@ -99,6 +100,14 @@ void ui_splash(void)
             delay(30);
         }
         d.setTextSize(1);
+
+        /* Version tag, dim magenta, bottom-right corner. */
+        char vt[32];
+        snprintf(vt, sizeof(vt), "v%s", poseidon_version());
+        d.setTextColor(C_MAG_LO, 0);
+        int vw = d.textWidth(vt);
+        d.setCursor(SCR_W - vw - 3, SCR_H - 9);
+        d.print(vt);
     }
 
 idle:

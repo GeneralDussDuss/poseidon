@@ -6,6 +6,8 @@
 #include "input.h"
 #include "menu.h"
 #include "radio.h"
+#include "sd_helper.h"
+#include "version.h"
 
 void setup()
 {
@@ -14,7 +16,13 @@ void setup()
     M5Cardputer.Display.setRotation(1);  /* landscape, keyboard at the bottom */
     Serial.begin(115200);
     delay(100);
-    Serial.println("\n[POSEIDON] boot");
+    Serial.printf("\n[POSEIDON] %s (%s) boot\n",
+                  poseidon_version(), poseidon_build_date());
+
+    /* Mount SD on boot if a card is present. Non-fatal if absent. */
+    if (sd_mount()) Serial.println("[POSEIDON] sd mounted");
+    else            Serial.println("[POSEIDON] sd absent");
+
     ui_init();
 
     ui_splash();  /* animates, then waits for a key press internally */

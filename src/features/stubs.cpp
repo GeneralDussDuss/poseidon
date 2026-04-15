@@ -4,6 +4,7 @@
 #include "app.h"
 #include "ui.h"
 #include "input.h"
+#include "../version.h"
 
 void feat_about(void)
 {
@@ -14,12 +15,13 @@ void feat_about(void)
     d.print("POSEIDON");
     d.drawFastHLine(4, BODY_Y + 12, 90, COL_ACCENT);
     d.setTextColor(COL_FG, COL_BG);
-    d.setCursor(4, BODY_Y + 22); d.printf("v%s", POSEIDON_VERSION);
-    d.setCursor(4, BODY_Y + 34); d.print("keyboard-first pentesting");
-    d.setCursor(4, BODY_Y + 46); d.print("M5Stack Cardputer");
+    d.setCursor(4, BODY_Y + 22); d.printf("v%s", poseidon_version());
+    d.setCursor(4, BODY_Y + 32); d.printf("built %s", poseidon_build_date());
+    d.setCursor(4, BODY_Y + 44); d.print("keyboard-first pentesting");
+    d.setCursor(4, BODY_Y + 54); d.print("M5Stack Cardputer");
     d.setTextColor(COL_DIM, COL_BG);
-    d.setCursor(4, BODY_Y + 64); d.print("github.com/../poseidon");
-    d.setCursor(4, BODY_Y + 76); d.print("commander of the deep");
+    d.setCursor(4, BODY_Y + 70); d.print("github.com/GeneralDussDuss/poseidon");
+    d.setCursor(4, BODY_Y + 80); d.print("commander of the deep");
     ui_draw_footer("`=back");
     while (true) {
         uint16_t k = input_poll();
