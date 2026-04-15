@@ -24,23 +24,36 @@ static void draw_status_header(void)
 
 void feat_c5_status(void)
 {
-    /* Ensure c5 layer is running — go through radio_switch so BLE
-     * tears down cleanly before WiFi comes up. */
+    Serial.println("[c5_status] enter");
     radio_switch(RADIO_WIFI);
+    Serial.println("[c5_status] radio_switch OK");
     c5_begin();
+    Serial.println("[c5_status] c5_begin OK");
 
     auto &d = M5Cardputer.Display;
     ui_draw_footer("P=ping  S=stop  `=back");
 
     uint32_t last = 0;
+    uint32_t frame = 0;
     while (true) {
         if (millis() - last > 400) {
             last = millis();
+            ++frame;
+
+            /* Snapshot once. No further live reads during this frame. */
+            int n = c5_peer_count();
+            if (n > 6) n = 6;
+            char names[6][16];
+            for (int i = 0; i < n; ++i) c5_peer_name_copy(i, names[i], sizeof(names[i]));
+            uint32_t age_ms = (n > 0) ? c5_last_seen_ms() : 0;
+
+            if ((frame & 7) == 0) Serial.printf("[c5_status] frame=%lu n=%d\n",
+                                                (unsigned long)frame, n);
+
             ui_clear_body();
             d.setTextColor(0xF81F, COL_BG);
             d.setCursor(4, BODY_Y + 2); d.print("C5 NODES");
             d.drawFastHLine(4, BODY_Y + 12, 80, 0xF81F);
-            int n = c5_peer_count();
             if (n == 0) {
                 d.setTextColor(COL_BAD, COL_BG);
                 d.setCursor(4, BODY_Y + 24); d.print("NO C5 ONLINE");
@@ -52,17 +65,14 @@ void feat_c5_status(void)
                 d.setTextColor(COL_GOOD, COL_BG);
                 d.setCursor(4, BODY_Y + 22);
                 d.printf("ONLINE  %d peer%s", n, n == 1 ? "" : "s");
-                for (int i = 0; i < n && i < 6; ++i) {
-                    char nm[16];
-                    c5_peer_name_copy(i, nm, sizeof(nm));
+                for (int i = 0; i < n; ++i) {
                     d.setTextColor(COL_FG, COL_BG);
                     d.setCursor(8, BODY_Y + 36 + i * 10);
-                    d.printf("* %s", nm);
+                    d.printf("* %s", names[i]);
                 }
                 d.setTextColor(COL_DIM, COL_BG);
                 d.setCursor(4, BODY_Y + BODY_H - 10);
-                d.printf("last seen: %lus ago",
-                         (unsigned long)(c5_last_seen_ms() / 1000));
+                d.printf("last seen: %lus ago", (unsigned long)(age_ms / 1000));
             }
             draw_status_header();
             ui_radar(SCR_W - 20, BODY_Y + BODY_H - 14, 8, COL_ACCENT);
@@ -73,6 +83,7 @@ void feat_c5_status(void)
         if (k == 'p' || k == 'P') { c5_cmd_ping(); ui_toast("ping sent", COL_ACCENT, 400); }
         if (k == 's' || k == 'S') { c5_cmd_stop(); ui_toast("stop sent", COL_WARN, 400); }
     }
+    Serial.println("[c5_status] exit");
 }
 
 void feat_c5_scan_5g(void)

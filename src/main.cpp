@@ -12,6 +12,9 @@ void setup()
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
     M5Cardputer.Display.setRotation(1);  /* landscape, keyboard at the bottom */
+    Serial.begin(115200);
+    delay(100);
+    Serial.println("\n[POSEIDON] boot");
     ui_init();
 
     ui_splash();  /* animates, then waits for a key press internally */
