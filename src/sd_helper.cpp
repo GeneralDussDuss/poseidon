@@ -13,6 +13,7 @@
 #include <SD.h>
 #include <SPI.h>
 #include <FS.h>
+#include <new>
 #include <esp_vfs_fat.h>
 #include <diskio_impl.h>
 #include <sdmmc_cmd.h>
@@ -23,38 +24,49 @@
 #define SD_CS    12
 #define SD_FREQ  20000000  /* 20 MHz — reliable on 5cm ribbon in the Cardputer */
 
-/* Dedicated SPI bus for SD — the M5Cardputer display already owns the
- * default SPI (HSPI/SPI3). Sharing the bus would corrupt either the
- * display or the SD reads. FSPI / SPI2 is free for us. */
-static SPIClass sd_spi(FSPI);
+/* Dedicated SPI bus for SD. The M5Cardputer display (M5GFX) claims
+ * FSPI/SPI2 for the TFT — confirmed by checking M5GFX init paths.
+ * That leaves HSPI/SPI3 free for us. */
+static SPIClass sd_spi(HSPI);
 
 static bool s_mounted = false;
 
 bool sd_is_mounted(void) { return s_mounted; }
 
+static bool try_mount(int hz, bool fmt_if_fail, const char *tag)
+{
+    SD.end();
+    sd_spi.end();
+    sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    bool ok = SD.begin(SD_CS, sd_spi, hz, "/sd", 5, fmt_if_fail);
+    Serial.printf("[sd] %-12s @ %d Hz fmt=%d -> %s\n", tag, hz, fmt_if_fail, ok ? "OK" : "FAIL");
+    return ok;
+}
+
 bool sd_mount(void)
 {
     if (s_mounted) return true;
 
-    SD.end();
-    sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    /* Tier 1: HSPI fast (most reliable on the Cardputer). */
+    if (try_mount(SD_FREQ,    false, "HSPI fast"))   { s_mounted = true; return true; }
+    if (try_mount(10000000,   false, "HSPI half"))   { s_mounted = true; return true; }
+    if (try_mount( 4000000,   false, "HSPI slow"))   { s_mounted = true; return true; }
 
-    /* SD.begin(cs, spi, freq, mountpoint, max_files, format_if_mount_failed) */
-    if (SD.begin(SD_CS, sd_spi, SD_FREQ, "/sd", 5, false)) { s_mounted = true; return true; }
+    /* Tier 2: try the OTHER SPI bus in case display is using HSPI on
+     * this build. Rebind sd_spi to FSPI. */
+    sd_spi.end();
+    new (&sd_spi) SPIClass(FSPI);
+    if (try_mount(SD_FREQ,    false, "FSPI fast"))   { s_mounted = true; return true; }
+    if (try_mount( 4000000,   false, "FSPI slow"))   { s_mounted = true; return true; }
 
-    /* Retry at half speed for flaky cards. */
-    SD.end();
-    sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    if (SD.begin(SD_CS, sd_spi, 10000000, "/sd", 5, false)) { s_mounted = true; return true; }
-
-    /* Last-resort: card has no FAT or it's corrupted. Auto-format
-     * with format_if_mount_failed=true. Destructive, but the user is
-     * already in a "SD won't work" state — better than silent failure.
-     * If they had data they cared about, sd_mount wouldn't have
-     * failed at all. */
-    SD.end();
-    sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    if (SD.begin(SD_CS, sd_spi, 4000000, "/sd", 5, true)) { s_mounted = true; return true; }
+    /* Tier 3: card has no FAT or is corrupted — let the driver format
+     * it. Last resort, destructive. */
+    sd_spi.end();
+    new (&sd_spi) SPIClass(HSPI);
+    if (try_mount( 4000000,   true,  "HSPI format")) { s_mounted = true; return true; }
+    sd_spi.end();
+    new (&sd_spi) SPIClass(FSPI);
+    if (try_mount( 4000000,   true,  "FSPI format")) { s_mounted = true; return true; }
 
     return false;
 }
