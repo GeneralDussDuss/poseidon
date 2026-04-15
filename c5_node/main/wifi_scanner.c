@@ -20,77 +20,35 @@ void wifi_scanner_run(const uint8_t requester[6],
                       uint16_t duration_ms,
                       uint16_t seq)
 {
-    /* Two-pass scan: ACTIVE on 2.4 GHz (fast — APs respond to probes),
-     * PASSIVE on 5 GHz (DFS rules forbid APs on UNII-2A/2C from
-     * answering probes — we MUST listen for beacons). Active-only on
-     * the upper band misses 80%+ of real-world 5 GHz APs. */
-
-    /* Pass 1: 2.4 GHz active. */
-    uint16_t dwell = duration_ms ? duration_ms : 200;
-    wifi_scan_config_t cfg2 = {
-        .ssid = NULL, .bssid = NULL,
-        .channel = 0,
-        .show_hidden = true,
-        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
-        .scan_time = { .active = { .min = 80, .max = dwell } },
-        .channel_bitmap = { .ghz_2_channels = 0x3FFE, .ghz_5_channels = 0 },
-    };
-    ESP_LOGI(TAG, "scan 2.4 active dwell=%ums", (unsigned)dwell);
-    esp_wifi_scan_start(&cfg2, true);
-
-    uint16_t n2 = 0;
-    esp_wifi_scan_get_ap_num(&n2);
-    ESP_LOGI(TAG, "2.4 done, %u APs", (unsigned)n2);
-
-    wifi_ap_record_t *r24 = NULL;
-    if (n2 > 0) {
-        r24 = malloc(sizeof(wifi_ap_record_t) * n2);
-        if (r24) esp_wifi_scan_get_ap_records(&n2, r24);
-        else      n2 = 0;
-    } else {
-        esp_wifi_scan_get_ap_records(&n2, NULL);  /* free internal buffer */
-    }
-
-    /* Pass 2: 5 GHz passive. Listen for beacons across UNII-1/2A/2C/3.
-     * Dwell longer because beacon period is typically 100ms — need at
-     * least 200ms per channel to reliably catch one. */
-    uint16_t dwell5 = dwell + 300;
-    if (dwell5 < 400) dwell5 = 400;
-    wifi_scan_config_t cfg5 = {
+    /* Single passive scan across all channels. Passive picks up beacons
+     * from BOTH bands (DFS-restricted 5 GHz APs and normal 2.4 GHz APs
+     * all broadcast beacons every ~100 ms). Long dwell guarantees we
+     * hear at least one beacon per channel. No channel_bitmap so the
+     * driver visits everything the country code allows. */
+    uint16_t dwell = duration_ms ? duration_ms : 350;
+    if (dwell < 200) dwell = 200;
+    wifi_scan_config_t cfg = {
         .ssid = NULL, .bssid = NULL,
         .channel = 0,
         .show_hidden = true,
         .scan_type = WIFI_SCAN_TYPE_PASSIVE,
-        .scan_time = { .passive = dwell5 },
-        .channel_bitmap = { .ghz_2_channels = 0, .ghz_5_channels = 0xFFFFFFFF },
+        .scan_time = { .passive = dwell },
     };
-    ESP_LOGI(TAG, "scan 5 passive dwell=%ums", (unsigned)dwell5);
-    esp_wifi_scan_start(&cfg5, true);
-
-    uint16_t n5 = 0;
-    esp_wifi_scan_get_ap_num(&n5);
-    ESP_LOGI(TAG, "5 done, %u APs", (unsigned)n5);
-
-    wifi_ap_record_t *r5 = NULL;
-    if (n5 > 0) {
-        r5 = malloc(sizeof(wifi_ap_record_t) * n5);
-        if (r5) esp_wifi_scan_get_ap_records(&n5, r5);
-        else     n5 = 0;
-    } else {
-        esp_wifi_scan_get_ap_records(&n5, NULL);
-    }
-
-    /* Merge into one logical record list. */
-    uint16_t n = n2 + n5;
-    if (n == 0) {
-        free(r24); free(r5);
+    ESP_LOGI(TAG, "scan passive dwell=%ums all channels", (unsigned)dwell);
+    esp_err_t err = esp_wifi_scan_start(&cfg, true);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "scan_start: %s", esp_err_to_name(err));
         return;
     }
+
+    uint16_t n = 0;
+    esp_wifi_scan_get_ap_num(&n);
+    ESP_LOGI(TAG, "scan done, %u APs", (unsigned)n);
+    if (n == 0) return;
+
     wifi_ap_record_t *records = malloc(sizeof(wifi_ap_record_t) * n);
-    if (!records) { free(r24); free(r5); return; }
-    if (r24) memcpy(records, r24, sizeof(wifi_ap_record_t) * n2);
-    if (r5)  memcpy(records + n2, r5, sizeof(wifi_ap_record_t) * n5);
-    free(r24); free(r5);
+    if (!records) return;
+    esp_wifi_scan_get_ap_records(&n, records);
 
     /* Stream 4 APs per frame. */
     posei_msg_t msg;
