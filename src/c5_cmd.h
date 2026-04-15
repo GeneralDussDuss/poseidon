@@ -72,7 +72,8 @@ void c5_stop(void);
 bool     c5_any_online(void);
 int      c5_peer_count(void);
 uint32_t c5_last_seen_ms(void);
-const char *c5_peer_name(int idx);
+const char *c5_peer_name(int idx);   /* direct, racy — prefer _copy */
+void c5_peer_name_copy(int idx, char *out, int max);
 
 /* Send a command to every known C5. Returns the seq id used. */
 uint16_t c5_cmd_scan_5g(uint16_t duration_ms);

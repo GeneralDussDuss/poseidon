@@ -53,9 +53,11 @@ void feat_c5_status(void)
                 d.setCursor(4, BODY_Y + 22);
                 d.printf("ONLINE  %d peer%s", n, n == 1 ? "" : "s");
                 for (int i = 0; i < n && i < 6; ++i) {
+                    char nm[16];
+                    c5_peer_name_copy(i, nm, sizeof(nm));
                     d.setTextColor(COL_FG, COL_BG);
                     d.setCursor(8, BODY_Y + 36 + i * 10);
-                    d.printf("* %s", c5_peer_name(i));
+                    d.printf("* %s", nm);
                 }
                 d.setTextColor(COL_DIM, COL_BG);
                 d.setCursor(4, BODY_Y + BODY_H - 10);
