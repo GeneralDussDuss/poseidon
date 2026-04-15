@@ -238,6 +238,8 @@ pio run -t monitor
 
 This is for **authorized security testing, research, and education only**. You are responsible for complying with all applicable laws. Do not run any of this against networks or devices you don't own or have explicit written authorization to test.
 
+**RF region compliance is on you.** POSEIDON does not enforce regional channel restrictions. 2.4 GHz channels 12–14 behave differently depending on country. 5 GHz channel availability (DFS, UNII-2/2C/3) varies heavily. Deauth frame injection is illegal in many jurisdictions regardless of network ownership — even on your own AP. Check your local rules before firing.
+
 That said — it's your Cardputer, your network, your pentest engagement. Go find things.
 
 ## License
