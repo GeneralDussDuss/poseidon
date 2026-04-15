@@ -31,23 +31,27 @@ bool sd_mount(void)
 {
     if (s_mounted) return true;
 
-    /* End any previous (failed) session first. */
     SD.end();
-
-    /* Bring up SPI with Cardputer's pin mux. */
     SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
 
     /* SD.begin(cs, spi, freq, mountpoint, max_files, format_if_mount_failed) */
-    if (!SD.begin(SD_CS, SPI, SD_FREQ, "/sd", 5, false)) {
-        /* Retry once at half speed for flaky cards. */
-        SD.end();
-        SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-        if (!SD.begin(SD_CS, SPI, 10000000, "/sd", 5, false)) {
-            return false;
-        }
-    }
-    s_mounted = true;
-    return true;
+    if (SD.begin(SD_CS, SPI, SD_FREQ, "/sd", 5, false)) { s_mounted = true; return true; }
+
+    /* Retry at half speed for flaky cards. */
+    SD.end();
+    SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    if (SD.begin(SD_CS, SPI, 10000000, "/sd", 5, false)) { s_mounted = true; return true; }
+
+    /* Last-resort: card has no FAT or it's corrupted. Auto-format
+     * with format_if_mount_failed=true. Destructive, but the user is
+     * already in a "SD won't work" state — better than silent failure.
+     * If they had data they cared about, sd_mount wouldn't have
+     * failed at all. */
+    SD.end();
+    SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    if (SD.begin(SD_CS, SPI, 4000000, "/sd", 5, true)) { s_mounted = true; return true; }
+
+    return false;
 }
 
 bool sd_format(void)
