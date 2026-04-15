@@ -20,21 +20,20 @@ void wifi_scanner_run(const uint8_t requester[6],
                       uint16_t duration_ms,
                       uint16_t seq)
 {
-    /* Single passive scan across all channels. Passive picks up beacons
-     * from BOTH bands (DFS-restricted 5 GHz APs and normal 2.4 GHz APs
-     * all broadcast beacons every ~100 ms). Long dwell guarantees we
-     * hear at least one beacon per channel. No channel_bitmap so the
-     * driver visits everything the country code allows. */
-    uint16_t dwell = duration_ms ? duration_ms : 350;
-    if (dwell < 200) dwell = 200;
+    /* Active scan, all channels, generous dwell. Active is what works
+     * — passive missed everything in our environment. Default IDF
+     * behavior: channel=0 scans every channel the country code allows
+     * on every enabled band. */
+    uint16_t dwell = duration_ms ? duration_ms : 600;
+    if (dwell < 300) dwell = 300;
     wifi_scan_config_t cfg = {
         .ssid = NULL, .bssid = NULL,
         .channel = 0,
         .show_hidden = true,
-        .scan_type = WIFI_SCAN_TYPE_PASSIVE,
-        .scan_time = { .passive = dwell },
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time = { .active = { .min = 120, .max = dwell } },
     };
-    ESP_LOGI(TAG, "scan passive dwell=%ums all channels", (unsigned)dwell);
+    ESP_LOGI(TAG, "scan active dwell=%ums", (unsigned)dwell);
     esp_err_t err = esp_wifi_scan_start(&cfg, true);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "scan_start: %s", esp_err_to_name(err));
@@ -49,6 +48,12 @@ void wifi_scanner_run(const uint8_t requester[6],
     wifi_ap_record_t *records = malloc(sizeof(wifi_ap_record_t) * n);
     if (!records) return;
     esp_wifi_scan_get_ap_records(&n, records);
+    /* Log every AP found so we can see what the C5 actually heard. */
+    for (int i = 0; i < n; ++i) {
+        ESP_LOGI(TAG, "AP[%d] ch=%u rssi=%d %s",
+                 i, records[i].primary, records[i].rssi,
+                 records[i].ssid[0] ? (const char *)records[i].ssid : "<hidden>");
+    }
 
     /* Stream 4 APs per frame. */
     posei_msg_t msg;

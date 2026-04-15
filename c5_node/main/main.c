@@ -167,10 +167,13 @@ void app_main(void)
      * active scanning. Default '01' worldwide restricts most 5 GHz
      * channels to passive-only which makes the dual-band scan miss
      * almost everything above 2.4. */
+    /* Use cc='01' (worldwide) with nchan=13 to allow scanning every
+     * 2.4 GHz channel a neighbor might be on. US-only nchan=11 was
+     * silently dropping channels 12-13 which are common abroad. */
     wifi_country_t country = {
-        .cc = "US",
+        .cc = "01",
         .schan = 1,
-        .nchan = 11,
+        .nchan = 13,
         .policy = WIFI_COUNTRY_POLICY_MANUAL,
     };
     esp_wifi_set_country(&country);
