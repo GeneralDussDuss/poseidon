@@ -158,10 +158,15 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-    /* Country = US opens up the full 5 GHz band (UNII-1, UNII-2A,
-     * UNII-3) for active scanning. Default '01' worldwide restricts
-     * most 5 GHz channels to passive-only which makes the dual-band
-     * scan miss almost everything above 2.4. */
+    /* THE big one: enable dual-band on the C5. Without this the
+     * driver only scans 2.4 GHz even on this dual-band chip. */
+    esp_err_t bm_err = esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+    if (bm_err != ESP_OK) ESP_LOGW(TAG, "set_band_mode: %s", esp_err_to_name(bm_err));
+
+    /* Country = US opens up the full 5 GHz band (UNII-1/2A/3) for
+     * active scanning. Default '01' worldwide restricts most 5 GHz
+     * channels to passive-only which makes the dual-band scan miss
+     * almost everything above 2.4. */
     wifi_country_t country = {
         .cc = "US",
         .schan = 1,

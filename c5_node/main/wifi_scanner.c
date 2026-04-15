@@ -29,6 +29,10 @@ void wifi_scanner_run(const uint8_t requester[6],
         .scan_time = {
             .active = { .min = 80, .max = duration_ms ? duration_ms : 150 },
         },
+        /* IDF v5.5+: explicitly request dual-band so the driver
+         * doesn't fall back to 2.4-only on the C5. */
+        .channel_bitmap = { .ghz_2_channels = 0x3FFE, /* ch 1..13 */
+                            .ghz_5_channels = 0x1FFFFFFF /* all 5 GHz */ },
     };
     esp_err_t err = esp_wifi_scan_start(&cfg, true);
     if (err != ESP_OK) {
