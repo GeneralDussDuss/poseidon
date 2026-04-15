@@ -7,6 +7,7 @@
 #include "radio.h"
 #include <WiFi.h>
 #include <SD.h>
+#include "../sd_helper.h"
 #include <Preferences.h>
 #include <time.h>
 
@@ -123,7 +124,7 @@ static void fb_list(const char *path)
 
 void feat_file_browser(void)
 {
-    if (!SD.begin()) { ui_toast("SD mount fail", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD mount fail", COL_BAD, 1500); return; }
     char path[128] = "/poseidon";
     fb_list(path);
     int cursor = 0;
@@ -242,7 +243,8 @@ void feat_settings(void)
     d.setCursor(4, BODY_Y + 22); d.print("[W] saved WiFi");
     d.setCursor(4, BODY_Y + 34); d.print("[C] clear creds log");
     d.setCursor(4, BODY_Y + 46); d.print("[F] format preferences");
-    d.setCursor(4, BODY_Y + 58); d.print("[R] reboot");
+    d.setCursor(4, BODY_Y + 58); d.print("[S] format SD card");
+    d.setCursor(4, BODY_Y + 70); d.print("[R] reboot");
     ui_draw_footer("letter=go  `=back");
     while (true) {
         uint16_t k = input_poll();
@@ -250,13 +252,19 @@ void feat_settings(void)
         if (k == PK_ESC) return;
         if (k == 'w' || k == 'W') { extern void feat_wifi_connect(); feat_wifi_connect(); return; }
         if (k == 'c' || k == 'C') {
-            if (SD.begin() && SD.remove("/poseidon/creds.log")) ui_toast("cleared", COL_GOOD, 600);
+            if (sd_mount() && SD.remove("/poseidon/creds.log")) ui_toast("cleared", COL_GOOD, 600);
             else ui_toast("fail", COL_BAD, 600);
             return;
         }
         if (k == 'f' || k == 'F') {
             Preferences p; p.begin("poseidon", false); p.clear(); p.end();
             ui_toast("prefs cleared", COL_GOOD, 600); return;
+        }
+        if (k == 's' || k == 'S') {
+            ui_toast("formatting...", COL_WARN, 300);
+            if (sd_format()) ui_toast("SD formatted", COL_GOOD, 900);
+            else             ui_toast("SD format fail", COL_BAD, 1200);
+            return;
         }
         if (k == 'r' || k == 'R') { ESP.restart(); }
     }

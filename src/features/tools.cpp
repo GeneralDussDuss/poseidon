@@ -17,6 +17,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
+#include "../sd_helper.h"
 #include <FS.h>
 #include <esp_random.h>
 #include <functional>
@@ -40,7 +41,7 @@ void feat_tool_sd_format(void)
     if (strcmp(buf, "YES") != 0) { ui_toast("cancelled", COL_DIM, 500); return; }
 
     ui_toast("formatting...", COL_WARN, 0);
-    if (!SD.begin()) { ui_toast("SD mount fail", COL_BAD, 1200); return; }
+    if (!sd_mount()) { ui_toast("SD mount fail", COL_BAD, 1200); return; }
     /* Walk + delete every file + dir. No FAT format API on Arduino SD,
      * so deep-delete is the best we can do. */
     std::function<bool(const char *)> nuke = [&](const char *path) -> bool {

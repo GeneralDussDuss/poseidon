@@ -145,20 +145,8 @@ void ui_slide_transition(ui_draw_fn build_new, int direction)
     auto &d = M5Cardputer.Display;
     if (!build_new) return;
 
-    /* Heap-alloc body snapshots for the duration of the transition.
-     * Prefer PSRAM so we don't pressure the small internal SRAM that
-     * WiFi/BLE need. ~51 KB each. If PSRAM alloc fails, skip the
-     * transition rather than panicking — caller's build_new() has
-     * already painted the target frame. */
-    const size_t body_px = (size_t)SCR_W * BODY_H;
-    uint16_t *old_body = (uint16_t *)heap_caps_malloc(body_px * 2, MALLOC_CAP_SPIRAM);
-    uint16_t *new_body = (uint16_t *)heap_caps_malloc(body_px * 2, MALLOC_CAP_SPIRAM);
-    if (!old_body || !new_body) {
-        free(old_body); free(new_body);
-        ui_clear_body();
-        build_new();
-        return;
-    }
+    static uint16_t old_body[SCR_W * BODY_H];
+    static uint16_t new_body[SCR_W * BODY_H];
 
     d.readRect(0, BODY_Y, SCR_W, BODY_H, old_body);
     ui_clear_body();
@@ -178,9 +166,6 @@ void ui_slide_transition(ui_draw_fn build_new, int direction)
         delay(18);
     }
     d.pushImage(0, BODY_Y, SCR_W, BODY_H, new_body);
-
-    free(old_body);
-    free(new_body);
 }
 
 /* Spinner: rotating trident silhouette. Drawn as a small 3-tine shape

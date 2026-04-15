@@ -110,8 +110,11 @@ void feat_c5_scan_5g(void)
             bool new_result = (n_now != last_n);
             last_n = n_now;
             ui_clear_body();
-            char title[32];
-            snprintf(title, sizeof(title), "C5 DUAL-BAND (%d)", n_now);
+            char title[40];
+            snprintf(title, sizeof(title), "DUAL-BAND %d (raw %lu/%lu)",
+                     n_now,
+                     (unsigned long)c5_dbg_raw_ap_records(),
+                     (unsigned long)c5_dbg_resp_ap_frames());
             ui_dashboard_chrome(title, new_result);
             draw_status_header();
             ui_freq_bars(SCR_W - 58, BODY_Y + 2, 3, 10);

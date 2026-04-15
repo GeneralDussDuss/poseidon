@@ -17,6 +17,7 @@
 #include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <SD.h>
+#include "../sd_helper.h"
 
 #define MAX_DEV 16
 
@@ -151,7 +152,7 @@ void feat_net_ssdp(void)
     }
 
     /* Save log. */
-    if (SD.begin()) {
+    if (sd_mount()) {
         SD.mkdir("/poseidon");
         File f = SD.open("/poseidon/ssdp.csv", FILE_APPEND);
         if (f) {

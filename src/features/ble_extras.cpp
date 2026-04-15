@@ -7,6 +7,7 @@
 #include "radio.h"
 #include <NimBLEDevice.h>
 #include <SD.h>
+#include "../sd_helper.h"
 #include <esp_random.h>
 
 /* ========== Tracker detector ========== */
@@ -50,7 +51,7 @@ class tracker_cb : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *d) override {
         char type[12] = {0};
         if (!is_tracker(d, type)) return;
-        const uint8_t *a = d->getAddress().getNative();
+        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
         for (int i = 0; i < s_tracker_count; ++i) {
             if (memcmp(s_trackers[i].addr, a, 6) == 0) {
                 s_trackers[i].last_seen = millis();
@@ -171,7 +172,7 @@ class sniff_cb : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *d) override {
         if (!s_sniff_file) return;
         s_sniff_count++;
-        const uint8_t *a = d->getAddress().getNative();
+        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
         s_sniff_file.printf("%lu,%02X:%02X:%02X:%02X:%02X:%02X,%d,%u,",
                  (unsigned long)millis(),
                  a[5], a[4], a[3], a[2], a[1], a[0],
@@ -192,7 +193,7 @@ static sniff_cb *s_sniff_cb = &s_sniff_cb_obj;
 void feat_ble_sniff(void)
 {
     radio_switch(RADIO_BLE);
-    if (!SD.begin()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     char path[64];
     snprintf(path, sizeof(path), "/poseidon/blesniff-%lu.csv", (unsigned long)(millis() / 1000));

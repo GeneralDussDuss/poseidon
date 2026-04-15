@@ -46,6 +46,12 @@ static volatile int s_zb_n = 0;
 static volatile uint32_t s_last_status_frames  = 0;
 static volatile uint8_t  s_last_status_channel = 0;
 
+/* Debug: count every RESP_AP frame and total raw AP records received,
+ * regardless of dedup outcome. Lets us tell apart "C5 only sent 2"
+ * from "C5 sent 20 but dedup collapsed to 2" or "S3 dropping frames". */
+static volatile uint32_t s_dbg_resp_ap_frames = 0;
+static volatile uint32_t s_dbg_raw_ap_records = 0;
+
 static volatile uint16_t s_next_seq = 1;
 static volatile bool     s_started = false;
 static const uint8_t BROADCAST_MAC[6] = { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
@@ -105,6 +111,8 @@ static void handle_resp_ap(const c5_msg_t *m)
     int count = m->payload_len / sizeof(c5_ap_t);
     const c5_ap_t *src = (const c5_ap_t *)m->payload;
     portENTER_CRITICAL(&s_mux);
+    s_dbg_resp_ap_frames++;
+    s_dbg_raw_ap_records += count;
     for (int i = 0; i < count && s_ap_n < MAX_APS; ++i) {
         bool dup = false;
         for (int j = 0; j < s_ap_n; ++j)
@@ -322,5 +330,10 @@ void c5_clear_results(void)
 {
     portENTER_CRITICAL(&s_mux);
     s_ap_n = 0; s_zb_n = 0;
+    s_dbg_resp_ap_frames = 0;
+    s_dbg_raw_ap_records = 0;
     portEXIT_CRITICAL(&s_mux);
 }
+
+uint32_t c5_dbg_resp_ap_frames(void) { return s_dbg_resp_ap_frames; }
+uint32_t c5_dbg_raw_ap_records(void) { return s_dbg_raw_ap_records; }

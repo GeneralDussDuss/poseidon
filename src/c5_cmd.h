@@ -96,6 +96,11 @@ uint16_t c5_cmd_deauth(const uint8_t bssid[6], uint8_t channel,
 uint32_t c5_status_frames(void);
 uint8_t  c5_status_channel(void);
 
+/* Debug counters: how many RESP_AP frames came in, total raw AP
+ * records (pre-dedup). Cleared by c5_clear_results(). */
+uint32_t c5_dbg_resp_ap_frames(void);
+uint32_t c5_dbg_raw_ap_records(void);
+
 /* Pull collected results. Returns count written. */
 int c5_aps(c5_ap_t *out, int max);
 int c5_zbs(c5_zb_t *out, int max);

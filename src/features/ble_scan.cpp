@@ -63,9 +63,14 @@ static void classify(NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
     std::string md;
     if (d->haveManufacturerData()) md = d->getManufacturerData();
 
-    /* NimBLE stores the MAC little-endian. Reverse for display/OUI. */
+    /* NimBLE stores the MAC little-endian. Reverse for display/OUI.
+     * Crucial: bind the NimBLEAddress to a named local first —
+     * getAddress() returns by value and getNative() hands out a
+     * pointer into that temporary. Using it after the full
+     * expression is a dangling read and crashes randomly. */
+    NimBLEAddress addr = d->getAddress();
+    const uint8_t *raw = addr.getNative();
     uint8_t mac_be[6];
-    const uint8_t *raw = d->getAddress().getNative();
     for (int i = 0; i < 6; ++i) mac_be[i] = raw[5 - i];
 
     /* Only pass OUI if address is PUBLIC — random MACs have no OUI. */

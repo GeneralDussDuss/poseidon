@@ -23,6 +23,7 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <SD.h>
+#include "../sd_helper.h"
 
 struct portal_template_t { const char *name, *html; };
 
@@ -186,7 +187,7 @@ static int pick_template(void)
 
 static void run_portal(void)
 {
-    if (!SD.begin()) {
+    if (!sd_mount()) {
         ui_toast("SD needed for logs", COL_BAD, 1500);
         return;
     }

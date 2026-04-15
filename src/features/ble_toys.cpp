@@ -68,7 +68,7 @@ class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *d) override {
         const char *brand = identify_toy(d);
         if (!brand) return;
-        const uint8_t *a = d->getAddress().getNative();
+        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
         for (int i = 0; i < s_toy_count; ++i)
             if (memcmp(s_toys[i].addr, a, 6) == 0) {
                 s_toys[i].rssi = d->getRSSI();

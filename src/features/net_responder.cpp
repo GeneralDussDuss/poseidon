@@ -20,6 +20,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <SD.h>
+#include "../sd_helper.h"
 #include <AsyncUDP.h>
 
 static AsyncUDP s_llmnr, s_nbtns, s_mdns;
@@ -172,7 +173,7 @@ void feat_net_responder(void)
         ui_toast("connect to WiFi first", COL_WARN, 1500);
         return;
     }
-    if (!SD.begin()) { ui_toast("SD needed for log", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed for log", COL_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_log = SD.open("/poseidon/ntlm.log", FILE_APPEND);
 

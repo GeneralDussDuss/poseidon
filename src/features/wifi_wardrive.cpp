@@ -3,7 +3,7 @@
  *
  * Requires:
  *   - GPS fix from the M5Stack LoRa-GNSS HAT (NMEA on UART1)
- *   - SD card mounted (M5Cardputer.Display.getSDCard() or SD.begin())
+ *   - SD card mounted (M5Cardputer.Display.getSDCard() or sd_mount())
  *
  * Output: /poseidon/wigle-YYYYMMDD-HHMMSS.csv with the standard
  * WiGLE CSV v1.6 header. Rows are deduped by BSSID — stronger RSSI
@@ -17,6 +17,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
+#include "../sd_helper.h"
 
 #define WARDRIVE_MAX_APS 256
 
@@ -182,7 +183,7 @@ void feat_wifi_wardrive(void)
     WiFi.mode(WIFI_STA);
     gps_begin();  /* idempotent */
 
-    if (!SD.begin()) {
+    if (!sd_mount()) {
         ui_toast("SD card required", COL_BAD, 1500);
         return;
     }

@@ -56,7 +56,7 @@ static const char *tracker_kind(NimBLEAdvertisedDevice *d)
 
 class finder_cb : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *d) override {
-        const uint8_t *a = d->getAddress().getNative();
+        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
         if (s_locating) {
             if (memcmp(a, s_lock, 6) == 0) {
                 s_lock_rssi = d->getRSSI();

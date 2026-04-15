@@ -20,6 +20,7 @@
 #include <WiFi.h>
 #include <ESP32Ping.h>
 #include <SD.h>
+#include "../sd_helper.h"
 #include <esp_wifi.h>
 #include <lwip/etharp.h>
 
@@ -252,7 +253,7 @@ static void phase_banner(void)
 
 static void export_csv(void)
 {
-    if (!SD.begin()) return;
+    if (!sd_mount()) return;
     SD.mkdir("/poseidon");
     File f = SD.open("/poseidon/lan.csv", FILE_WRITE);
     if (!f) return;

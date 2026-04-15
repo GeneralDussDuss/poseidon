@@ -26,6 +26,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
+#include "../sd_helper.h"
 
 static volatile uint32_t s_pmk   = 0;
 static volatile uint32_t s_hs    = 0;
@@ -447,7 +448,7 @@ void feat_triton(void)
     radio_switch(RADIO_WIFI);
     WiFi.mode(WIFI_STA);
 
-    if (!SD.begin()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
     if (!s_file) { ui_toast("file open fail", COL_BAD, 1500); return; }

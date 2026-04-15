@@ -34,6 +34,7 @@ void wifi_scanner_run(const uint8_t requester[6],
         .channel_bitmap = { .ghz_2_channels = 0x3FFE, /* ch 1..13 */
                             .ghz_5_channels = 0x1FFFFFFF /* all 5 GHz */ },
     };
+    ESP_LOGI(TAG, "scan start dur=%u", (unsigned)cfg.scan_time.active.max);
     esp_err_t err = esp_wifi_scan_start(&cfg, true);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "scan_start: %s", esp_err_to_name(err));
@@ -42,6 +43,7 @@ void wifi_scanner_run(const uint8_t requester[6],
 
     uint16_t n = 0;
     esp_wifi_scan_get_ap_num(&n);
+    ESP_LOGI(TAG, "scan done, found %u APs", (unsigned)n);
     if (n == 0) return;
 
     wifi_ap_record_t *records = malloc(sizeof(wifi_ap_record_t) * n);
@@ -70,5 +72,6 @@ void wifi_scanner_run(const uint8_t requester[6],
         i += batch;
         vTaskDelay(pdMS_TO_TICKS(30));
     }
+    ESP_LOGI(TAG, "streamed %u records", (unsigned)n);
     free(records);
 }
