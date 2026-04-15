@@ -75,6 +75,16 @@ typedef struct __attribute__((packed)) {
     uint16_t duration_ms;
 } posei_scan_req_t;
 
+/* Payload for CMD_DEAUTH (works on 2.4 OR 5 GHz channels — only the
+ * C5 can do 5 GHz). bssid=00..00 + bcast=1 means a broadcast deauth
+ * to every SSID seen on `channel`. */
+typedef struct __attribute__((packed)) {
+    uint8_t  bssid[6];
+    uint8_t  channel;       /* 1..14 (2.4 GHz) or 36..165 (5 GHz) */
+    uint8_t  bcast_all;     /* 1 = ignore bssid, deauth every AP on channel */
+    uint16_t duration_ms;
+} posei_deauth_req_t;
+
 void proto_init_msg(posei_msg_t *m, uint8_t type);
 void proto_send_broadcast(const posei_msg_t *m);
 void proto_send_to(const uint8_t mac[6], const posei_msg_t *m);

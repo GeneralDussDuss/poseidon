@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_random.h"
+#include "led_fx.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
@@ -47,9 +48,30 @@ IRAM_ATTR void esp_ieee802154_receive_done(uint8_t *frame,
     if (len >= 7) z->seq = frame[2];
     msg.payload_len = sizeof(posei_zb_t);
     proto_send_to(s_requester, &msg);
+    led_fx_set(LED_MODE_ZB_RX);
 
     esp_ieee802154_receive_handle_done(frame);
+    /* Some IDF builds need explicit re-arm even after handle_done. */
+    esp_ieee802154_receive();
 }
+
+/* IEEE 802.15.4 MAC beacon request frame. Frame control:
+ *   FCF=0x0803  (Cmd, no security, no ack req, dst-addr=short, no src-addr,
+ *                src/dst PAN compressed)
+ * Payload:
+ *   seq | dstPAN(0xFFFF) | dstShort(0xFFFF) | cmd_id=7 (beacon req)
+ * IEEE 802.15.4 length byte goes first when handed to esp_ieee802154_transmit. */
+static uint8_t s_beacon_req[10] = {
+    0x09,                   /* len = 9 (excludes itself) */
+    0x03, 0x08,             /* FCF (LE): 0x0803 */
+    0x00,                   /* seq (we'll bump per send) */
+    0xFF, 0xFF,             /* dst PAN: broadcast */
+    0xFF, 0xFF,             /* dst short addr: broadcast */
+    0x07,                   /* MAC command: Beacon Request */
+    0x00,                   /* placeholder for MIC/FCS (HW appends FCS) */
+};
+
+static volatile uint8_t s_zb_seq;
 
 static void hop_task(void *_)
 {
@@ -57,7 +79,12 @@ static void hop_task(void *_)
         uint8_t ch = 11 + (esp_random() % 16);  /* 11..26 */
         s_channel = ch;
         esp_ieee802154_set_channel(ch);
-        vTaskDelay(pdMS_TO_TICKS(500));
+        /* Active probe: send a beacon request so any nearby Zigbee
+         * coordinators reveal themselves immediately instead of us
+         * waiting for their next periodic broadcast. */
+        s_beacon_req[3] = ++s_zb_seq;
+        esp_ieee802154_transmit(s_beacon_req, false);
+        vTaskDelay(pdMS_TO_TICKS(450));
     }
     vTaskDelete(NULL);
 }

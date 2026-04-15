@@ -43,6 +43,9 @@ static volatile int s_ap_n = 0;
 static c5_zb_t  s_zbs[MAX_ZBS];
 static volatile int s_zb_n = 0;
 
+static volatile uint32_t s_last_status_frames  = 0;
+static volatile uint8_t  s_last_status_channel = 0;
+
 static volatile uint16_t s_next_seq = 1;
 static volatile bool     s_started = false;
 static const uint8_t BROADCAST_MAC[6] = { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
@@ -138,6 +141,15 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
     case C5_TYPE_RESP_PONG: {
         int idx = find_peer(mac);
         if (idx >= 0) s_peers[idx].last_seen = millis();
+        break;
+    }
+    case C5_TYPE_RESP_STATUS: {
+        if (m->payload_len >= 5) {
+            uint32_t f;
+            memcpy(&f, m->payload, 4);
+            s_last_status_frames  = f;
+            s_last_status_channel = m->payload[4];
+        }
         break;
     }
     }
@@ -272,6 +284,21 @@ uint16_t c5_cmd_scan_5g(uint16_t duration_ms) {
 uint16_t c5_cmd_scan_zb(uint8_t channel) {
     return send_simple_cmd(C5_TYPE_CMD_SCAN_ZB, &channel, 1);
 }
+uint16_t c5_cmd_deauth(const uint8_t bssid[6], uint8_t channel,
+                       uint8_t bcast_all, uint16_t duration_ms)
+{
+    c5_deauth_req_t r;
+    memcpy(r.bssid, bssid, 6);
+    r.channel     = channel;
+    r.bcast_all   = bcast_all;
+    r.duration_ms = duration_ms;
+    s_last_status_frames  = 0;
+    s_last_status_channel = channel;
+    return send_simple_cmd(C5_TYPE_CMD_DEAUTH, (uint8_t *)&r, sizeof(r));
+}
+
+uint32_t c5_status_frames(void)  { return s_last_status_frames; }
+uint8_t  c5_status_channel(void) { return s_last_status_channel; }
 
 int c5_aps(c5_ap_t *out, int max)
 {

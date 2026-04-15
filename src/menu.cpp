@@ -47,6 +47,7 @@ extern void feat_triton(void);
 extern void feat_c5_status(void);
 extern void feat_c5_scan_5g(void);
 extern void feat_c5_scan_zb(void);
+extern void feat_c5_deauth_5g(void);
 extern void feat_tool_sd_format(void);
 extern void feat_tool_flashlight(void);
 extern void feat_tool_screen_test(void);
@@ -145,6 +146,11 @@ static const menu_node_t MENU_C5[] = {
       "radio in promisc and streams frame summaries (channel, RSSI, type, PAN, "
       "addresses) back over ESP-NOW. Catches Zigbee beacons, Thread packets, "
       "smart locks/bulbs, anything on 802.15.4 in range." },
+    { 'd', "Deauth 5G", "5 GHz deauth attack via C5", nullptr, feat_c5_deauth_5g,
+      "ESP32-S3 cannot transmit on 5 GHz — but the C5 can. Pick a 5 GHz AP from "
+      "the dual-band scan, or hit X to broadcast-deauth every AP on its channel. "
+      "C5 streams live frame counts back so you see attack rate in real time. "
+      "First pocket tool that can deauth 5 GHz networks." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

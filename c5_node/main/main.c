@@ -25,6 +25,7 @@
 #include "esp_system.h"
 
 #include "proto.h"
+#include "led_fx.h"
 
 static const char *TAG = "c5_node";
 static const uint8_t BROADCAST_MAC[6] = { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
@@ -32,6 +33,7 @@ static const uint8_t BROADCAST_MAC[6] = { 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
 extern void wifi_scanner_run(const uint8_t *, uint16_t, uint16_t);
 extern void zb_sniffer_start(const uint8_t *, uint8_t, uint16_t);
 extern void zb_sniffer_stop(void);
+extern void wifi_attacker_deauth(const uint8_t *, const posei_deauth_req_t *, uint16_t);
 
 static char s_node_name[12] = "C5-?";
 
@@ -92,6 +94,7 @@ static void on_recv(const esp_now_recv_info_t *info,
 
     switch (m->type) {
     case POSEI_TYPE_CMD_PING: {
+        led_fx_set(LED_MODE_PING);
         posei_msg_t pong;
         memset(&pong, 0, sizeof(pong));
         pong.magic   = POSEI_MAGIC;
@@ -103,12 +106,12 @@ static void on_recv(const esp_now_recv_info_t *info,
     }
     case POSEI_TYPE_CMD_SCAN_5G:
     case POSEI_TYPE_CMD_SCAN_2G: {
+        led_fx_set(LED_MODE_SCAN);
         uint16_t dur = 150;
         if (m->payload_len >= sizeof(posei_scan_req_t)) {
             const posei_scan_req_t *r = (const posei_scan_req_t *)m->payload;
             dur = r->duration_ms;
         }
-        /* Fork blocking scan into a task so ESP-NOW callback returns. */
         struct scan_req_t *sr = malloc(sizeof(*sr));
         if (sr) {
             memcpy(sr->mac, info->src_addr, 6);
@@ -119,12 +122,21 @@ static void on_recv(const esp_now_recv_info_t *info,
         break;
     }
     case POSEI_TYPE_CMD_SCAN_ZB: {
+        led_fx_set(LED_MODE_SCAN);
         uint8_t ch = 0xFF;
         if (m->payload_len >= 1) ch = m->payload[0];
         zb_sniffer_start(info->src_addr, ch, m->seq);
         break;
     }
+    case POSEI_TYPE_CMD_DEAUTH: {
+        if (m->payload_len < (int)sizeof(posei_deauth_req_t)) break;
+        led_fx_set(LED_MODE_ATTACK);
+        const posei_deauth_req_t *r = (const posei_deauth_req_t *)m->payload;
+        wifi_attacker_deauth(info->src_addr, r, m->seq);
+        break;
+    }
     case POSEI_TYPE_CMD_STOP:
+        led_fx_set(LED_MODE_IDLE);
         zb_sniffer_stop();
         break;
     }
@@ -145,6 +157,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_init(&wcfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+
+    /* Country = US opens up the full 5 GHz band (UNII-1, UNII-2A,
+     * UNII-3) for active scanning. Default '01' worldwide restricts
+     * most 5 GHz channels to passive-only which makes the dual-band
+     * scan miss almost everything above 2.4. */
+    wifi_country_t country = {
+        .cc = "US",
+        .schan = 1,
+        .nchan = 11,
+        .policy = WIFI_COUNTRY_POLICY_MANUAL,
+    };
+    esp_wifi_set_country(&country);
+
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_ERROR_CHECK(esp_now_init());
@@ -154,6 +179,9 @@ void app_main(void)
     esp_now_peer_info_t pi = { 0 };
     memcpy(pi.peer_addr, BROADCAST_MAC, 6);
     esp_now_add_peer(&pi);
+
+    led_fx_init();
+    led_fx_set(LED_MODE_IDLE);
 
     ESP_LOGI(TAG, "POSEIDON C5 Node '%s' online", s_node_name);
     xTaskCreate(hello_task, "hello", 3072, NULL, 4, NULL);

