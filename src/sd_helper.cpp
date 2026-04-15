@@ -37,6 +37,20 @@ static bool try_mount(int hz, bool fmt_if_fail, const char *tag)
 {
     SD.end();
     sd_spi.end();
+
+    /* SD cards in SPI mode require pull-ups on MISO, CS, and MOSI.
+     * The Cardputer board doesn't include them and Arduino's
+     * SPI.begin() doesn't enable internal pull-ups by default.
+     * Force them on before SPI takes the pins over. */
+    pinMode(SD_MISO, INPUT_PULLUP);
+    pinMode(SD_MOSI, INPUT_PULLUP);
+    pinMode(SD_CS,   INPUT_PULLUP);
+    pinMode(SD_SCK,  INPUT_PULLUP);
+    /* Toggle CS high so card sees idle state. */
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+    delay(10);
+
     sd_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     bool ok = SD.begin(SD_CS, sd_spi, hz, "/sd", 5, fmt_if_fail);
     Serial.printf("[sd] %-12s @ %d Hz fmt=%d -> %s\n", tag, hz, fmt_if_fail, ok ? "OK" : "FAIL");
