@@ -56,10 +56,15 @@ static void send_hello(void)
     esp_now_send(BROADCAST_MAC, (const uint8_t *)&msg, sizeof(msg));
 }
 
+/* Suspended during a scan so the WiFi driver can hop channels +
+ * switch bands freely. ESP-NOW transmits while scanning will lock
+ * the radio to the current channel and starve the scanner. */
+volatile bool g_pause_hello = false;
+
 static void hello_task(void *_)
 {
     while (1) {
-        send_hello();
+        if (!g_pause_hello) send_hello();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
@@ -68,7 +73,9 @@ struct scan_req_t { uint8_t mac[6]; uint16_t dur; uint16_t seq; };
 static void scan_task(void *arg)
 {
     struct scan_req_t *sr = (struct scan_req_t *)arg;
+    g_pause_hello = true;       /* freeze ESP-NOW so scan can hop */
     wifi_scanner_run(sr->mac, sr->dur, sr->seq);
+    g_pause_hello = false;
     free(sr);
     vTaskDelete(NULL);
 }
@@ -161,7 +168,10 @@ void app_main(void)
     /* THE big one: enable dual-band on the C5. Without this the
      * driver only scans 2.4 GHz even on this dual-band chip. */
     esp_err_t bm_err = esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
-    if (bm_err != ESP_OK) ESP_LOGW(TAG, "set_band_mode: %s", esp_err_to_name(bm_err));
+    ESP_LOGI(TAG, "set_band_mode AUTO: %s", esp_err_to_name(bm_err));
+    wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
+    esp_wifi_get_band_mode(&bm);
+    ESP_LOGI(TAG, "band_mode is now: %d (0=AUTO 1=2G 2=5G)", (int)bm);
 
     /* Country = US opens up the full 5 GHz band (UNII-1/2A/3) for
      * active scanning. Default '01' worldwide restricts most 5 GHz
