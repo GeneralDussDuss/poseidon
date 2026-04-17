@@ -34,8 +34,25 @@ struct gps_fix_t {
 };
 
 bool gps_begin(void);
+void gps_end(void);
 void gps_poll(void);
+/* Restart the UART at a different baud. Returns the new baud. The
+ * cycle covers every rate the ATGM336H/AT6668 datasheets list. */
+uint32_t gps_cycle_baud(void);
+uint32_t gps_current_baud(void);
 const gps_fix_t &gps_get(void);
 
 /* Convenience: snapshot for CSV writers. Returns false if no fix yet. */
 bool gps_snapshot(gps_fix_t *out);
+
+/* Diagnostics: bytes / lines / sentences seen since boot, plus the most
+ * recent NMEA line. Used by the GPS fix page so the user can tell
+ * whether the UART is wired right vs no sky view. */
+struct gps_diag_t {
+    uint32_t bytes;
+    uint32_t lines;
+    uint32_t gga;
+    uint32_t rmc;
+    char     last[96];
+};
+const gps_diag_t &gps_diag(void);

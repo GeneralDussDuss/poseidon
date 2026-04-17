@@ -14,6 +14,9 @@ enum radio_domain_t {
     RADIO_NONE = 0,
     RADIO_WIFI,
     RADIO_BLE,
+    RADIO_LORA,
+    RADIO_SUBGHZ,
+    RADIO_NRF24,
 };
 
 /* Switch domains. Tears down the current one, brings up the new one.

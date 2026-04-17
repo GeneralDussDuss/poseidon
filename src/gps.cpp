@@ -8,11 +8,50 @@ static HardwareSerial s_uart(1);
 static gps_fix_t s_fix = {};
 static char s_line[128];
 static int  s_line_len = 0;
+static gps_diag_t s_diag = {};
+
+const gps_diag_t &gps_diag(void) { return s_diag; }
+
+static const uint32_t BAUD_CYCLE[] = { 9600, 115200, 38400, 4800, 19200, 57600 };
+static size_t  s_baud_idx = 0;
+static uint32_t s_baud    = GPS_BAUD;
+
+static bool s_started = false;
 
 bool gps_begin(void)
 {
-    s_uart.begin(GPS_BAUD, SERIAL_8N1, GPS_UART_RX_PIN, GPS_UART_TX_PIN);
+    if (s_started) return true;
+    s_uart.begin(s_baud, SERIAL_8N1, GPS_UART_RX_PIN, GPS_UART_TX_PIN);
+    s_started = true;
     return true;
+}
+
+void gps_end(void)
+{
+    if (!s_started) return;
+    s_uart.end();
+    s_started = false;
+}
+
+uint32_t gps_current_baud(void) { return s_baud; }
+
+static volatile bool s_pause_poll = false;
+
+uint32_t gps_cycle_baud(void)
+{
+    s_pause_poll = true;  /* pause gps_task to avoid UART read during teardown */
+    delay(20);
+    s_baud_idx = (s_baud_idx + 1) % (sizeof(BAUD_CYCLE) / sizeof(BAUD_CYCLE[0]));
+    s_baud = BAUD_CYCLE[s_baud_idx];
+    s_uart.end();
+    s_started = false;
+    s_uart.begin(s_baud, SERIAL_8N1, GPS_UART_RX_PIN, GPS_UART_TX_PIN);
+    s_started = true;
+    s_diag = {};
+    s_line_len = 0;
+    s_pause_poll = false;
+    Serial.printf("[gps] baud -> %lu\n", (unsigned long)s_baud);
+    return s_baud;
 }
 
 const gps_fix_t &gps_get(void) { return s_fix; }
@@ -88,18 +127,25 @@ static void parse_rmc(char *line)
 
 static void process_line(char *line)
 {
+    s_diag.lines++;
+    strncpy(s_diag.last, line, sizeof(s_diag.last) - 1);
+    s_diag.last[sizeof(s_diag.last) - 1] = '\0';
     if (strncmp(line, "$GPGGA", 6) == 0 || strncmp(line, "$GNGGA", 6) == 0) {
+        s_diag.gga++;
         parse_gga(line);
     } else if (strncmp(line, "$GPRMC", 6) == 0 || strncmp(line, "$GNRMC", 6) == 0) {
+        s_diag.rmc++;
         parse_rmc(line);
     }
 }
 
 void gps_poll(void)
 {
+    if (s_pause_poll || !s_started) return;
     while (s_uart.available()) {
         int c = s_uart.read();
         if (c < 0) break;
+        s_diag.bytes++;
         if (c == '\r') continue;
         if (c == '\n') {
             s_line[s_line_len] = '\0';

@@ -33,6 +33,17 @@ static bool s_mounted = false;
 
 bool sd_is_mounted(void) { return s_mounted; }
 
+SPIClass &sd_get_spi(void) { return sd_spi; }
+
+bool sd_remount(void)
+{
+    s_mounted = false;
+    SD.end();
+    sd_spi.end();
+    delay(10);
+    return sd_mount();
+}
+
 static bool try_mount(int hz, bool fmt_if_fail, const char *tag)
 {
     SD.end();
@@ -69,6 +80,7 @@ bool sd_mount(void)
     /* Tier 2: try the OTHER SPI bus in case display is using HSPI on
      * this build. Rebind sd_spi to FSPI. */
     sd_spi.end();
+    sd_spi.~SPIClass();
     new (&sd_spi) SPIClass(FSPI);
     if (try_mount(SD_FREQ,    false, "FSPI fast"))   { s_mounted = true; return true; }
     if (try_mount( 4000000,   false, "FSPI slow"))   { s_mounted = true; return true; }
@@ -76,9 +88,11 @@ bool sd_mount(void)
     /* Tier 3: card has no FAT or is corrupted — let the driver format
      * it. Last resort, destructive. */
     sd_spi.end();
+    sd_spi.~SPIClass();
     new (&sd_spi) SPIClass(HSPI);
     if (try_mount( 4000000,   true,  "HSPI format")) { s_mounted = true; return true; }
     sd_spi.end();
+    sd_spi.~SPIClass();
     new (&sd_spi) SPIClass(FSPI);
     if (try_mount( 4000000,   true,  "FSPI format")) { s_mounted = true; return true; }
 
