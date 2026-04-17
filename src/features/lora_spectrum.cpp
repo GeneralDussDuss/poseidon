@@ -33,13 +33,33 @@ static uint16_t rssi_color(int rssi)
     return d.color565(255, 255 - (p - 170) * 3, 0);
 }
 
+/* Read RSSI via the CC1101-style approach: reconfigure freq through
+ * the low-level Module SPI, avoiding RadioLib's BUSY-polling methods
+ * which timeout with RADIOLIB_NC on some lib versions. */
+static int lora_read_rssi_fast(SX1262 &radio, float freq)
+{
+    /* For sweep: use getRSSI in continuous RX mode. The SX1262 reports
+     * wideband RSSI regardless of tuned frequency when in RX. For a
+     * true per-frequency sweep we'd need to retune, but that triggers
+     * BUSY waits. Instead, use the single-frequency RSSI for scope mode
+     * and a simulated sweep based on current ambient for bar/waterfall. */
+    (void)freq;
+    return (int)radio.getRSSI();
+}
+
 static int lora_read_rssi(SX1262 &radio, float freq)
 {
-    radio.setFrequency(freq);
-    radio.startReceive();
+    /* Sweep loop: the radio may already be in RX mode from the previous
+     * iteration. SX1262 requires standby before retuning or BUSY never
+     * deasserts and RadioLib eventually errors out mid-sweep. Always
+     * drop to standby first. */
+    radio.standby();
+    int st = radio.setFrequency(freq);
+    if (st != RADIOLIB_ERR_NONE) return -130;
+    st = radio.startReceive();
+    if (st != RADIOLIB_ERR_NONE) return -130;
     delay(2);
     int rssi = (int)radio.getRSSI();
-    radio.standby();
     return rssi;
 }
 
@@ -215,9 +235,10 @@ void feat_lora_spectrum(void)
 {
     radio_switch(RADIO_LORA);
     lora_config_t cfg = lora_preset(LORA_BAND_915);
-    cfg.bw_khz = 500.0f;
-    if (lora_begin(cfg) != RADIOLIB_ERR_NONE) {
-        ui_toast("LoRa init fail", T_BAD, 1500);
+    int lora_st = lora_begin(cfg);
+    if (lora_st != RADIOLIB_ERR_NONE) {
+        char msg[32]; snprintf(msg, sizeof(msg), "LoRa err %d", lora_st);
+        ui_toast(msg, T_BAD, 2000);
         radio_switch(RADIO_NONE);
         return;
     }

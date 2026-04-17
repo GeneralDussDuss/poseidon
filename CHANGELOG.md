@@ -68,6 +68,26 @@ the `drops:` counter in the targeted deauth UI and an `sta:N` counter showing
 learned clients. Feedback welcome — specifically whether previously stubborn
 targets (modern iPhones / Androids, OpenWrt APs) now kick.
 
+### Fixed — LoRa crash on frequency select (2026-04-17)
+
+Testers reported POSEIDON crashing the moment a frequency was picked in a
+LoRa feature. Two bugs compounded:
+
+- `lora_hw.cpp` was passing `cfg.bw_khz / 1000.0f` to RadioLib's `setBandwidth`,
+  which expects **kHz** directly. The 125 kHz preset became `0.125` — not a
+  valid SX1262 bandwidth — and the call silently errored out. The radio was
+  then left in a half-configured state that crashed on the next retune.
+- `lora_spectrum.cpp` `lora_read_rssi` retuned the SX1262 while it was still
+  in RX mode from the previous sweep iteration. The BUSY line never deasserted
+  and RadioLib eventually aborted mid-sweep.
+
+**Fix:**
+- Pass `cfg.bw_khz` unchanged (no divide-by-1000)
+- Check return values on every post-`begin()` setter so future invalid config
+  fails loud at init instead of crashing later
+- Call `radio.standby()` before every `setFrequency` in the spectrum sweep
+  and check the `startReceive` return value too
+
 ## [0.1.0] - 2026-04-14
 
 First tagged release. Everything up to this point.
