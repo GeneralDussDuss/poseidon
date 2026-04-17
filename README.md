@@ -186,6 +186,71 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 
 **If you see anything in this code that came from your project and isn't credited — please open an issue.**
 
+## Roadmap
+
+### v0.3 — ESP32-C5 Full Integration
+The C5 companion node already does basic 5 GHz scan + deauth over ESP-NOW. v0.3 makes it a first-class citizen.
+
+- [ ] C5 auto-flash from Cardputer SD (OTA over ESP-NOW)
+- [ ] 5 GHz client hunting + targeted deauth (per-STA, not just per-AP)
+- [ ] 5 GHz PMKID + handshake capture (relay EAPOL frames over ESP-NOW)
+- [ ] 802.15.4 Zigbee full packet capture + Wireshark-compatible PCAP export
+- [ ] Thread network discovery + device enumeration
+- [ ] Zigbee replay attacks (stored frames on SD)
+- [ ] Multi-C5 coordination — deploy multiple nodes, control all from one Cardputer
+- [ ] C5 NeoPixel status: color-coded by activity (scan/attack/idle/capture)
+- [ ] C5 power management — deep sleep between commands, wake on ESP-NOW
+
+### v0.4 — MIMIR Drop-Box (BPI-M4 Zero)
+The MIMIR client module exists. v0.4 makes the server side real.
+
+- [ ] MIMIR daemon: `hcxdumptool` wrapper for real scan events (replacing placeholders)
+- [ ] On-device WPA2 dictionary cracker (dual-core PBKDF2-SHA1, wordlist from SD)
+- [ ] Bjorn orchestrator port — handshake → crack → auto-exploit pivot
+- [ ] Pwnagotchi plugin compat shim (pisugarx/gps/wigle/wpa-sec)
+- [ ] FENRIR RL policy head — autonomous exploit strategy selection
+- [ ] Armbian H618 image recipe (one-flash deploy)
+- [ ] MIMIR ↔ POSEIDON file transfer (pull captured .pcap/.22000 to Cardputer SD)
+- [ ] Live MIMIR dashboard on Cardputer e-ink–style screen (for long-running ops)
+- [ ] GPS-tagged attack logging with WiGLE integration
+- [ ] Pocket-mode auto-start on cable connect
+
+### v0.5 — nRF52840 Integration
+The nRF52840 is the real BLE chip — full BLE 5.0 with long range, coded PHY, and direction finding. Adding it as a USB-connected sniffer module.
+
+- [ ] nRF52840 dongle as BLE sniffer (USB-CDC bridge from Cardputer)
+- [ ] Full BLE advertisement capture + decode (not just nRF24 fake-BLE)
+- [ ] BLE connection hijacking (MITM via nRF52 + NimBLE coordination)
+- [ ] BLE direction finding (AoA/AoD with multi-antenna nRF52)
+- [ ] BLE long-range attacks (Coded PHY S=8, 4x range)
+- [ ] Zigbee via nRF52840's 802.15.4 radio (alternative to C5)
+- [ ] Thread border router attack surface enumeration
+- [ ] nRF52840 firmware flasher from Cardputer SD
+- [ ] Combined attack: nRF24 MouseJack + nRF52 BLE MITM simultaneously
+
+### v0.6 — On-Device Intelligence
+- [ ] On-device WPA2 cracker (handshake → PBKDF2-SHA1, dual-core ESP32-S3)
+- [ ] SSH shell via `libssh_esp32` (interactive remote terminal)
+- [ ] LDAP domain dump (hand-rolled BER/DER LDAP client)
+- [ ] Web crawler (HTTP spider + link extraction for internal web apps)
+- [ ] SIP attack suite (scan/enumerate/spoof/flood/ring-all)
+- [ ] CCTV toolkit (camera discovery + default credential spray)
+- [ ] Skimmer detector (BLE OUI blocklist for payment card skimmers)
+- [ ] Wall of Flipper (detect + counter-spam nearby Flipper Zeros)
+- [ ] Pwnagotchi beacon spam (fake peer broadcasts)
+- [ ] Open WiFi dashboard (association + internet connectivity test)
+- [ ] UPnP NAT exploitation (AddPortMapping for firewall punching)
+
+### Ongoing
+- [ ] More .sub signal library contributions (community PRs welcome)
+- [ ] Theme community — user-submitted color palettes
+- [ ] DuckyScript full parser (not just -lite)
+- [ ] Flipper .sub protocol-encoded format support (not just RAW)
+- [ ] KeeLoq rolling code analysis (manufacturer key database)
+- [ ] SD card USB mass storage mode (export captures without pulling card)
+- [ ] ESP-NOW encrypted mesh (AES-256 between POSEIDON nodes)
+- [ ] CI/CD: PlatformIO GitHub Actions build + auto-release .bin
+
 ## Legal
 
 This is for **authorized security testing, research, and education only**. You are responsible for complying with all applicable laws. Do not use against networks or devices without explicit authorization.
