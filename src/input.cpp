@@ -19,10 +19,29 @@
 /* Last-seen debug state — shown by input_debug_draw(). */
 static uint16_t s_last_key = PK_NONE;
 
+/* ---- injected key ring buffer (for TRIDENT PC Bridge) ---- */
+static uint16_t s_injected[16];
+static uint8_t s_inj_head = 0, s_inj_tail = 0;
+
+void input_inject(uint16_t code)
+{
+    uint8_t next = (s_inj_tail + 1) % 16;
+    if (next == s_inj_head) return;
+    s_injected[s_inj_tail] = code;
+    s_inj_tail = next;
+}
+
 uint16_t input_last_key(void) { return s_last_key; }
 
 uint16_t input_poll(void)
 {
+    /* Drain injected keys first (from TRIDENT PC Bridge). */
+    if (s_inj_head != s_inj_tail) {
+        uint16_t code = s_injected[s_inj_head];
+        s_inj_head = (s_inj_head + 1) % 16;
+        s_last_key = code;
+        return code;
+    }
     M5Cardputer.update();
     if (!M5Cardputer.Keyboard.isChange()) return PK_NONE;
     if (!M5Cardputer.Keyboard.isPressed()) return PK_NONE;

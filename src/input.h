@@ -33,3 +33,6 @@ uint16_t input_last_key(void);
 
 /* Modal line editor. Returns true on ENTER, false on ESC. */
 bool input_line(const char *prompt, char *out_buf, size_t out_sz);
+
+/* Inject a keypress into the poll queue (for TRIDENT PC Bridge). */
+void input_inject(uint16_t code);

@@ -233,7 +233,10 @@ static int pick_payload(void)
 
 void feat_badusb(void)
 {
-    if (g_mimir_cdc_active) { ui_toast("MIMIR using USB", T_WARN, 1000); return; }
+    extern bool g_trident_cdc_active;
+    if (g_mimir_cdc_active || g_trident_cdc_active) {
+        ui_toast("CDC in use", T_WARN, 1000); return;
+    }
     while (true) {
         int pick = pick_payload();
         if (pick == -1) return;

@@ -88,6 +88,7 @@ extern void feat_nrf24_finder(void);
 extern void feat_subghz_finder(void);
 extern void feat_mimir(void);
 extern void feat_theme_picker(void);
+extern void feat_trident(void);
 extern void feat_uart_shell(void);
 extern void feat_tcp_tunnel(void);
 extern void feat_honeypot(void);
@@ -524,6 +525,10 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "Connect to MIMIR pentest drop-box over USB-C cable. Drives scans, "
       "attacks (deauth, handshake, PMKID, evil twin, beacon spam), and "
       "retrieves cracked credentials. Pocket-mode opsec: no wireless link." },
+    { 'p', "PC Bridge", "TRIDENT screen mirror + remote KB", nullptr, feat_trident,
+      "Streams the Cardputer screen to the TRIDENT desktop app over USB-C. "
+      "PC can send keystrokes remotely. 10 fps RGB565 framebuffer capture. "
+      "Run 'trident' on your PC first, then enter this mode." },
     { 's', "System", "Files, clock, settings", MENU_SYS, nullptr,
       "Device utilities: SD browser, clock, settings (WiFi creds, prefs, "
       "reboot), about." },
