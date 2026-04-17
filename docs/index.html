@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POSEIDON — Commander of the Deep</title>
+<meta name="description" content="80+ feature pentesting firmware for M5Stack Cardputer-Adv. WiFi, BLE, sub-GHz, LoRa, nRF24, IR, BadUSB, DHCP attacks, MouseJack, signal replay, 6 themes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+@property --angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-void:#000;--bg-surface:#060810;--bg-raised:#0a1220;--bg-card:#0d1628;
+  --ocean-dim:#0c4a6e;--ocean-muted:#075985;--ocean-core:#0369a1;
+  --ocean-bright:#0ea5e9;--ocean-vivid:#38bdf8;--ocean-hot:#7dd3fc;--ocean-white:#e0f2fe;
+  --glow-subtle:0 0 4px rgba(14,165,233,.3);
+  --glow-medium:0 0 12px rgba(14,165,233,.4),0 0 4px rgba(14,165,233,.6);
+  --glow-intense:0 0 20px rgba(14,165,233,.5),0 0 8px rgba(14,165,233,.7),0 0 40px rgba(14,165,233,.2);
+  --glow-neon:0 0 4px #0ea5e9,0 0 12px rgba(14,165,233,.6),0 0 30px rgba(14,165,233,.3),0 0 60px rgba(14,165,233,.15);
+  --font-display:'Orbitron',sans-serif;--font-body:'Rajdhani',sans-serif;--font-mono:'JetBrains Mono',monospace;
+  --ease-smooth:cubic-bezier(.4,0,.2,1);--ease-bounce:cubic-bezier(.34,1.56,.64,1);
+}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{background:var(--bg-void);color:#e2e8f0;font-family:var(--font-body);font-weight:400;line-height:1.6;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.03;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")}
+a{color:var(--ocean-bright);text-decoration:none;transition:color .2s}
+a:hover{color:var(--ocean-vivid)}
+::selection{background:rgba(14,165,233,.3);color:#fff}
+
+/* Scroll progress */
+#scrollProgress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--ocean-core),var(--ocean-vivid));box-shadow:var(--glow-medium);z-index:1001;transition:width .1s}
+
+/* Nav */
+nav{position:fixed;top:0;width:100%;z-index:1000;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;transition:all .3s var(--ease-smooth)}
+nav.scrolled{background:rgba(0,0,0,.85);backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid rgba(14,165,233,.1)}
+.nav-logo{font-family:var(--font-display);font-size:.9rem;font-weight:700;letter-spacing:.15em;display:flex;align-items:center;gap:.75rem;color:var(--ocean-vivid)}
+.nav-logo .icon{width:32px;height:32px;border:1.5px solid var(--ocean-bright);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:900;box-shadow:var(--glow-subtle);transition:all .3s}
+.nav-logo:hover .icon{box-shadow:var(--glow-medium);border-color:var(--ocean-vivid)}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{font-family:var(--font-body);font-weight:500;font-size:.95rem;color:#94a3b8;transition:color .2s}
+.nav-links a:hover{color:var(--ocean-bright)}
+
+/* Hero */
+#hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;padding:2rem}
+#heroCanvas{position:absolute;inset:0;z-index:0}
+.hero-content{position:relative;z-index:1}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3);padding:.4rem 1rem;border-radius:100px;margin-bottom:1.5rem;background:rgba(14,165,233,.05)}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--ocean-bright);box-shadow:var(--glow-subtle);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.hero-title{font-family:var(--font-display);font-size:clamp(2.5rem,6vw,5rem);font-weight:900;letter-spacing:.08em;line-height:1.1;margin-bottom:1rem;background:linear-gradient(135deg,var(--ocean-vivid),var(--ocean-hot),#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none}
+.hero-sub{font-size:clamp(1rem,2vw,1.4rem);color:#94a3b8;max-width:600px;margin:0 auto 2rem;font-weight:300}
+.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.btn{font-family:var(--font-body);font-weight:600;font-size:1rem;padding:.75rem 2rem;border-radius:8px;border:none;cursor:pointer;transition:all .3s var(--ease-bounce);display:inline-flex;align-items:center;gap:.5rem}
+.btn-primary{background:linear-gradient(135deg,var(--ocean-core),var(--ocean-bright));color:#fff;box-shadow:var(--glow-medium)}
+.btn-primary:hover{transform:translateY(-2px) scale(1.03);box-shadow:var(--glow-intense)}
+.btn-secondary{background:transparent;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.4)}
+.btn-secondary:hover{background:rgba(14,165,233,.1);border-color:var(--ocean-bright);transform:translateY(-2px)}
+.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3rem}
+.hero-stat{text-align:center}
+.hero-stat .num{font-family:var(--font-display);font-size:2.5rem;font-weight:900;color:var(--ocean-vivid);text-shadow:0 0 20px rgba(14,165,233,.4)}
+.hero-stat .label{font-size:.85rem;color:#64748b;text-transform:uppercase;letter-spacing:.1em}
+
+/* Sections */
+section{padding:6rem 2rem;max-width:1200px;margin:0 auto}
+.section-label{font-family:var(--font-mono);font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ocean-bright);margin-bottom:1rem;display:flex;align-items:center;gap:1rem}
+.section-label::before{content:'';width:40px;height:1px;background:var(--ocean-bright)}
+.section-title{font-family:var(--font-display);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;letter-spacing:.04em;margin-bottom:1rem;color:#f1f5f9}
+.section-desc{color:#94a3b8;font-size:1.1rem;max-width:700px;margin-bottom:3rem}
+
+/* Feature grid */
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+.feature-card{background:var(--bg-raised);border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.5rem;transition:all .3s var(--ease-smooth);position:relative;overflow:hidden}
+.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ocean-bright),transparent);opacity:0;transition:opacity .3s}
+.feature-card:hover{transform:translateY(-3px);border-color:rgba(14,165,233,.2);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.feature-card:hover::before{opacity:1}
+.feature-card h3{font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--ocean-vivid);margin-bottom:.5rem;letter-spacing:.05em}
+.feature-card p{font-size:.9rem;color:#94a3b8;line-height:1.5}
+.feature-card .count{font-family:var(--font-mono);font-size:.75rem;color:var(--ocean-muted);margin-top:.75rem}
+
+/* Hardware table */
+.hw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.5rem}
+.hw-card{background:var(--bg-raised);border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:2rem;transition:all .3s}
+.hw-card:hover{border-color:rgba(14,165,233,.2)}
+.hw-card h3{font-family:var(--font-display);font-size:1rem;color:var(--ocean-vivid);margin-bottom:1rem}
+.hw-card table{width:100%;font-size:.85rem}
+.hw-card td{padding:.3rem 0;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,.03)}
+.hw-card td:first-child{color:#cbd5e1;font-weight:500;width:40%}
+
+/* Theme cards */
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem}
+.theme-card{background:var(--bg-raised);border-radius:10px;padding:1rem;text-align:center;border:1px solid rgba(255,255,255,.05);transition:all .3s}
+.theme-card:hover{border-color:rgba(14,165,233,.2);transform:translateY(-2px)}
+.theme-swatch{width:100%;height:40px;border-radius:6px;margin-bottom:.75rem}
+.theme-card .name{font-family:var(--font-display);font-size:.75rem;color:#e2e8f0;letter-spacing:.1em}
+
+/* Arch diagram */
+.arch-box{background:var(--bg-raised);border:1px solid rgba(14,165,233,.1);border-radius:12px;padding:2rem;font-family:var(--font-mono);font-size:.8rem;line-height:1.8;color:#94a3b8;overflow-x:auto;white-space:pre}
+.arch-box .hl{color:var(--ocean-vivid)}
+
+/* Download CTA */
+.cta-section{text-align:center;padding:6rem 2rem;position:relative}
+.cta-section .btn-primary{font-size:1.2rem;padding:1rem 3rem}
+.cta-version{font-family:var(--font-mono);font-size:.8rem;color:#64748b;margin-top:1rem}
+
+/* Footer */
+footer{border-top:1px solid rgba(14,165,233,.08);padding:3rem 2rem;text-align:center}
+footer .suite-links{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem}
+footer .suite-links a{font-family:var(--font-mono);font-size:.8rem;color:#64748b;letter-spacing:.1em}
+footer .suite-links a:hover{color:var(--ocean-bright)}
+footer .copy{font-family:var(--font-mono);font-size:.75rem;color:#334155}
+
+/* Scroll reveal */
+.reveal{opacity:0;transform:translateY(40px);transition:all .8s var(--ease-smooth)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* Mobile */
+@media(max-width:768px){
+  .nav-links{display:none}
+  .hero-stats{flex-direction:column;gap:1.5rem}
+  .hero-btns{flex-direction:column;align-items:center}
+  section{padding:4rem 1.5rem}
+}
+</style>
+</head>
+<body>
+
+<div id="scrollProgress"></div>
+
+<nav id="mainNav">
+  <a href="#" class="nav-logo"><span class="icon">P</span> POSEIDON</a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#hardware">Hardware</a></li>
+    <li><a href="#themes">Themes</a></li>
+    <li><a href="#download">Download</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<section id="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; COMMANDER OF THE DEEP</div>
+    <h1 class="hero-title">POSEIDON</h1>
+    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack Cardputer-Adv. 80+ features across every radio band. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. All from your pocket.</p>
+    <div class="hero-btns">
+      <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary">Download .bin</a>
+      <a href="https://github.com/GeneralDussDuss/poseidon" class="btn btn-secondary">View Source</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">80+</div><div class="label">Features</div></div>
+      <div class="hero-stat"><div class="num">6</div><div class="label">RF Bands</div></div>
+      <div class="hero-stat"><div class="num">6</div><div class="label">Themes</div></div>
+      <div class="hero-stat"><div class="num">3190+</div><div class="label">.sub Signals</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="section-label">01 // ARSENAL</div>
+  <h2 class="section-title reveal">Every Radio. Every Attack.</h2>
+  <p class="section-desc reveal">From WiFi deauth to LoRa beacons. From MouseJack to DHCP starvation. POSEIDON covers more attack surface than any other pocketable device.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card reveal"><h3>WiFi Offensive</h3><p>Scan, deauth, evil portal, karma, beacon spam, probe sniff, PMKID + 4-way handshake capture, wardrive with GPS, CIW zeroclick SSID injection.</p><div class="count">17 tools</div></div>
+    <div class="feature-card reveal"><h3>Bluetooth Low Energy</h3><p>Device scan with OUI DB, BLE spam (4 brands), Bad-KB HID, tracker detect, GATT explorer, Sour Apple CVE-2023-42941, Find My emulator, clone, flood.</p><div class="count">14 tools</div></div>
+    <div class="feature-card reveal"><h3>Sub-GHz (CC1101)</h3><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 tools</div></div>
+    <div class="feature-card reveal"><h3>2.4 GHz (nRF24L01+)</h3><p>Promiscuous ESB sniffer (Travis Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 tools</div></div>
+    <div class="feature-card reveal"><h3>LoRa + GNSS (SX1262)</h3><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener. Live GPS fix with NMEA diagnostics and baud auto-detect.</p><div class="count">4 tools</div></div>
+    <div class="feature-card reveal"><h3>Network Attacks</h3><p>DHCP starvation + rogue DHCP + chained MitM. WPAD abuse. Exchange Autodiscover NTLM capture. Responder. SSDP poisoner. Honeypot. Reverse TCP tunnel. UART shell.</p><div class="count">18 tools</div></div>
+    <div class="feature-card reveal"><h3>MIMIR Drop-Box</h3><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link &mdash; pure opsec.</p><div class="count">1 module</div></div>
+    <div class="feature-card reveal"><h3>TRIDENT PC Bridge</h3><p>Mirror the Cardputer screen to your desktop at 10fps. Send keystrokes remotely. Screenshot capture. PyQt6 companion app.</p><div class="count">1 module</div></div>
+    <div class="feature-card reveal"><h3>Triton Gotchi</h3><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Speech bubble. Sparkline brain visualizer.</p><div class="count">1 creature</div></div>
+    <div class="feature-card reveal"><h3>Signal Finder</h3><p>Hot/cold proximity tracker for both sub-GHz (CC1101 RSSI) and 2.4 GHz (nRF24 RPD). Auto-calibrating gradient meter. Find hidden cameras, rogue transmitters, wireless devices.</p><div class="count">2 tools</div></div>
+    <div class="feature-card reveal"><h3>C5 Remote Nodes</h3><p>ESP32-C5 companion for 5 GHz WiFi + 802.15.4 Zigbee/Thread. Dual-band scan, remote deauth, Zigbee sniff &mdash; all over ESP-NOW mesh. WS2812 status LED.</p><div class="count">4 tools</div></div>
+    <div class="feature-card reveal"><h3>Tools + BadUSB + IR</h3><p>USB-HID payload runner. TV-B-Gone. Samsung remote. Flashlight, stopwatch, calculator, morse, MAC randomizer, SD format, file browser. 6-palette theme engine.</p><div class="count">12 tools</div></div>
+  </div>
+</section>
+
+<section id="hardware">
+  <div class="section-label">02 // HARDWARE</div>
+  <h2 class="section-title reveal">Three Hats. Every Frequency.</h2>
+  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports three expansion hats &mdash; swap for the mission.</p>
+
+  <div class="hw-grid">
+    <div class="hw-card reveal">
+      <h3>Cardputer-Adv (Base)</h3>
+      <table>
+        <tr><td>MCU</td><td>ESP32-S3 @ 240 MHz</td></tr>
+        <tr><td>Display</td><td>1.14" ST7789 240x135</td></tr>
+        <tr><td>Keyboard</td><td>TCA8418 I2C QWERTY</td></tr>
+        <tr><td>Radio</td><td>WiFi 4 + BLE 5.0</td></tr>
+        <tr><td>USB</td><td>Native USB-C (HID + CDC)</td></tr>
+        <tr><td>Storage</td><td>microSD + 8MB flash</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>CAP-LoRa1262 Hat</h3>
+      <table>
+        <tr><td>LoRa</td><td>SX1262 (868/915 MHz)</td></tr>
+        <tr><td>GNSS</td><td>ATGM336H GPS</td></tr>
+        <tr><td>Antenna</td><td>RP-SMA external</td></tr>
+        <tr><td>Use</td><td>Wardrive, LoRa scan, Meshtastic</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>Hydra RF Cap 424</h3>
+      <table>
+        <tr><td>Sub-GHz</td><td>CC1101 (300-928 MHz)</td></tr>
+        <tr><td>2.4 GHz</td><td>nRF24L01+</td></tr>
+        <tr><td>Vendor</td><td>PINGEQUA</td></tr>
+        <tr><td>Use</td><td>Signal capture/replay, MouseJack, BLE spam</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>ESP32-C5 Node</h3>
+      <table>
+        <tr><td>WiFi</td><td>5 GHz + 2.4 GHz dual-band</td></tr>
+        <tr><td>802.15.4</td><td>Zigbee / Thread</td></tr>
+        <tr><td>Link</td><td>ESP-NOW mesh to Cardputer</td></tr>
+        <tr><td>Use</td><td>5G scan/deauth, Zigbee sniff</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="themes">
+  <div class="section-label">03 // AESTHETICS</div>
+  <h2 class="section-title reveal">Six Visual Palettes</h2>
+  <p class="section-desc reveal">Swap the entire UI vibe from System &gt; Theme. Every screen follows the active palette.</p>
+
+  <div class="theme-grid">
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07FF,#F81F)"></div><div class="name">POSEIDON</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#C01F,#780F)"></div><div class="name">PHANTOM</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07E0,#03E0)"></div><div class="name">MATRIX</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#FCA0,#C460)"></div><div class="name">AMBER</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#fff,#ccc)"></div><div class="name">E-INK</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07FF,#04DF)"></div><div class="name">TRON</div></div>
+  </div>
+</section>
+
+<section class="cta-section" id="download">
+  <div class="section-label" style="justify-content:center">04 // DEPLOY</div>
+  <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
+  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash the .bin with M5Burner or esptool at offset 0x0. Or build from source with PlatformIO.</p>
+  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">Download v0.2.0</a>
+  <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; 1.8 MB &bull; Flash at 0x0</div>
+</section>
+
+<footer>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2077 POSEIDON &mdash; commander of the deep</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+
+<script>
+// Scroll progress
+const bar=document.getElementById('scrollProgress');
+window.addEventListener('scroll',()=>{
+  const pct=window.scrollY/(document.documentElement.scrollHeight-window.innerHeight)*100;
+  bar.style.width=pct+'%';
+  document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>50);
+});
+
+// Scroll reveal
+const obs=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}});
+},{threshold:0.1});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+// Floating particles
+const pc=document.getElementById('particles');
+const px=pc.getContext('2d');
+function resizeParticles(){pc.width=window.innerWidth;pc.height=window.innerHeight}
+resizeParticles();window.addEventListener('resize',resizeParticles);
+const pts=Array.from({length:40},()=>({
+  x:Math.random()*pc.width,y:Math.random()*pc.height,
+  vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,
+  r:Math.random()*2+1,hue:Math.random()>.5?200:195
+}));
+function drawParticles(){
+  px.clearRect(0,0,pc.width,pc.height);
+  pts.forEach(p=>{
+    p.x+=p.vx+Math.sin(Date.now()*.001+p.y*.01)*.2;
+    p.y+=p.vy;
+    if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;
+    if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;
+    px.beginPath();px.arc(p.x,p.y,p.r,0,Math.PI*2);
+    px.fillStyle=`hsla(${p.hue},80%,60%,.4)`;px.fill();
+    px.beginPath();px.arc(p.x,p.y,p.r*3,0,Math.PI*2);
+    px.fillStyle=`hsla(${p.hue},80%,60%,.06)`;px.fill();
+  });
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// Hero constellation canvas
+const hc=document.getElementById('heroCanvas');
+const hx=hc.getContext('2d');
+function resizeHero(){hc.width=hc.parentElement.clientWidth;hc.height=hc.parentElement.clientHeight}
+resizeHero();window.addEventListener('resize',resizeHero);
+const nodes=Array.from({length:20},()=>({
+  x:Math.random()*1200,y:Math.random()*800,
+  vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4
+}));
+function drawHero(){
+  hx.clearRect(0,0,hc.width,hc.height);
+  const cx=hc.width/2,cy=hc.height/2;
+  nodes.forEach(n=>{
+    n.x+=n.vx;n.y+=n.vy;
+    if(n.x<0||n.x>hc.width)n.vx*=-1;
+    if(n.y<0||n.y>hc.height)n.vy*=-1;
+  });
+  // connections
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<200){
+        hx.beginPath();hx.moveTo(nodes[i].x,nodes[i].y);hx.lineTo(nodes[j].x,nodes[j].y);
+        hx.strokeStyle=`rgba(14,165,233,${.15*(1-dist/200)})`;hx.lineWidth=.5;hx.stroke();
+      }
+    }
+  }
+  // nodes
+  nodes.forEach(n=>{
+    hx.beginPath();hx.arc(n.x,n.y,2,0,Math.PI*2);
+    hx.fillStyle='rgba(14,165,233,.5)';hx.fill();
+  });
+  // energy wave
+  const t=Date.now()*.001;
+  const waveR=(t%4)*150;
+  hx.beginPath();hx.arc(cx,cy,waveR,0,Math.PI*2);
+  hx.strokeStyle=`rgba(14,165,233,${.15*(1-waveR/600)})`;hx.lineWidth=1;hx.stroke();
+  requestAnimationFrame(drawHero);
+}
+drawHero();
+
+// Click ripple
+document.addEventListener('click',e=>{
+  const r=document.createElement('div');
+  r.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:0;height:0;border-radius:50%;background:radial-gradient(circle,rgba(14,165,233,.3),transparent);transform:translate(-50%,-50%);pointer-events:none;z-index:9999;animation:ripple .6s ease-out forwards`;
+  document.body.appendChild(r);setTimeout(()=>r.remove(),600);
+});
+const rippleStyle=document.createElement('style');
+rippleStyle.textContent='@keyframes ripple{to{width:200px;height:200px;opacity:0}}';
+document.head.appendChild(rippleStyle);
+</script>
+</body>
+</html>
