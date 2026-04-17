@@ -88,6 +88,19 @@ extern void feat_nrf24_finder(void);
 extern void feat_subghz_finder(void);
 extern void feat_mimir(void);
 extern void feat_theme_picker(void);
+extern void feat_uart_shell(void);
+extern void feat_tcp_tunnel(void);
+extern void feat_honeypot(void);
+extern void feat_dead_drop(void);
+extern void feat_printer(void);
+extern void feat_ssdp_poison(void);
+extern void feat_dhcp_starve(void);
+extern void feat_dhcp_rogue_sta(void);
+extern void feat_dhcp_rogue_ap(void);
+extern void feat_net_hijack(void);
+extern void feat_wpad_abuse(void);
+extern void feat_autodiscover(void);
+extern void feat_wifi_ciw(void);
 
 /* ---- menu tree ---- */
 
@@ -141,6 +154,12 @@ static const menu_node_t MENU_WIFI[] = {
     { 'n', "Connect", "Join saved WiFi network", nullptr, feat_wifi_connect,
       "Saves an SSID+password to Preferences and connects STA. Required for "
       "Network tools (port scan, ping, DNS) to work." },
+    { 'z', "CIW Zeroclick", "SSID injection payload broadcast", nullptr, feat_wifi_ciw,
+      "Broadcasts beacon frames with SSID payloads targeting WiFi driver "
+      "vulnerabilities: command injection, buffer overflow, format strings, "
+      "Log4Shell JNDI, XSS, CRLF, path traversal, heap spray, ANSI escape, "
+      "template injection, NoSQL injection. 14 categories, ~120 payloads. "
+      "Rotates SSID on configurable interval. +/- adjust speed." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -236,6 +255,28 @@ static const menu_node_t MENU_BLE[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+static const menu_node_t MENU_NET_ATTACKS[] = {
+    { 'u', "UART Shell", "Serial bridge to UART1", nullptr, feat_uart_shell,
+      "Bridges the Cardputer keyboard to UART1 (GPIO1/2 or Grove G1/G2 on ADV). "
+      "Auto-detect baud or manual selection. Scrolling terminal display." },
+    { 't', "TCP Tunnel", "Reverse connect-back TCP client", nullptr, feat_tcp_tunnel,
+      "Connects a WiFiClient to user-specified host:port and relays keyboard "
+      "input as commands. Displays response. Simple reverse-shell relay." },
+    { 'h', "Honeypot", "Fake telnet server on :23", nullptr, feat_honeypot,
+      "Starts a WiFiServer on port 23 with a fake Ubuntu login banner. Logs "
+      "all usernames, passwords, and commands to /poseidon/honeypot.log on SD." },
+    { 'd', "Dead Drop", "Hidden AP for anonymous file drops", nullptr, feat_dead_drop,
+      "Creates a hidden AP with captive portal. Connected devices get a web page "
+      "for uploading files and posting anonymous notes. Stored on SD." },
+    { 'p', "Printer", "Scan + print to network printers", nullptr, feat_printer,
+      "Scans the /24 subnet for hosts with port 9100 (JetDirect) open. "
+      "Pick a printer, sends /poseidon/print.txt from SD." },
+    { 's', "SSDP Poison", "Flood LAN with fake UPnP devices", nullptr, feat_ssdp_poison,
+      "Broadcasts fake SSDP NOTIFY ssdp:alive packets and responds to M-SEARCH "
+      "queries with spoofed device descriptions. Pollutes device lists." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
 static const menu_node_t MENU_NET[] = {
     { 'p', "Port scan", "TCP portscan a host", nullptr, feat_net_portscan,
       "Connects to a range of TCP ports on a host IP/name. Requires you be "
@@ -264,6 +305,34 @@ static const menu_node_t MENU_NET[] = {
       "Fetches each device's XML description to pull friendlyName + modelName. "
       "Great for mapping internal IoT: routers, printers, smart TVs, cameras, "
       "NAS, Sonos, Chromecasts. Saves to /poseidon/ssdp.csv." },
+    { 'x', "Attacks", "UART / TCP / honeypot / printer / SSDP", MENU_NET_ATTACKS, nullptr,
+      "Offensive network features: UART shell bridge, reverse TCP tunnel, "
+      "telnet honeypot, WiFi dead drop, printer detection + print, "
+      "and SSDP poisoner." },
+    { 'h', "DHCP Starve", "Exhaust DHCP pool via random MACs", nullptr, feat_dhcp_starve,
+      "Floods DHCP DISCOVER from spoofed random MACs using known OUIs. Tracks "
+      "OFFER/ACK/NAK counts and pool exhaustion percentage. NAK threshold "
+      "indicates successful starvation. Requires STA connection." },
+    { 'g', "Rogue DHCP STA", "Hijack gateway+DNS via STA", nullptr, feat_dhcp_rogue_sta,
+      "After starvation, answers DISCOVER/REQUEST with attacker-controlled "
+      "gateway and DNS pointing to our IP. Injects WPAD URL for proxy "
+      "autoconfig. STA mode — requires existing WiFi connection." },
+    { 'j', "Rogue DHCP AP", "Hijack gateway+DNS via AP", nullptr, feat_dhcp_rogue_ap,
+      "Same as Rogue DHCP STA but creates a SoftAP and stops the built-in "
+      "ESP DHCP server, then serves our own. Hands out attacker-controlled "
+      "gateway and DNS to anyone who connects." },
+    { 'k', "Net Hijack", "Starve+Rogue+Portal auto chain", nullptr, feat_net_hijack,
+      "One-button full MitM chain: DHCP starvation to exhaust the legitimate "
+      "pool, then rogue DHCP to hand out attacker gateway/DNS, then launches "
+      "the captive portal for credential capture." },
+    { 'w', "WPAD Abuse", "Proxy autoconfig NTLM capture", nullptr, feat_wpad_abuse,
+      "Creates a SoftAP with DNS wildcard, serves wpad.dat pointing all "
+      "traffic through our proxy, then challenges with NTLM 407 to capture "
+      "NTLMv2 hashes. Saved to /poseidon/ntlm_hashes.txt for hashcat 5600." },
+    { 'e', "Autodiscover", "Exchange cred capture (Basic+NTLM)", nullptr, feat_autodiscover,
+      "Fake Exchange Autodiscover endpoint. Offers Basic Auth first (plaintext "
+      "capture on older Outlook) with NTLM fallback (NTLMv2 hash). Returns "
+      "valid XML so Outlook thinks it succeeded. Creds saved to SD." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
