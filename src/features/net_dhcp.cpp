@@ -254,6 +254,7 @@ static uint8_t pool_alloc(const uint8_t *mac, uint8_t base)
     }
     if (s_pool_n >= ROGUE_POOL_SZ) return 0;
     uint8_t suffix = base + s_pool_n + 1;
+    if (suffix <= base || suffix > 254) return 0;  /* prevent subnet wrap */
     memcpy(s_pool[s_pool_n].mac, mac, 6);
     s_pool[s_pool_n].suffix = suffix;
     s_pool_n++;

@@ -339,6 +339,7 @@ static bool ad_decode_basic(const String &authH, String &user, String &pass) {
     String b64 = authH.substring(idx + 6); b64.trim();
     uint8_t dec[256]; size_t dlen = 0;
     if (!b64_decode(b64, dec, &dlen, sizeof(dec))) return false;
+    dec[dlen < sizeof(dec) ? dlen : sizeof(dec) - 1] = '\0';
     String plain((char*)dec); /* user:pass */
     int col = plain.indexOf(':');
     if (col < 0) return false;

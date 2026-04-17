@@ -300,8 +300,8 @@ void feat_nrf24_mousejack(void)
         for (int i = 0; i < s_dev_count && i < 6; i++) {
             int y = BODY_Y + 18 + i * 13;
             bool s = (i == sel);
-            if (s) d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0x3007);
-            d.setTextColor(s ? T_ACCENT : T_FG, s ? 0x3007 : T_BG);
+            if (s) d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, T_SEL_BG);
+            d.setTextColor(s ? T_ACCENT : T_FG, s ? T_SEL_BG : T_BG);
             d.setCursor(6, y);
             d.printf("%02X%02X%02X%02X%02X ch%u %s",
                      s_devs[i].addr[0], s_devs[i].addr[1], s_devs[i].addr[2],
@@ -547,8 +547,8 @@ void feat_nrf24_scanner(void)
         }
 
         /* Draw. */
-        d.fillRect(GX, GY, GW, GH, 0x0000);
-        d.drawRect(GX - 1, GY - 1, GW + 2, GH + 2, 0x4208);
+        d.fillRect(GX, GY, GW, GH, T_BG);
+        d.drawRect(GX - 1, GY - 1, GW + 2, GH + 2, T_DIM);
 
         for (int ch = 0; ch < 126; ch++) {
             int x = GX + (int)(ch * scale);
@@ -562,25 +562,25 @@ void feat_nrf24_scanner(void)
                 d.fillRect(x, GY + GH - h, bw, h, c);
             }
             int ph = (peak[ch] * GH) / 200;
-            if (ph > 1) d.drawPixel(x, GY + GH - ph, 0xFFFF);
+            if (ph > 1) d.drawPixel(x, GY + GH - ph, T_FG);
         }
 
         ui_text(4, BODY_Y + 2, T_ACCENT, "2.4GHz SCAN");
 
         if (mode == 1) {
             /* Protocol markers. */
-            d.setTextColor(0x07E0, T_BG);
+            d.setTextColor(T_GOOD, T_BG);
             int wch[] = {12, 37, 62}; const char *wl[] = {"W1","W6","W11"};
             for (int i = 0; i < 3; i++) {
                 d.setCursor(GX + (int)(wch[i]*scale) - 4, GY + GH + 3); d.print(wl[i]);
             }
-            d.setTextColor(0x001F, T_BG);
+            d.setTextColor(T_ACCENT2, T_BG);
             int bch[] = {2, 26, 80};
             for (int i = 0; i < 3; i++) {
                 d.setCursor(GX + (int)(bch[i]*scale), GY + GH + 10); d.print("B");
             }
         } else {
-            d.setTextColor(0x4208, T_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(GX, GY + GH + 3); d.print("2400");
             d.setCursor(GX + GW - 24, GY + GH + 3); d.print("2525");
         }
@@ -680,8 +680,8 @@ void feat_nrf24_jammer(void)
                 for (int i = 0; i < JAM_PRESET_COUNT; i++) {
                     int y = BODY_Y + 16 + i * 12;
                     bool s = (i == sel);
-                    if (s) d.fillRoundRect(2, y - 1, SCR_W - 4, 11, 2, 0x3007);
-                    d.setTextColor(s ? T_ACCENT : T_FG, s ? 0x3007 : T_BG);
+                    if (s) d.fillRoundRect(2, y - 1, SCR_W - 4, 11, 2, T_SEL_BG);
+                    d.setTextColor(s ? T_ACCENT : T_FG, s ? T_SEL_BG : T_BG);
                     d.setCursor(6, y);
                     d.printf("%s (%uch)", PRESETS[i].name, PRESETS[i].count);
                 }

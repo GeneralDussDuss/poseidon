@@ -630,10 +630,10 @@ static void show_info(const menu_node_t *item)
 {
     auto &d = M5Cardputer.Display;
     ui_force_clear_body();
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(T_ACCENT2, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("[%c] %s", toupper(item->hotkey), item->label);
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, 0xF81F);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
 
     d.setTextColor(COL_ACCENT, COL_BG);
     d.setCursor(4, BODY_Y + 18);

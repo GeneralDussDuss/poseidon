@@ -88,6 +88,10 @@ static int detect_baud(void)
 
 void feat_uart_shell(void)
 {
+    /* Release any radio that may own pin 13 (CC1101 CS / GPS TX). */
+    radio_switch(RADIO_NONE);
+    extern void gps_end(void);
+    gps_end();
     ui_clear_body();
     ui_draw_status("uart", nullptr);
     ui_draw_footer("esc=exit  enter=send");
@@ -507,6 +511,7 @@ static void dd_setup_routes(void)
 
     dd_web->on("/get", HTTP_GET, []() {
         String name = dd_web->arg("f");
+        name.replace("/", "_"); name.replace("\\", "_"); name.replace("..", "_");
         String path = String(DD_DIR) + "/" + name;
         File f = SD.open(path);
         if (!f) { dd_web->send(404, "text/plain", "not found"); return; }
