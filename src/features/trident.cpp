@@ -14,7 +14,9 @@
 #include "trident.h"
 #include <esp_heap_caps.h>
 
-static uint16_t *s_frame = nullptr;
+/* Stream frame in scanline chunks — only 480 bytes of buffer needed
+ * instead of 64KB. Same wire format: JSON header then raw RGB565. */
+static uint16_t s_line[240];  /* one scanline = 480 bytes */
 static bool s_streaming = false;
 static uint32_t s_last_frame_ms = 0;
 static const uint32_t FRAME_INTERVAL_MS = 100;  /* 10 fps */
@@ -24,11 +26,12 @@ bool g_trident_cdc_active = false;
 static void send_frame(void)
 {
     auto &d = M5Cardputer.Display;
-    d.readRect(0, 0, 240, 135, s_frame);
-
     const int frame_bytes = 240 * 135 * 2;
     Serial.printf("{\"evt\":\"frame\",\"w\":240,\"h\":135,\"fmt\":\"rgb565\",\"len\":%d}\n", frame_bytes);
-    Serial.write(reinterpret_cast<const uint8_t *>(s_frame), frame_bytes);
+    for (int y = 0; y < 135; y++) {
+        d.readRect(0, y, 240, 1, s_line);
+        Serial.write(reinterpret_cast<const uint8_t *>(s_line), 480);
+    }
 }
 
 static uint16_t special_to_pk(const char *s)
@@ -123,19 +126,7 @@ void feat_trident(void)
     s_streaming = false;
     s_rx_len = 0;
 
-    /* Free heap by dropping any active radio stack. */
     radio_switch(RADIO_NONE);
-
-    /* Try DMA-capable memory first, fall back to regular heap. */
-    s_frame = (uint16_t *)heap_caps_malloc(240 * 135 * 2, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
-    if (!s_frame) s_frame = (uint16_t *)malloc(240 * 135 * 2);
-    if (!s_frame) {
-        /* Still OOM — try half-res (120x67, scale on PC side). */
-        ui_toast("low memory — half res", T_WARN, 1000);
-        /* For now just bail. Full fix: stream in scanline chunks. */
-        g_trident_cdc_active = false;
-        return;
-    }
 
     ui_clear_body();
     ui_draw_status("trident", "bridge");
@@ -166,6 +157,5 @@ void feat_trident(void)
 
     s_streaming = false;
     Serial.println("{\"evt\":\"bye\"}");
-    if (s_frame) { free(s_frame); s_frame = nullptr; }
     g_trident_cdc_active = false;
 }
