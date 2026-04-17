@@ -15,6 +15,7 @@
  * devices that saved the real AP will auto-roam.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -164,15 +165,15 @@ static int pick_template(void)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("EVIL PORTAL");
-    d.drawFastHLine(4, BODY_Y + 12, 110, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 110, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     for (size_t i = 0; i < TEMPLATE_COUNT; ++i) {
         d.setCursor(4, BODY_Y + 22 + (int)i * 12);
         d.printf("[%d] %s", (int)(i + 1), s_templates[i].name);
     }
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 22 + (int)TEMPLATE_COUNT * 12);
     d.print("[C] Clone last scanned AP");
     ui_draw_footer("letter/1-4=pick  C=clone  `=back");
@@ -188,7 +189,7 @@ static int pick_template(void)
 static void run_portal(void)
 {
     if (!sd_mount()) {
-        ui_toast("SD needed for logs", COL_BAD, 1500);
+        ui_toast("SD needed for logs", T_BAD, 1500);
         return;
     }
     SD.mkdir("/poseidon");
@@ -221,10 +222,10 @@ static void run_portal(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("PORTAL ACTIVE");
-    d.drawFastHLine(4, BODY_Y + 12, 110, COL_BAD);
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 110, T_BAD);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 18); d.printf("SSID: %s", s_portal_ssid);
     d.setCursor(4, BODY_Y + 30); d.printf("IP:   %s", ip.toString().c_str());
     ui_draw_footer("`=stop");
@@ -236,11 +237,11 @@ static void run_portal(void)
 
         if (millis() - last > 250) {
             last = millis();
-            d.fillRect(0, BODY_Y + 42, SCR_W, 40, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 42, SCR_W, 40, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 42); d.printf("clients: %d", WiFi.softAPgetStationNum());
             d.setCursor(4, BODY_Y + 54); d.printf("hits:    %lu", (unsigned long)s_hits);
-            d.setTextColor(s_creds > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setTextColor(s_creds > 0 ? T_GOOD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 66); d.printf("creds:   %lu", (unsigned long)s_creds);
             ui_draw_status(radio_name(), "portal");
         }
@@ -262,7 +263,7 @@ void feat_wifi_portal(void)
     if (t == -1) return;
     if (t == -2) {
         if (!g_last_selected_valid) {
-            ui_toast("scan an AP first", COL_WARN, 1200);
+            ui_toast("scan an AP first", T_WARN, 1200);
             return;
         }
         strncpy(s_portal_ssid, g_last_selected_ap.ssid, sizeof(s_portal_ssid) - 1);
@@ -281,7 +282,7 @@ void feat_wifi_apclone(void)
 {
     radio_switch(RADIO_WIFI);
     if (!g_last_selected_valid) {
-        ui_toast("scan + select AP first", COL_WARN, 1500);
+        ui_toast("scan + select AP first", T_WARN, 1500);
         return;
     }
     strncpy(s_portal_ssid, g_last_selected_ap.ssid, sizeof(s_portal_ssid) - 1);

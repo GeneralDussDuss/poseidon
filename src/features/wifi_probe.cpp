@@ -12,6 +12,7 @@
  * the most recently seen probes every few seconds to cast a wide net.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -89,7 +90,7 @@ static void draw_probe_list(int cursor)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     if (s_karma_mode) {
         d.printf("KARMA  total:%lu  lure:%s",
@@ -98,10 +99,10 @@ static void draw_probe_list(int cursor)
     } else {
         d.printf("PROBES  seen:%lu", (unsigned long)s_probe_total);
     }
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     if (s_probe_count == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
         d.print("listening for probe requests...");
         return;
@@ -116,16 +117,16 @@ static void draw_probe_list(int cursor)
         const probe_t &p = s_probes[first + r];
         int y = BODY_Y + 16 + r * 11;
         bool sel = (first + r == cursor);
-        uint16_t bg = sel ? 0x18C7 : COL_BG;
+        uint16_t bg = sel ? 0x18C7 : T_BG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
-        d.setTextColor(COL_DIM, bg);
+        d.setTextColor(T_DIM, bg);
         d.setCursor(2, y);
         d.printf("%02X%02X", p.client[4], p.client[5]);
-        d.setTextColor(COL_ACCENT, bg);
+        d.setTextColor(T_ACCENT, bg);
         d.setCursor(32, y);
         d.printf("%4d", p.rssi);
-        d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+        d.setTextColor(sel ? T_ACCENT : T_FG, bg);
         d.setCursor(64, y);
         d.printf("%.24s", p.ssid);
     }

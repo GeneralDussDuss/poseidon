@@ -9,6 +9,7 @@
  * network (feat_wifi_connect) or by adding one in settings.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -19,17 +20,17 @@ static void draw_waiting(const char *title, const char *sub)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print(title);
-    d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 24); d.print(sub);
 }
 
 static bool require_sta(void)
 {
     if (WiFi.status() != WL_CONNECTED) {
-        ui_toast("connect to WiFi first", COL_WARN, 1500);
+        ui_toast("connect to WiFi first", T_WARN, 1500);
         return false;
     }
     return true;
@@ -50,7 +51,7 @@ void feat_net_portscan(void)
 
     IPAddress ip;
     if (!WiFi.hostByName(host, ip)) {
-        ui_toast("dns fail", COL_BAD, 1200);
+        ui_toast("dns fail", T_BAD, 1200);
         return;
     }
 
@@ -61,14 +62,14 @@ void feat_net_portscan(void)
 
     int open_count = 0;
     for (int p = lo; p <= hi; ++p) {
-        d.fillRect(0, BODY_Y + 22, SCR_W, 12, COL_BG);
-        d.setTextColor(COL_DIM, COL_BG);
+        d.fillRect(0, BODY_Y + 22, SCR_W, 12, T_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 22);
         d.printf("port %d...", p);
         WiFiClient c;
         c.setTimeout(300);
         if (c.connect(ip, p)) {
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, y);
             d.printf("OPEN %d", p);
             y += 10;
@@ -79,8 +80,8 @@ void feat_net_portscan(void)
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
     }
-    d.fillRect(0, BODY_Y + 22, SCR_W, 12, COL_BG);
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.fillRect(0, BODY_Y + 22, SCR_W, 12, T_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 22);
     d.printf("done. %d open.", open_count);
     while (true) {
@@ -105,13 +106,13 @@ void feat_net_ping(void)
     while (true) {
         bool ok = Ping.ping(host, 1);
         int rtt = ok ? (int)Ping.averageTime() : -1;
-        d.fillRect(0, y, SCR_W, 12, COL_BG);
-        d.setTextColor(ok ? COL_GOOD : COL_BAD, COL_BG);
+        d.fillRect(0, y, SCR_W, 12, T_BG);
+        d.setTextColor(ok ? T_GOOD : T_BAD, T_BG);
         d.setCursor(4, y);
         if (ok) d.printf("seq=%d rtt=%dms", seq, rtt);
         else    d.printf("seq=%d TIMEOUT", seq);
         y += 10;
-        if (y > FOOTER_Y - 12) { d.fillRect(0, BODY_Y + 36, SCR_W, FOOTER_Y - BODY_Y - 36, COL_BG); y = BODY_Y + 36; }
+        if (y > FOOTER_Y - 12) { d.fillRect(0, BODY_Y + 36, SCR_W, FOOTER_Y - BODY_Y - 36, T_BG); y = BODY_Y + 36; }
         ++seq;
 
         for (int i = 0; i < 20; ++i) {
@@ -133,12 +134,12 @@ void feat_net_dns(void)
     bool ok = WiFi.hostByName(host, ip);
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("DNS LOOKUP");
-    d.drawFastHLine(4, BODY_Y + 12, 90, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("%s", host);
-    d.setTextColor(ok ? COL_GOOD : COL_BAD, COL_BG);
+    d.setTextColor(ok ? T_GOOD : T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 36);
     d.print(ok ? ip.toString().c_str() : "FAILED");
     ui_draw_footer("`=back");

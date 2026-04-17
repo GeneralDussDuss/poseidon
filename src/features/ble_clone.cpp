@@ -9,6 +9,7 @@
  * Requires g_ble_target_valid (set by ENTER on a scan result).
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -44,7 +45,7 @@ static clone_chr_cb s_chr_cb;
 void feat_ble_clone(void)
 {
     if (!g_ble_target_valid) {
-        ui_toast("scan + select first", COL_WARN, 1200);
+        ui_toast("scan + select first", T_WARN, 1200);
         return;
     }
     radio_switch(RADIO_BLE);
@@ -90,10 +91,10 @@ void feat_ble_clone(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BLE CLONE");
-    d.drawFastHLine(4, BODY_Y + 12, 80, COL_BAD);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 80, T_BAD);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22);
     d.printf("MAC : %02X:%02X:%02X:%02X:%02X:%02X",
              g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
@@ -108,14 +109,14 @@ void feat_ble_clone(void)
     while (true) {
         if (millis() - last > 250) {
             last = millis();
-            d.fillRect(0, BODY_Y + 50, SCR_W, 40, COL_BG);
-            d.setTextColor(s_currently_connected ? COL_GOOD : COL_WARN, COL_BG);
+            d.fillRect(0, BODY_Y + 50, SCR_W, 40, T_BG);
+            d.setTextColor(s_currently_connected ? T_GOOD : T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 50);
             d.print(s_currently_connected ? "CONNECTED" : "ADVERTISING");
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 62);
             d.printf("connects: %lu", (unsigned long)s_conn_count);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 74);
             d.print("targets can enumerate + pair");
             ui_draw_status(radio_name(), s_currently_connected ? "paired" : "clone");

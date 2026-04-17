@@ -8,6 +8,7 @@
  * standard 8-byte keyboard input report.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -141,9 +142,9 @@ static int pick_disguise(void)
     ui_draw_footer(";/. move  ENTER=pick  R=random  `=back");
     while (true) {
         ui_clear_body();
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 2); d.print("BAD-KB  pick device");
-        d.drawFastHLine(4, BODY_Y + 12, 130, COL_ACCENT);
+        d.drawFastHLine(4, BODY_Y + 12, 130, T_ACCENT);
         int rows = 6;
         int first = cursor - rows / 2;
         if (first < 0) first = 0;
@@ -152,9 +153,9 @@ static int pick_disguise(void)
             int i = first + r;
             int y = BODY_Y + 18 + r * 12;
             bool sel = (i == cursor);
-            uint16_t bg = sel ? 0x3007 : COL_BG;
+            uint16_t bg = sel ? 0x3007 : T_BG;
             if (sel) d.fillRect(0, y - 1, SCR_W, 12, bg);
-            d.setTextColor(sel ? 0xF81F : COL_FG, bg);
+            d.setTextColor(sel ? 0xF81F : T_FG, bg);
             d.setCursor(8, y);
             d.printf("%d  %s", i + 1, s_disguises[i]);
         }
@@ -178,12 +179,12 @@ void feat_ble_hid(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BAD-KB");
-    d.drawFastHLine(4, BODY_Y + 12, 70, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 70, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("disguise: %s", name);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 34); d.print("pair this from target device");
     ui_draw_footer("T=type  R=rick  L=lock  `=back");
 
@@ -191,8 +192,8 @@ void feat_ble_hid(void)
     while (true) {
         if (millis() - last > 300) {
             last = millis();
-            d.fillRect(0, BODY_Y + 48, SCR_W, 20, COL_BG);
-            d.setTextColor(s_connected ? COL_GOOD : COL_WARN, COL_BG);
+            d.fillRect(0, BODY_Y + 48, SCR_W, 20, T_BG);
+            d.setTextColor(s_connected ? T_GOOD : T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 48);
             d.print(s_connected ? "PAIRED" : "advertising...");
             ui_draw_status("ble-hid", s_connected ? "paired" : "adv");

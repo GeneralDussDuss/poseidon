@@ -9,6 +9,7 @@
  * our bogus attempts and drop legitimate clients.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -79,7 +80,7 @@ static void flood_task(void *arg)
 void feat_ble_flood(void)
 {
     if (!g_ble_target_valid) {
-        ui_toast("scan + select first", COL_WARN, 1200);
+        ui_toast("scan + select first", T_WARN, 1200);
         return;
     }
     radio_switch(RADIO_BLE);
@@ -90,14 +91,14 @@ void feat_ble_flood(void)
     s_flood_last_rc = 0;
     s_flood_alive = true;
     BaseType_t ok = xTaskCreate(flood_task, "ble_flood", 4096, nullptr, 4, nullptr);
-    if (ok != pdPASS) { ui_toast("task fail", COL_BAD, 1200); return; }
+    if (ok != pdPASS) { ui_toast("task fail", T_BAD, 1200); return; }
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BLE FLOOD");
-    d.drawFastHLine(4, BODY_Y + 12, 80, COL_BAD);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 80, T_BAD);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("target %02X:%02X:%02X:%02X:%02X:%02X",
         g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
         g_ble_target.addr[3], g_ble_target.addr[4], g_ble_target.addr[5]);
@@ -107,16 +108,16 @@ void feat_ble_flood(void)
     while (true) {
         if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 40, 150, 60, COL_BG);
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.fillRect(0, BODY_Y + 40, 150, 60, T_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 40);
             d.printf("attempts: %lu", (unsigned long)s_flood_count);
             d.setCursor(4, BODY_Y + 52);
             d.printf("connects: %lu", (unsigned long)s_flood_ok);
-            d.setTextColor(s_flood_last_rc == 0 ? COL_GOOD : COL_WARN, COL_BG);
+            d.setTextColor(s_flood_last_rc == 0 ? T_GOOD : T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 64);
             d.printf("last rc:  %d", s_flood_last_rc);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 76);
             d.printf("loops:    %lu", (unsigned long)s_flood_ticks);
             ui_draw_status(radio_name(), "flood");

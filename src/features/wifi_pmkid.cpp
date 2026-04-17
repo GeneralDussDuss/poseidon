@@ -16,6 +16,7 @@
  *         stored ANonce and emit WPA*02* with the captured EAPOL frame.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -23,6 +24,8 @@
 #include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
+
+static portMUX_TYPE s_pmkid_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t s_pmkids = 0;
 static volatile uint32_t s_handshakes = 0;
@@ -143,7 +146,7 @@ static void emit_handshake(const uint8_t *bssid, const uint8_t *sta,
     const char *ssid = ssid_for(bssid);
     /* hashcat 22000 format:
        WPA*02*MIC*MAC_AP*MAC_STA*ESSID_HEX*ANONCE*EAPOL_FRAME_HEX*MSG_PAIR */
-    char line[1024] = "WPA*02*";
+    char line[1536] = "WPA*02*";
     hex_append(line, mic, 16);
     strcat(line, "*");
     hex_append(line, bssid, 6);
@@ -306,6 +309,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
     int len = pkt->rx_ctrl.sig_len;
     if (len < 24) return;
+    portENTER_CRITICAL_ISR(&s_pmkid_mux);
     if (type == WIFI_PKT_MGMT) {
         uint8_t st = (pkt->payload[0] >> 4) & 0xF;
         if (st == 0x8 || st == 0x5)
@@ -313,6 +317,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     } else if (type == WIFI_PKT_DATA) {
         handle_eapol(pkt->payload, len);
     }
+    portEXIT_CRITICAL_ISR(&s_pmkid_mux);
 }
 
 static void hop_task(void *)
@@ -384,8 +389,8 @@ static void draw_notification(void)
 
     /* Blink cycle: flash every 200ms for first half, solid for second. */
     bool flash = (age < 1000) && ((age / 150) & 1);
-    uint16_t bg = big ? (flash ? COL_BAD : 0x4000) : (flash ? COL_GOOD : 0x0320);
-    uint16_t fg = big ? COL_WARN : COL_BG;
+    uint16_t bg = big ? (flash ? T_BAD : 0x4000) : (flash ? T_GOOD : 0x0320);
+    uint16_t fg = big ? T_WARN : T_BG;
 
     int bw = SCR_W - 16;
     int bh = 44;
@@ -435,10 +440,10 @@ void feat_wifi_pmkid(void)
     radio_switch(RADIO_WIFI);
     WiFi.mode(WIFI_STA);
 
-    if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_out = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
-    if (!s_out) { ui_toast("cant open file", COL_BAD, 1500); return; }
+    if (!s_out) { ui_toast("cant open file", T_BAD, 1500); return; }
 
     s_pmkids = 0;
     s_handshakes = 0;
@@ -460,31 +465,31 @@ void feat_wifi_pmkid(void)
     ui_clear_body();
     ui_draw_footer("H=hunt mode  `=stop");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("HANDSHAKE CAPTURE");
-    d.drawFastHLine(4, BODY_Y + 12, 150, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 150, T_BAD);
 
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 18, SCR_W, 90, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 18, SCR_W, 90, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 18); d.printf("channel:    %u", s_current_ch);
             d.setCursor(4, BODY_Y + 28); d.printf("APs seen:   %d", s_cache_n);
             d.setCursor(4, BODY_Y + 38); d.printf("EAPOLs:     %lu", (unsigned long)s_eapol_seen);
-            d.setTextColor(s_pmkids > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setTextColor(s_pmkids > 0 ? T_GOOD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 48); d.printf("PMKIDs:     %lu", (unsigned long)s_pmkids);
-            d.setTextColor(s_handshakes > 0 ? COL_GOOD : COL_DIM, COL_BG);
+            d.setTextColor(s_handshakes > 0 ? T_GOOD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 58); d.printf("Handshakes: %lu", (unsigned long)s_handshakes);
-            d.setTextColor(s_hunt ? COL_BAD : COL_DIM, COL_BG);
+            d.setTextColor(s_hunt ? T_BAD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 70); d.printf("HUNT:       %s", s_hunt ? "ON - deauthing" : "off");
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 82); d.print("/poseidon/hashcat.22000");
             ui_draw_status(radio_name(), s_hunt ? "hunt" : "capture");
         }
         /* Radial wave pulse + matrix rain gutter. */
-        ui_waves(200, BODY_Y + BODY_H / 2, 40, s_hunt ? COL_BAD : COL_GOOD);
+        ui_waves(200, BODY_Y + BODY_H / 2, 40, s_hunt ? T_BAD : T_GOOD);
 
         /* Notification overlay drawn on top of everything. */
         draw_notification();

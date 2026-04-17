@@ -3,6 +3,7 @@
  * the results. Also shows the C5 connection status indicator.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -14,7 +15,7 @@ static void draw_status_header(void)
 {
     auto &d = M5Cardputer.Display;
     int n = c5_peer_count();
-    uint16_t col = n > 0 ? COL_GOOD : COL_BAD;
+    uint16_t col = n > 0 ? T_GOOD : T_BAD;
     d.fillCircle(SCR_W - 10, 6, 3, col);  /* status dot */
     d.setTextColor(col, 0x0841);
     d.setCursor(SCR_W - 60, 2);
@@ -51,37 +52,37 @@ void feat_c5_status(void)
                                                 (unsigned long)frame, n);
 
             ui_clear_body();
-            d.setTextColor(0xF81F, COL_BG);
+            d.setTextColor(0xF81F, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("C5 NODES");
             d.drawFastHLine(4, BODY_Y + 12, 80, 0xF81F);
             if (n == 0) {
-                d.setTextColor(COL_BAD, COL_BG);
+                d.setTextColor(T_BAD, T_BG);
                 d.setCursor(4, BODY_Y + 24); d.print("NO C5 ONLINE");
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 38); d.print("power on your C5 node.");
                 d.setCursor(4, BODY_Y + 48); d.print("it broadcasts HELLO every 5s.");
                 d.setCursor(4, BODY_Y + 58); d.print("will auto-connect.");
             } else {
-                d.setTextColor(COL_GOOD, COL_BG);
+                d.setTextColor(T_GOOD, T_BG);
                 d.setCursor(4, BODY_Y + 22);
                 d.printf("ONLINE  %d peer%s", n, n == 1 ? "" : "s");
                 for (int i = 0; i < n; ++i) {
-                    d.setTextColor(COL_FG, COL_BG);
+                    d.setTextColor(T_FG, T_BG);
                     d.setCursor(8, BODY_Y + 36 + i * 10);
                     d.printf("* %s", names[i]);
                 }
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + BODY_H - 10);
                 d.printf("last seen: %lus ago", (unsigned long)(age_ms / 1000));
             }
             draw_status_header();
-            ui_radar(SCR_W - 20, BODY_Y + BODY_H - 14, 8, COL_ACCENT);
+            ui_radar(SCR_W - 20, BODY_Y + BODY_H - 14, 8, T_ACCENT);
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(40); continue; }
         if (k == PK_ESC) break;
-        if (k == 'p' || k == 'P') { c5_cmd_ping(); ui_toast("ping sent", COL_ACCENT, 400); }
-        if (k == 's' || k == 'S') { c5_cmd_stop(); ui_toast("stop sent", COL_WARN, 400); }
+        if (k == 'p' || k == 'P') { c5_cmd_ping(); ui_toast("ping sent", T_ACCENT, 400); }
+        if (k == 's' || k == 'S') { c5_cmd_stop(); ui_toast("stop sent", T_WARN, 400); }
     }
     Serial.println("[c5_status] exit");
 }
@@ -92,7 +93,7 @@ void feat_c5_scan_5g(void)
     c5_begin();
 
     if (!c5_any_online()) {
-        ui_toast("no C5 online", COL_BAD, 1500);
+        ui_toast("no C5 online", T_BAD, 1500);
         return;
     }
     c5_clear_results();
@@ -131,7 +132,7 @@ void feat_c5_scan_5g(void)
             }
 
             if (n == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 24);
                 d.print("waiting for C5 response...");
                 ui_radar(SCR_W / 2, BODY_Y + 60, 25, 0x07FF);
@@ -149,16 +150,16 @@ void feat_c5_scan_5g(void)
                     bool sel = (i == cursor);
                     if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
                     /* Band badge. */
-                    d.setTextColor(a.is_5g ? 0xF81F : COL_ACCENT, sel ? 0x3007 : COL_BG);
+                    d.setTextColor(a.is_5g ? 0xF81F : T_ACCENT, sel ? 0x3007 : T_BG);
                     d.setCursor(2, y);
                     d.print(a.is_5g ? "5G" : "2G");
-                    d.setTextColor(sel ? 0xFFFF : COL_FG, sel ? 0x3007 : COL_BG);
+                    d.setTextColor(sel ? 0xFFFF : T_FG, sel ? 0x3007 : T_BG);
                     d.setCursor(22, y);
                     d.printf("%4d", a.rssi);
-                    d.setTextColor(COL_DIM, sel ? 0x3007 : COL_BG);
+                    d.setTextColor(T_DIM, sel ? 0x3007 : T_BG);
                     d.setCursor(54, y);
                     d.printf("ch%u", a.channel);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x3007 : COL_BG);
+                    d.setTextColor(sel ? T_ACCENT : T_FG, sel ? 0x3007 : T_BG);
                     d.setCursor(84, y);
                     d.printf("%.22s", a.ssid[0] ? a.ssid : "<hidden>");
                 }
@@ -179,7 +180,7 @@ void feat_c5_deauth_5g(void)
 {
     radio_switch(RADIO_WIFI);
     c5_begin();
-    if (!c5_any_online()) { ui_toast("no C5 online", COL_BAD, 1500); return; }
+    if (!c5_any_online()) { ui_toast("no C5 online", T_BAD, 1500); return; }
 
     /* Use the dual-band scan results if available; else trigger one. */
     c5_ap_t aps[64];
@@ -187,7 +188,7 @@ void feat_c5_deauth_5g(void)
     if (n == 0) {
         c5_clear_results();
         c5_cmd_scan_5g(400);
-        ui_toast("scanning first...", COL_ACCENT, 1200);
+        ui_toast("scanning first...", T_ACCENT, 1200);
         delay(1500);
         n = c5_aps(aps, 64);
     }
@@ -196,7 +197,7 @@ void feat_c5_deauth_5g(void)
     for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
     n = five_n;
     if (n == 0) {
-        ui_toast("no 5 GHz APs found", COL_WARN, 1500);
+        ui_toast("no 5 GHz APs found", T_WARN, 1500);
         return;
     }
 
@@ -208,9 +209,9 @@ void feat_c5_deauth_5g(void)
     int chosen = -1;
     while (picking) {
         ui_clear_body();
-        d.setTextColor(COL_MAGENTA, COL_BG);
+        d.setTextColor(T_ACCENT2, T_BG);
         d.setCursor(4, BODY_Y + 2); d.print("PICK 5 GHz TARGET");
-        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_MAGENTA);
+        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
         int rows = 7;
         if (cursor < 0) cursor = 0;
         if (cursor >= n) cursor = n - 1;
@@ -223,7 +224,7 @@ void feat_c5_deauth_5g(void)
             int y = BODY_Y + 18 + r * 12;
             bool sel = (i == cursor);
             if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
-            d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x3007 : COL_BG);
+            d.setTextColor(sel ? T_ACCENT : T_FG, sel ? 0x3007 : T_BG);
             d.setCursor(2, y);
             d.printf("%4d ch%-3u %.20s", a.rssi, a.channel,
                      a.ssid[0] ? a.ssid : "<hidden>");
@@ -263,21 +264,21 @@ void feat_c5_deauth_5g(void)
             last_frames = now_frames;
             ui_clear_body();
             ui_dashboard_chrome(mode, tick);
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);
             if (chosen == -2) {
                 d.printf("ALL on ch%u", c5_status_channel());
             } else {
                 const c5_ap_t &a = aps[chosen];
                 d.printf("%.22s", a.ssid[0] ? a.ssid : "<hidden>");
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 28);
                 d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
                          a.channel,
                          a.bssid[0], a.bssid[1], a.bssid[2],
                          a.bssid[3], a.bssid[4], a.bssid[5]);
             }
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 44);
             d.printf("frames: %lu", (unsigned long)now_frames);
             d.setCursor(4, BODY_Y + 56);
@@ -296,7 +297,7 @@ void feat_c5_scan_zb(void)
 {
     radio_switch(RADIO_WIFI);
     c5_begin();
-    if (!c5_any_online()) { ui_toast("no C5 online", COL_BAD, 1500); return; }
+    if (!c5_any_online()) { ui_toast("no C5 online", T_BAD, 1500); return; }
 
     c5_clear_results();
     c5_cmd_scan_zb(0xFF);  /* hop all channels 11-26 */
@@ -324,10 +325,10 @@ void feat_c5_scan_zb(void)
                  * the C5 IS hopping. Show simulated channel hop and a
                  * pulse so silence reads as "no traffic" not "broken". */
                 uint8_t hop_ch = 11 + ((millis() / 500) % 16);  /* 11..26 */
-                d.setTextColor(COL_ACCENT, COL_BG);
+                d.setTextColor(T_ACCENT, T_BG);
                 d.setCursor(4, BODY_Y + 24);
                 d.printf("hopping ch%u", hop_ch);
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 38);
                 d.print("listening on 802.15.4...");
                 d.setCursor(4, BODY_Y + 52);
@@ -336,22 +337,22 @@ void feat_c5_scan_zb(void)
                 d.print(" until a device transmits)");
                 /* Hop progress bar — fills 0->15 over the channel range. */
                 int bar = ((hop_ch - 11) * (SCR_W - 30)) / 15;
-                d.fillRect(4, BODY_Y + BODY_H - 18, bar, 3, COL_ACCENT);
-                d.drawRect(4, BODY_Y + BODY_H - 18, SCR_W - 30, 3, COL_DIM);
+                d.fillRect(4, BODY_Y + BODY_H - 18, bar, 3, T_ACCENT);
+                d.drawRect(4, BODY_Y + BODY_H - 18, SCR_W - 30, 3, T_DIM);
                 /* Pulse dot moving with hop. */
                 int px = 4 + bar;
-                d.fillCircle(px, BODY_Y + BODY_H - 17, 2, COL_MAGENTA);
+                d.fillCircle(px, BODY_Y + BODY_H - 17, 2, T_ACCENT2);
             } else {
                 int rows = 7;
                 int first = n > rows ? n - rows : 0;
                 for (int r = 0; r < rows && first + r < n; ++r) {
                     const c5_zb_t &e = z[first + r];
                     int y = BODY_Y + 18 + r * 12;
-                    d.setTextColor(COL_ACCENT, COL_BG);
+                    d.setTextColor(T_ACCENT, T_BG);
                     d.setCursor(2, y);  d.printf("ch%u", e.channel);
-                    d.setTextColor(COL_FG, COL_BG);
+                    d.setTextColor(T_FG, T_BG);
                     d.setCursor(32, y); d.printf("%4d", e.rssi);
-                    d.setTextColor(COL_WARN, COL_BG);
+                    d.setTextColor(T_WARN, T_BG);
                     d.setCursor(64, y);
                     switch (e.frame_type) {
                     case 0: d.print("BCN "); break;
@@ -360,7 +361,7 @@ void feat_c5_scan_zb(void)
                     case 3: d.print("CMD "); break;
                     default: d.printf("t%d", e.frame_type);
                     }
-                    d.setTextColor(COL_FG, COL_BG);
+                    d.setTextColor(T_FG, T_BG);
                     d.setCursor(102, y);
                     d.printf("PAN%04X src%04X", e.pan_id, e.src_short);
                 }

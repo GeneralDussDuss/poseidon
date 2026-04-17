@@ -8,6 +8,7 @@
  * interval. 10 Hz cycle through the list so scanners pick all of them up.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -105,10 +106,10 @@ static void pick_list(void)
     /* Tiny sub-menu: M=meme, R=rickroll, C=custom. */
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);   d.print("BEACON SPAM");
-    d.drawFastHLine(4, BODY_Y + 12, 120, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 120, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 20);  d.print("[M] Meme SSIDs (20)");
     d.setCursor(4, BODY_Y + 32);  d.print("[R] Rickroll (10)");
     d.setCursor(4, BODY_Y + 44);  d.print("[C] Custom (type your own)");
@@ -161,17 +162,17 @@ void feat_wifi_beacon_spam(void)
     ui_clear_body();
     ui_draw_footer("`=stop");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BEACON SPAM ACTIVE");
-    d.drawFastHLine(4, BODY_Y + 12, 180, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 180, T_BAD);
 
     uint32_t last = 0;
     int n = s_list_n > 0 ? s_list_n : s_custom_n;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
-            d.fillRect(0, BODY_Y + 20, SCR_W, 40, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 20, SCR_W, 40, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 20); d.printf("SSIDs: %d", n);
             d.setCursor(4, BODY_Y + 32); d.printf("sent:  %lu", (unsigned long)s_sent);
             ui_draw_status(radio_name(), "spam");

@@ -10,6 +10,7 @@
  * smart TVs, Sonos, Chromecasts, and most smart plugs expose SSDP.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -74,7 +75,7 @@ void feat_net_ssdp(void)
 {
     radio_switch(RADIO_WIFI);
     if (WiFi.status() != WL_CONNECTED) {
-        ui_toast("connect to WiFi first", COL_WARN, 1500);
+        ui_toast("connect to WiFi first", T_WARN, 1500);
         return;
     }
     s_dev_n = 0;
@@ -84,10 +85,10 @@ void feat_net_ssdp(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("SSDP / UPnP");
-    d.drawFastHLine(4, BODY_Y + 12, 90, COL_ACCENT);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_ACCENT);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("sending M-SEARCH...");
     ui_draw_footer("`=stop");
 
@@ -133,8 +134,8 @@ void feat_net_ssdp(void)
             e.model[0] = '\0';
             s_dev_n++;
 
-            d.fillRect(0, BODY_Y + 22, SCR_W, 12, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 22, SCR_W, 12, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 22);
             d.printf("found %d  %s", s_dev_n, e.ip);
         }
@@ -144,8 +145,8 @@ void feat_net_ssdp(void)
 
     /* Fetch each description. */
     for (int i = 0; i < s_dev_n; ++i) {
-        d.fillRect(0, BODY_Y + 22, SCR_W, 12, COL_BG);
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.fillRect(0, BODY_Y + 22, SCR_W, 12, T_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 22);
         d.printf("probing %d/%d", i + 1, s_dev_n);
         fetch_desc(&s_dev[i]);
@@ -169,12 +170,12 @@ void feat_net_ssdp(void)
     ui_draw_footer(";/. move  `=back");
     while (true) {
         ui_clear_body();
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 2);
         d.printf("UPnP %d devices", s_dev_n);
-        d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
+        d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
         if (s_dev_n == 0) {
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 24);
             d.print("nothing found");
         } else {
@@ -189,10 +190,10 @@ void feat_net_ssdp(void)
                 bool sel = (first + r == cursor);
                 if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
                 const ssdp_dev_t &e = s_dev[first + r];
-                d.setTextColor(sel ? 0xF81F : COL_FG, sel ? 0x3007 : COL_BG);
+                d.setTextColor(sel ? 0xF81F : T_FG, sel ? 0x3007 : T_BG);
                 d.setCursor(4, y);
                 d.printf("%-15s", e.ip);
-                d.setTextColor(sel ? 0xFFFF : COL_ACCENT, sel ? 0x3007 : COL_BG);
+                d.setTextColor(sel ? 0xFFFF : T_ACCENT, sel ? 0x3007 : T_BG);
                 d.setCursor(100, y);
                 d.printf("%.22s", e.friendly[0] ? e.friendly : e.model[0] ? e.model : "?");
             }

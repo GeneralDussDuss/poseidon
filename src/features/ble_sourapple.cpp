@@ -12,6 +12,7 @@
  * random authentication tag.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -79,12 +80,12 @@ void feat_ble_sourapple(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("SOUR APPLE");
-    d.drawFastHLine(4, BODY_Y + 12, 90, COL_BAD);
-    d.setTextColor(0xF81F, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_BAD);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("iOS 17 notification DoS");
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 34); d.print("works on iOS <17.2");
     d.setCursor(4, BODY_Y + 44); d.print("lingering popups on 17.2+");
     ui_draw_footer("`=stop");
@@ -93,8 +94,8 @@ void feat_ble_sourapple(void)
     while (true) {
         if (millis() - last > 200) {
             last = millis();
-            d.fillRect(0, BODY_Y + 58, 150, 20, COL_BG);
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.fillRect(0, BODY_Y + 58, 150, 20, T_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 58);
             d.printf("sent: %lu", (unsigned long)s_sa_count);
             ui_draw_status(radio_name(), "sour");

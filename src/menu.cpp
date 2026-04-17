@@ -9,6 +9,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "theme.h"
 
 /* ---- forward decls for feature entry points ---- */
 extern void feat_wifi_scan(void);
@@ -67,6 +68,26 @@ extern void feat_net_responder(void);
 extern void feat_net_ssdp(void);
 extern void feat_net_lanrecon(void);
 extern void feat_clock(void);
+extern void feat_lora_scan(void);
+extern void feat_lora_beacon(void);
+extern void feat_lora_meshtastic(void);
+extern void feat_gps_fix(void);
+extern void feat_subghz_scan(void);
+extern void feat_subghz_record(void);
+extern void feat_subghz_replay(void);
+extern void feat_subghz_spectrum(void);
+extern void feat_subghz_bruteforce(void);
+extern void feat_subghz_jammer(void);
+extern void feat_subghz_broadcast(void);
+extern void feat_nrf24_sniffer(void);
+extern void feat_nrf24_mousejack(void);
+extern void feat_nrf24_ble_spam(void);
+extern void feat_nrf24_scanner(void);
+extern void feat_nrf24_jammer(void);
+extern void feat_nrf24_finder(void);
+extern void feat_subghz_finder(void);
+extern void feat_mimir(void);
+extern void feat_theme_picker(void);
 
 /* ---- menu tree ---- */
 
@@ -283,6 +304,93 @@ static const menu_node_t MENU_TOOLS[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+static const menu_node_t MENU_LORA[] = {
+    { 's', "Scan", "Passive RX on selected band", nullptr, feat_lora_scan,
+      "Tunes the SX1262 to 433/868/915 MHz or Meshtastic LongFast and "
+      "listens for LoRa packets. RSSI + SNR + payload hex logged to SD." },
+    { 'b', "Beacon", "TX POSEIDON ping every 3s", nullptr, feat_lora_beacon,
+      "Transmits POSEIDON:<uptime>:<lat>,<lon> on the chosen band every "
+      "3 seconds. Range-testing with a second LoRa device." },
+    { 'm', "Mesh LF", "Meshtastic LongFast US listener", nullptr, feat_lora_meshtastic,
+      "Tunes 906.875 MHz with LongFast US params (SF11 BW250 CR4/5). "
+      "Parses Meshtastic packet headers: FROM/TO nodeId, packet ID." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
+static const menu_node_t MENU_SUBGHZ[] = {
+    { 'b', "Broadcast", "Categorized .sub file TX library", nullptr, feat_subghz_broadcast,
+      "Browse /poseidon/signals/ on SD by category: cars, pranks, Tesla, "
+      "home automation, custom. Pick a Flipper .sub file and transmit. "
+      "Waveform preview + multi-play." },
+    { 's', "Scan/Copy", "Freq scanner + signal decoder", nullptr, feat_subghz_scan,
+      "Sweeps sub-GHz frequencies (300-928 MHz), locks the strongest, "
+      "decodes with RCSwitch. Shows value, protocol, RSSI. Logs to SD." },
+    { 'r', "Record RAW", "RMT pulse capture (up to 20s)", nullptr, feat_subghz_record,
+      "Records raw signal pulses from CC1101 GDO0 using the ESP-IDF RMT "
+      "peripheral at 1us resolution. Saves as Flipper-compatible .sub file." },
+    { 'p', "Play .sub", "Replay any .sub file from SD", nullptr, feat_subghz_replay,
+      "Loads .sub files from /poseidon/ on SD and replays the RAW pulse "
+      "data through CC1101 TX. Supports Flipper + Bruce formats." },
+    { 'a', "Analyzer", "Spectrum + waterfall + oscilloscope", nullptr, feat_subghz_spectrum,
+      "Three visualization modes: bar spectrum with color-coded RSSI + "
+      "peak hold, waterfall spectrogram heatmap, live waveform scope." },
+    { 'f', "Brute force", "Came/Nice/Linear/Chamberlain", nullptr, feat_subghz_bruteforce,
+      "Iterates all possible codes for fixed-code protocols: Came 12bit, "
+      "Nice 12bit, Chamberlain 9bit, Linear 10bit, Holtek 12bit, Ansonic." },
+    { 'j', "Jammer", "Sub-GHz intermittent + full TX", nullptr, feat_subghz_jammer,
+      "Intermittent jammer with random-width pulses or continuous carrier. "
+      "20-second safety cap. Adjustable frequency." },
+    { 'h', "Finder", "Hot/cold signal locator", nullptr, feat_subghz_finder,
+      "Walk around with the device — big thermometer bar goes from blue "
+      "(cold/far) to red (hot/close). Beep rate increases near the source. "
+      "Find hidden transmitters, cameras, key fobs." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
+static const menu_node_t MENU_NRF24[] = {
+    { 's', "Sniffer", "Promiscuous ESB device discovery", nullptr, feat_nrf24_sniffer,
+      "Travis Goodspeed promiscuous trick — discovers wireless HID devices "
+      "(Logitech, Microsoft, Dell). Shows address, channel, device type. "
+      "CRC16-validated packet capture with auto-fingerprinting." },
+    { 'm', "MouseJack", "HID keystroke injection", nullptr, feat_nrf24_mousejack,
+      "Injects keystrokes into discovered wireless keyboards. Supports "
+      "Logitech Unifying (0xC1 HID) and Microsoft (XOR checksum). "
+      "Type a string and inject as if typed on the target." },
+    { 'b', "BLE Spam", "Fake BLE advertisements via nRF24", nullptr, feat_nrf24_ble_spam,
+      "Broadcasts spoofed BLE ADV_IND packets with random MACs and fake "
+      "device names (AirPods, Galaxy Buds, etc). Full CRC24 + whitening. "
+      "Floods all 3 BLE advertising channels." },
+    { 'a', "Scanner", "2.4 GHz spectrum + protocol ID", nullptr, feat_nrf24_scanner,
+      "126-channel RPD sweep with gradient color bars, peak hold, and "
+      "protocol identification markers (WiFi ch1/6/11, BLE adv, Zigbee)." },
+    { 'j', "Jammer", "CW carrier + data flood, 7 presets", nullptr, feat_nrf24_jammer,
+      "Two jam modes: continuous wave carrier (most effective) or data "
+      "flood. Presets: BLE, WiFi ch1/6/11, Zigbee, drone RC, wireless "
+      "HID. 20s safety cap." },
+    { 'h', "Finder", "Hot/cold 2.4 GHz locator", nullptr, feat_nrf24_finder,
+      "Walk around — the meter shows signal strength on a specific channel. "
+      "Blue=cold, red=hot. Beep rate increases as you approach the source. "
+      "Find hidden cameras, rogue APs, wireless devices." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
+static const menu_node_t MENU_RADIO[] = {
+    { 'l', "LoRa", "SX1262 sub-GHz long range (CAP hat)", MENU_LORA, nullptr,
+      "LoRa features for the M5Stack CAP-LoRa1262 hat. Passive scan, "
+      "beacon TX, and Meshtastic LongFast listener." },
+    { 's', "Sub-GHz", "CC1101 scan/record/replay/analyze", MENU_SUBGHZ, nullptr,
+      "CC1101 sub-GHz radio from the Hydra RF Cap 424. Frequency scanner "
+      "with RCSwitch decode, RAW recording, .sub file replay, spectrum "
+      "analyzer with waterfall, brute force, and jammer." },
+    { 'n', "nRF24", "2.4 GHz spectrum/MouseJack/jam", MENU_NRF24, nullptr,
+      "nRF24L01+ 2.4 GHz radio from the Hydra RF Cap 424. ISM band "
+      "spectrum analyzer, MouseJack HID sniff/inject, band jammer." },
+    { 'g', "GPS fix", "Live GNSS position page", nullptr, feat_gps_fix,
+      "Shows current fix from the ATGM336H: lat, lon, alt, sats, HDOP, "
+      "speed, UTC. Background NMEA poller runs from boot." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
 static const menu_node_t MENU_SYS[] = {
     { 'f', "Files", "SD card browser", nullptr, feat_file_browser,
       "Simple SD card tree view. ENTER opens a directory, D deletes the "
@@ -292,6 +400,10 @@ static const menu_node_t MENU_SYS[] = {
       "attached and has a fix." },
     { 's', "Settings", "Config + preferences", nullptr, feat_settings,
       "Saved WiFi management, clear creds log, format prefs, reboot." },
+    { 't', "Theme", "Switch color palette", nullptr, feat_theme_picker,
+      "Choose from 6 visual themes: POSEIDON (cyan/magenta), PHANTOM "
+      "(purple), MATRIX (green), AMBER (retro), E-INK (paper), TRON "
+      "(neon cyberpunk). Live preview with color swatches." },
     { 'a', "About", "Build info", nullptr, feat_about,
       "Version, tagline, repo URL." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
@@ -321,6 +433,11 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 'n', "Network", "Port scan / ping / DNS / connect", MENU_NET, nullptr,
       "LAN tools that require joining a WiFi network first. TCP port scanner, "
       "live ping, DNS lookup." },
+    { 'r', "Radio", "LoRa sub-GHz + GNSS (CAP-LoRa1262)", MENU_RADIO, nullptr,
+      "Sub-GHz LoRa radio + GPS from the M5Stack CAP-LoRa1262 Cardputer-Adv "
+      "hat. Passive scan across 433/868/915, POSEIDON beacon TX, Meshtastic "
+      "LongFast listener, and a live GPS fix page. GNSS runs in the background "
+      "so Wardrive always has a fresh position." },
     { 'o', "Tools", "Flashlight / stopwatch / dice / ...", MENU_TOOLS, nullptr,
       "Miscellaneous utilities in the Flipper tradition. Flashlight, "
       "stopwatch, calculator, dice/coin/8-ball, morse sender, MAC "
@@ -334,6 +451,10 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "ESP chip with 5 GHz WiFi + 802.15.4 radios. When your C5 node boots "
       "nearby it auto-connects (green dot in status bar). Commands stream "
       "results back: dual-band scan, Zigbee/Thread sniff, remote deauth." },
+    { 'x', "MIMIR", "Control MIMIR drop-box via USB-C", nullptr, feat_mimir,
+      "Connect to MIMIR pentest drop-box over USB-C cable. Drives scans, "
+      "attacks (deauth, handshake, PMKID, evil twin, beacon spam), and "
+      "retrieves cracked credentials. Pocket-mode opsec: no wireless link." },
     { 's', "System", "Files, clock, settings", MENU_SYS, nullptr,
       "Device utilities: SD browser, clock, settings (WiFi creds, prefs, "
       "reboot), about." },
@@ -357,19 +478,18 @@ static int count_children(const menu_node_t *parent)
 
 static void draw_menu(const menu_node_t *parent, int cursor)
 {
-    ui_clear_body();
+    ui_force_clear_body();
     auto &d = M5Cardputer.Display;
 
     /* Title with count + scroll indicator. */
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("%s", parent->label);
     int tw = d.textWidth(parent->label);
-    d.drawFastHLine(4, BODY_Y + 12, tw + 6, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, tw + 6, T_ACCENT);
 
     int n = count_children(parent);
 
-    /* Windowed list: first row at BODY_Y + 18, 13px per row, 7 rows fit. */
     const int rows       = 7;
     const int row_h      = 13;
     const int first_y    = BODY_Y + 18;
@@ -377,12 +497,11 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     if (first < 0) first = 0;
     if (first + rows > n) first = max(0, n - rows);
 
-    /* Position indicator in the title bar (e.g., "3/13"). */
     if (n > rows) {
         char pos[12];
         snprintf(pos, sizeof(pos), "%d/%d", cursor + 1, n);
         int pw = d.textWidth(pos);
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(SCR_W - pw - 4, BODY_Y + 2);
         d.print(pos);
     }
@@ -392,35 +511,33 @@ static void draw_menu(const menu_node_t *parent, int cursor)
         const menu_node_t *c = &parent->children[i];
         int y = first_y + r * row_h;
         bool sel = (i == cursor);
-        uint16_t sel_bg = 0x3007;  /* deep cyan-purple */
         if (sel) {
-            d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, sel_bg);
-            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, 0xF81F);
-            d.drawRoundRect(3, y,     SCR_W - 6, 10, 2, 0x07FF);
+            d.fillRoundRect(2, y - 1, SCR_W - 4, 12, 2, T_SEL_BG);
+            d.drawRoundRect(2, y - 1, SCR_W - 4, 12, 2, T_SEL_BD);
+            d.drawRoundRect(3, y,     SCR_W - 6, 10, 2, T_ACCENT);
         }
-        uint16_t line_bg = sel ? sel_bg : COL_BG;
-        d.setTextColor(sel ? 0xF81F : COL_ACCENT, line_bg);
+        uint16_t line_bg = sel ? T_SEL_BG : T_BG;
+        d.setTextColor(sel ? T_SEL_BD : T_ACCENT, line_bg);
         d.setCursor(6, y + 1);
         d.printf("[%c]", toupper(c->hotkey));
-        d.setTextColor(sel ? 0xFFFF : COL_FG, line_bg);
+        d.setTextColor(sel ? T_FG : T_FG, line_bg);
         d.setCursor(30, y + 1);
         d.print(c->label);
-        d.setTextColor(sel ? 0xF81F : COL_DIM, line_bg);
+        d.setTextColor(sel ? T_ACCENT2 : T_DIM, line_bg);
         d.setCursor(SCR_W - 12, y + 1);
         d.print(c->action ? "." : ">");
     }
 
-    /* Scroll arrows on the right edge when there's more above/below. */
     if (first > 0) {
         d.fillTriangle(SCR_W - 7, first_y - 3,
                        SCR_W - 3, first_y - 3,
-                       SCR_W - 5, first_y - 6, 0xF81F);
+                       SCR_W - 5, first_y - 6, T_ACCENT2);
     }
     if (first + rows < n) {
         int ay = first_y + rows * row_h - 2;
         d.fillTriangle(SCR_W - 7, ay,
                        SCR_W - 3, ay,
-                       SCR_W - 5, ay + 3, 0xF81F);
+                       SCR_W - 5, ay + 3, T_ACCENT2);
     }
 
     /* Hint strip for the selected item, below the visible rows. */
@@ -443,7 +560,7 @@ static void draw_menu(const menu_node_t *parent, int cursor)
 static void show_info(const menu_node_t *item)
 {
     auto &d = M5Cardputer.Display;
-    ui_clear_body();
+    ui_force_clear_body();
     d.setTextColor(0xF81F, COL_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("[%c] %s", toupper(item->hotkey), item->label);

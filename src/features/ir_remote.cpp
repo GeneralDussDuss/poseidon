@@ -7,6 +7,7 @@
  *   I   input/source    H   home      B    back
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include <driver/ledc.h>
@@ -86,10 +87,10 @@ void feat_ir_remote(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("IR REMOTE (Samsung)");
-    d.drawFastHLine(4, BODY_Y + 12, 150, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 150, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("P=pwr M=mute +/-=vol");
     d.setCursor(4, BODY_Y + 34); d.print(";=ch+ .=ch- 1-9=digit");
     d.setCursor(4, BODY_Y + 46); d.print("I=src H=home B=back");
@@ -102,8 +103,8 @@ void feat_ir_remote(void)
         for (size_t i = 0; i < CMD_N; ++i) {
             if ((char)tolower((int)k) == s_cmds[i].key) {
                 send_samsung(s_cmds[i].cmd);
-                d.fillRect(0, BODY_Y + 60, SCR_W, 14, COL_BG);
-                d.setTextColor(COL_GOOD, COL_BG);
+                d.fillRect(0, BODY_Y + 60, SCR_W, 14, T_BG);
+                d.setTextColor(T_GOOD, T_BG);
                 d.setCursor(4, BODY_Y + 60);
                 d.printf("> %s", s_cmds[i].label);
                 break;

@@ -11,6 +11,7 @@
  * look live, slow enough to catch intermittent beacons.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -63,10 +64,10 @@ static void draw_spectrum(void)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("SPECTRUM  ch%d", s_current_ch);
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     /* 13 channels spread across the body. Each bar ~16 px wide. */
     const int bar_w  = 16;
@@ -86,9 +87,9 @@ static void draw_spectrum(void)
         if (bh > height) bh = height;
 
         uint16_t color;
-        if      (rssi > -50) color = COL_BAD;    /* red  */
-        else if (rssi > -70) color = COL_WARN;   /* amber */
-        else if (rssi > -85) color = COL_GOOD;   /* green */
+        if      (rssi > -50) color = T_BAD;    /* red  */
+        else if (rssi > -70) color = T_WARN;   /* amber */
+        else if (rssi > -85) color = T_GOOD;   /* green */
         else                 color = 0x2124;     /* dim cyan */
 
         /* Bar baseline. */
@@ -102,7 +103,7 @@ static void draw_spectrum(void)
         }
 
         /* Channel number label. */
-        d.setTextColor(c == s_current_ch ? COL_ACCENT : COL_DIM, COL_BG);
+        d.setTextColor(c == s_current_ch ? T_ACCENT : T_DIM, T_BG);
         d.setCursor(x + (c < 10 ? bar_w / 2 - 3 : bar_w / 2 - 6), bottom + 1);
         d.printf("%d", c);
     }

@@ -12,6 +12,7 @@
  *   H = unlock / resume hopping
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -160,14 +161,14 @@ void feat_wifi_clients_all(void)
             last = millis();
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2);
             d.printf("CLIENTS  %d  ch%u%s",
                      s_all_n, s_all_ch, s_locked ? " LOCK" : "");
-            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
             if (s_all_n == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 24);
                 d.print("hopping all channels");
                 d.setCursor(4, BODY_Y + 36);
@@ -193,25 +194,25 @@ void feat_wifi_clients_all(void)
                     const char *hostname = dhcp_hostname(c.sta);
 
                     /* Left column: hostname wins over vendor (more specific). */
-                    uint16_t bg = sel ? 0x18C7 : COL_BG;
+                    uint16_t bg = sel ? 0x18C7 : T_BG;
                     if (hostname) {
-                        d.setTextColor(sel ? COL_ACCENT : COL_GOOD, bg);
+                        d.setTextColor(sel ? T_ACCENT : T_GOOD, bg);
                         d.setCursor(2, y); d.printf("%-14.14s", hostname);
                     } else if (vendor) {
-                        d.setTextColor(sel ? COL_ACCENT : COL_WARN, bg);
+                        d.setTextColor(sel ? T_ACCENT : T_WARN, bg);
                         d.setCursor(2, y); d.printf("%-14.14s", vendor);
                     } else {
-                        d.setTextColor(COL_DIM, bg);
+                        d.setTextColor(T_DIM, bg);
                         d.setCursor(2, y); d.printf("?");
                     }
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setTextColor(sel ? T_ACCENT : T_FG, bg);
                     d.setCursor(88, y);
                     d.printf("%02X:%02X", c.sta[4], c.sta[5]);
-                    d.setTextColor(COL_DIM, bg);
+                    d.setTextColor(T_DIM, bg);
                     d.setCursor(116, y);
                     d.printf("→%02X:%02X", c.bssid[4], c.bssid[5]);
                     d.setCursor(154, y); d.printf("ch%u", c.ch);
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setTextColor(sel ? T_ACCENT : T_FG, bg);
                     d.setCursor(184, y); d.printf("%4d", c.rssi);
                 }
             }
@@ -228,18 +229,18 @@ void feat_wifi_clients_all(void)
         const acli_t &sel = s_all[cursor];
         if (k == 'd' || k == 'D') {
             unicast_deauth(sel.sta, sel.bssid, sel.ch, 30);
-            ui_toast("deauth → STA", COL_BAD, 500);
+            ui_toast("deauth → STA", T_BAD, 500);
         } else if (k == 'x' || k == 'X') {
             broadcast_deauth(sel.bssid, sel.ch, 30);
-            ui_toast("deauth AP all", COL_BAD, 500);
+            ui_toast("deauth AP all", T_BAD, 500);
         } else if (k == 'l' || k == 'L') {
             s_locked = true;
             s_all_ch = sel.ch;
             esp_wifi_set_channel(s_all_ch, WIFI_SECOND_CHAN_NONE);
-            ui_toast("locked", COL_WARN, 400);
+            ui_toast("locked", T_WARN, 400);
         } else if (k == 'h' || k == 'H') {
             s_locked = false;
-            ui_toast("hopping", COL_GOOD, 400);
+            ui_toast("hopping", T_GOOD, 400);
         }
     }
 

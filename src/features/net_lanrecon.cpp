@@ -13,6 +13,7 @@
  * Status screen shows live progress. Results list is scrollable after.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -135,11 +136,11 @@ static void draw_status(const char *phase_name)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("LAN RECON");
     d.drawFastHLine(4, BODY_Y + 12, 90, 0xF81F);
 
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 20); d.printf("phase: %s", phase_name);
     d.setCursor(4, BODY_Y + 32); d.printf("hosts: %d", s_host_count);
     if (s_current > 0) {
@@ -148,12 +149,12 @@ static void draw_status(const char *phase_name)
 
     /* Progress bar */
     int bx = 4, by = BODY_Y + 58, bw = SCR_W - 12, bh = 8;
-    d.drawRect(bx, by, bw, bh, COL_DIM);
+    d.drawRect(bx, by, bw, bh, T_DIM);
     d.fillRect(bx + 1, by + 1, (bw - 2) * s_progress / 100, bh - 2, 0xF81F);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 70); d.printf("%d%%", s_progress);
 
-    ui_waves(200, BODY_Y + BODY_H / 2, 30, COL_GOOD);
+    ui_waves(200, BODY_Y + BODY_H / 2, 30, T_GOOD);
     ui_draw_status(radio_name(), phase_name);
 }
 
@@ -278,16 +279,16 @@ static void draw_results(int cursor)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("LAN  %d hosts", s_host_count);
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(SCR_W - 80, BODY_Y + 2);
     d.print("/poseidon/lan.csv");
 
     if (s_host_count == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
         d.print("no live hosts found");
         return;
@@ -303,17 +304,17 @@ static void draw_results(int cursor)
         const host_t &h = s_hosts[i];
         int y = BODY_Y + 18 + r * 12;
         bool sel = (i == cursor);
-        uint16_t bg = sel ? 0x3007 : COL_BG;
+        uint16_t bg = sel ? 0x3007 : T_BG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 12, bg);
-        d.setTextColor(sel ? 0xF81F : COL_FG, bg);
+        d.setTextColor(sel ? 0xF81F : T_FG, bg);
         d.setCursor(2, y);
         d.printf("%-15s", h.ip.toString().c_str());
-        d.setTextColor(sel ? COL_ACCENT : COL_WARN, bg);
+        d.setTextColor(sel ? T_ACCENT : T_WARN, bg);
         d.setCursor(98, y);
         d.printf("%-10.10s", h.vendor[0] ? h.vendor : "?");
         /* Port badge count. */
         int popen = __builtin_popcount(h.open_ports);
-        d.setTextColor(popen ? COL_GOOD : COL_DIM, bg);
+        d.setTextColor(popen ? T_GOOD : T_DIM, bg);
         d.setCursor(168, y);
         d.printf("%d svc", popen);
     }
@@ -324,11 +325,11 @@ static void detail(int idx)
     auto &d = M5Cardputer.Display;
     const host_t &h = s_hosts[idx];
     ui_clear_body();
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("%s", h.ip.toString().c_str());
     d.drawFastHLine(4, BODY_Y + 12, 100, 0xF81F);
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 18);
     d.printf("MAC %02X:%02X:%02X:%02X:%02X:%02X",
              h.mac[0], h.mac[1], h.mac[2], h.mac[3], h.mac[4], h.mac[5]);
@@ -343,14 +344,14 @@ static void detail(int idx)
             snprintf(tmp, sizeof(tmp), "%u ", PORTS[j].port);
             int w = d.textWidth(tmp);
             if (px + w > SCR_W - 4) { px = 50; py += 10; }
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(px, py);
             d.print(tmp);
             px += w;
         }
     }
     if (h.banner[0]) {
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 74);
         d.printf("%.38s", h.banner);
     }
@@ -366,7 +367,7 @@ void feat_net_lanrecon(void)
 {
     radio_switch(RADIO_WIFI);
     if (WiFi.status() != WL_CONNECTED) {
-        ui_toast("connect to WiFi first", COL_WARN, 1500);
+        ui_toast("connect to WiFi first", T_WARN, 1500);
         return;
     }
 

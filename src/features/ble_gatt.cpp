@@ -14,6 +14,7 @@
  * data, testing auth bypass.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -96,12 +97,12 @@ static void print_hex(const uint8_t *buf, size_t n)
     if ((int)n > limit) d.printf("+%d", (int)n - limit);
     /* ASCII preview row below. */
     d.setCursor(4, BODY_Y + 66);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     for (int i = 0; i < limit; ++i) {
         uint8_t c = buf[i];
         d.printf("%c", (c >= 32 && c < 127) ? c : '.');
     }
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
 }
 
 static void show_characteristic(int idx)
@@ -111,10 +112,10 @@ static void show_characteristic(int idx)
     if (n.is_svc || !n.chr) return;
 
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("CHAR");
-    d.drawFastHLine(4, BODY_Y + 12, 40, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 40, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 16); d.printf("uuid: %.30s", n.uuid.toString().c_str());
 
     char props_str[20] = "";
@@ -136,8 +137,8 @@ static void show_characteristic(int idx)
         char ch = (char)tolower((int)k);
         if (ch == 'r' && n.chr->canRead()) {
             last_val = n.chr->readValue();
-            d.fillRect(0, BODY_Y + 42, SCR_W, 40, COL_BG);
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.fillRect(0, BODY_Y + 42, SCR_W, 40, T_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 42);
             d.printf("READ %d bytes", (int)last_val.size());
             print_hex((const uint8_t *)last_val.data(), last_val.size());
@@ -147,12 +148,12 @@ static void show_characteristic(int idx)
             uint8_t buf[48];
             int len = 0;
             if (!hex_parse(hex, buf, sizeof(buf), &len) || len == 0) {
-                ui_toast("bad hex", COL_BAD, 800);
+                ui_toast("bad hex", T_BAD, 800);
                 continue;
             }
             bool ok = n.chr->writeValue(buf, len, n.chr->canWriteNoResponse() ? false : true);
-            d.fillRect(0, BODY_Y + 42, SCR_W, 40, COL_BG);
-            d.setTextColor(ok ? COL_GOOD : COL_BAD, COL_BG);
+            d.fillRect(0, BODY_Y + 42, SCR_W, 40, T_BG);
+            d.setTextColor(ok ? T_GOOD : T_BAD, T_BG);
             d.setCursor(4, BODY_Y + 42);
             d.printf("WRITE %d → %s", len, ok ? "OK" : "FAIL");
         }
@@ -163,13 +164,13 @@ static void draw_tree(int cursor)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("GATT  %d nodes  %s", s_flat_n, s_connected ? "LIVE" : "disc");
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     if (s_flat_n == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
         d.print("enumerating...");
         return;
@@ -186,16 +187,16 @@ static void draw_tree(int cursor)
         int y = BODY_Y + 18 + r * 11;
         bool sel = (first + r == cursor);
         if (sel) d.fillRect(0, y - 1, SCR_W, 11, 0x18C7);
-        uint16_t bg = sel ? 0x18C7 : COL_BG;
+        uint16_t bg = sel ? 0x18C7 : T_BG;
         if (n.is_svc) {
-            d.setTextColor(COL_WARN, bg);
+            d.setTextColor(T_WARN, bg);
             d.setCursor(4, y);
             d.printf("SVC %.28s", n.uuid.toString().c_str());
         } else {
-            d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+            d.setTextColor(sel ? T_ACCENT : T_FG, bg);
             d.setCursor(12, y);
             d.printf("%.22s", n.uuid.toString().c_str());
-            d.setTextColor(COL_DIM, bg);
+            d.setTextColor(T_DIM, bg);
             d.setCursor(SCR_W - 48, y);
             if (n.props & 0x01) d.print("R");
             if (n.props & 0x02) d.print("W");
@@ -217,7 +218,7 @@ static bool try_connect(NimBLEAddress addr)
 void feat_ble_gatt(void)
 {
     if (!g_ble_target_valid) {
-        ui_toast("scan + select first", COL_WARN, 1200);
+        ui_toast("scan + select first", T_WARN, 1200);
         return;
     }
     radio_switch(RADIO_BLE);
@@ -225,22 +226,22 @@ void feat_ble_gatt(void)
     /* Connecting UI. */
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("GATT EXPLORER");
-    d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("target %02X:%02X:%02X:%02X:%02X:%02X",
         g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
         g_ble_target.addr[3], g_ble_target.addr[4], g_ble_target.addr[5]);
-    d.setTextColor(COL_WARN, COL_BG);
+    d.setTextColor(T_WARN, T_BG);
     d.setCursor(4, BODY_Y + 36); d.print("connecting...");
     ui_draw_footer("`=abort");
     ui_draw_status(radio_name(), "gatt");
 
     NimBLEAddress addr(g_ble_target.addr, g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM);
     if (!try_connect(addr)) {
-        d.fillRect(0, BODY_Y + 36, SCR_W, 16, COL_BG);
-        d.setTextColor(COL_BAD, COL_BG);
+        d.fillRect(0, BODY_Y + 36, SCR_W, 16, T_BG);
+        d.setTextColor(T_BAD, T_BG);
         d.setCursor(4, BODY_Y + 36); d.print("CONNECT FAILED");
         ui_draw_footer("`=back");
         while (true) {
@@ -252,8 +253,8 @@ void feat_ble_gatt(void)
         return;
     }
 
-    d.fillRect(0, BODY_Y + 36, SCR_W, 16, COL_BG);
-    d.setTextColor(COL_GOOD, COL_BG);
+    d.fillRect(0, BODY_Y + 36, SCR_W, 16, T_BG);
+    d.setTextColor(T_GOOD, T_BG);
     d.setCursor(4, BODY_Y + 36); d.print("connected, enumerating...");
     enumerate_services();
 

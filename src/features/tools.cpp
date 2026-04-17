@@ -11,6 +11,7 @@
  *   Calc        : tiny RPN calculator
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -28,20 +29,20 @@ void feat_tool_sd_format(void)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("SD FORMAT");
-    d.drawFastHLine(4, BODY_Y + 12, 80, COL_BAD);
-    d.setTextColor(COL_WARN, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 80, T_BAD);
+    d.setTextColor(T_WARN, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("THIS WIPES EVERYTHING");
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 38); d.print("type YES and enter");
     ui_draw_footer("ENTER=confirm  `=cancel");
     char buf[8];
     if (!input_line("confirm:", buf, sizeof(buf))) return;
-    if (strcmp(buf, "YES") != 0) { ui_toast("cancelled", COL_DIM, 500); return; }
+    if (strcmp(buf, "YES") != 0) { ui_toast("cancelled", T_DIM, 500); return; }
 
-    ui_toast("formatting...", COL_WARN, 0);
-    if (!sd_mount()) { ui_toast("SD mount fail", COL_BAD, 1200); return; }
+    ui_toast("formatting...", T_WARN, 0);
+    if (!sd_mount()) { ui_toast("SD mount fail", T_BAD, 1200); return; }
     /* Walk + delete every file + dir. No FAT format API on Arduino SD,
      * so deep-delete is the best we can do. */
     std::function<bool(const char *)> nuke = [&](const char *path) -> bool {
@@ -64,7 +65,7 @@ void feat_tool_sd_format(void)
         return true;
     };
     nuke("/");
-    ui_toast("done", COL_GOOD, 800);
+    ui_toast("done", T_GOOD, 800);
 }
 
 /* ================= Flashlight ================= */
@@ -87,7 +88,7 @@ void feat_tool_flashlight(void)
 void feat_tool_screen_test(void)
 {
     auto &d = M5Cardputer.Display;
-    const uint16_t cols[] = { 0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000, COL_ACCENT, COL_WARN };
+    const uint16_t cols[] = { 0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000, T_ACCENT, T_WARN };
     int idx = 0;
     while (true) {
         d.fillScreen(cols[idx]);
@@ -126,9 +127,9 @@ void feat_tool_stopwatch(void)
 
         /* Redraw each tick. */
         ui_clear_body();
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 2); d.print("STOPWATCH");
-        d.drawFastHLine(4, BODY_Y + 12, 80, COL_ACCENT);
+        d.drawFastHLine(4, BODY_Y + 12, 80, T_ACCENT);
 
         char buf[16];
         uint32_t s  = shown / 1000;
@@ -136,14 +137,14 @@ void feat_tool_stopwatch(void)
         snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu",
                  (unsigned long)(s / 60), (unsigned long)(s % 60),
                  (unsigned long)ms);
-        d.setTextColor(running ? COL_GOOD : COL_FG, COL_BG);
+        d.setTextColor(running ? T_GOOD : T_FG, T_BG);
         d.setTextSize(3);
         int w = d.textWidth(buf);
         d.setCursor((SCR_W - w) / 2, BODY_Y + 24);
         d.print(buf);
         d.setTextSize(1);
 
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         for (int i = 0; i < lap_n; ++i) {
             d.setCursor(4, BODY_Y + 60 + i * 10);
             d.printf("L%d  %s", i + 1, laps[i]);
@@ -180,19 +181,19 @@ void feat_tool_chance(void)
 
     while (true) {
         ui_clear_body();
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 2);
         d.print(mode == 0 ? "DICE (2d6)" : mode == 1 ? "COIN" : "8-BALL");
-        d.drawFastHLine(4, BODY_Y + 12, 80, COL_ACCENT);
+        d.drawFastHLine(4, BODY_Y + 12, 80, T_ACCENT);
 
-        d.setTextColor(COL_WARN, COL_BG);
+        d.setTextColor(T_WARN, T_BG);
         d.setTextSize(2);
         int w = d.textWidth(last) * 2;
         d.setCursor((SCR_W - w) / 2, BODY_Y + 30);
         d.print(last);
         d.setTextSize(1);
 
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 70); d.print("SPACE=roll  M=mode");
         ui_draw_footer("SPACE=roll M=mode `=back");
 
@@ -237,10 +238,10 @@ static void morse_send(const char *s)
         else if (c >= '0' && c <= '9') m = s_morse[26 + c - '0'];
         if (!m) { delay(unit * 7); continue; }
         for (const char *x = m; *x; ++x) {
-            d.fillScreen(COL_ACCENT);
+            d.fillScreen(T_ACCENT);
             M5Cardputer.Speaker.tone(800, (*x == '-') ? unit * 3 : unit);
             delay((*x == '-') ? unit * 3 : unit);
-            d.fillScreen(COL_BG);
+            d.fillScreen(T_BG);
             delay(unit);
         }
         delay(unit * 3);
@@ -253,7 +254,7 @@ void feat_tool_morse(void)
     if (!input_line("text:", msg, sizeof(msg))) return;
     if (!msg[0]) return;
     morse_send(msg);
-    ui_toast("sent", COL_GOOD, 500);
+    ui_toast("sent", T_GOOD, 500);
 }
 
 /* ================= MAC randomizer ================= */
@@ -270,13 +271,13 @@ void feat_tool_mac_rand(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("MAC RANDOMIZED");
-    d.drawFastHLine(4, BODY_Y + 12, 130, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 130, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 26); d.printf("%02X:%02X:%02X:%02X:%02X:%02X",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 46); d.print("resets on reboot");
     ui_draw_footer("`=back");
     while (true) {
@@ -319,12 +320,12 @@ void feat_tool_calc(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("CALC");
-    d.drawFastHLine(4, BODY_Y + 12, 50, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 50, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("%s", expr);
-    d.setTextColor(COL_GOOD, COL_BG);
+    d.setTextColor(T_GOOD, T_BG);
     d.setTextSize(2);
     char out[24];
     if (acc == (long)acc) snprintf(out, sizeof(out), "= %ld", (long)acc);

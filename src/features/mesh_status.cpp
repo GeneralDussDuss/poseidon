@@ -2,6 +2,7 @@
  * mesh_status — live view of the PigSync/KRAKEN ESP-NOW mesh.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "mesh.h"
@@ -25,7 +26,7 @@ void feat_mesh(void)
             auto &d = M5Cardputer.Display;
             ui_draw_status(radio_name(), "mesh");
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2);
             d.printf("MESH  tx:%lu rx:%lu",
                      (unsigned long)mesh_tx_count(),
@@ -34,13 +35,13 @@ void feat_mesh(void)
             mesh_peer_t peers[MESH_MAX_PEERS];
             int n = mesh_peers(peers, MESH_MAX_PEERS);
             if (n == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 22);
                 d.print("no peers yet. broadcasting HELLO every 5s.");
             } else {
                 for (int i = 0; i < n && i < 7; ++i) {
                     int y = BODY_Y + 18 + i * 12;
-                    d.setTextColor(COL_FG, COL_BG);
+                    d.setTextColor(T_FG, T_BG);
                     d.setCursor(4, y);
                     d.printf("%-10s %ddB %luKB %s",
                              peers[i].name, peers[i].rssi,

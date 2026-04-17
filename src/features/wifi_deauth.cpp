@@ -9,6 +9,7 @@
  * ESC stops the attack and returns.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -69,14 +70,14 @@ static bool collect_target(void)
     char mac_buf[24];
     if (!input_line("Target BSSID:", mac_buf, sizeof(mac_buf))) return false;
     if (!parse_mac(mac_buf, s_target)) {
-        ui_toast("invalid MAC", COL_BAD, 1000);
+        ui_toast("invalid MAC", T_BAD, 1000);
         return false;
     }
     char ch_buf[6];
     if (!input_line("Channel (1-13):", ch_buf, sizeof(ch_buf))) return false;
     int ch = atoi(ch_buf);
     if (ch < 1 || ch > 14) {
-        ui_toast("invalid channel", COL_BAD, 1000);
+        ui_toast("invalid channel", T_BAD, 1000);
         return false;
     }
     s_channel = (uint8_t)ch;
@@ -116,17 +117,17 @@ void feat_wifi_deauth(void)
             ui_dashboard_chrome(">> DEAUTH <<", state_changed);
             state_changed = false;
 
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);
             d.printf("%02X:%02X:%02X:%02X:%02X:%02X",
                      s_target[0], s_target[1], s_target[2],
                      s_target[3], s_target[4], s_target[5]);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 26); d.printf("channel %u", s_channel);
 
             uint32_t fps = (s_sent - last_sent) * 4;
             last_sent = s_sent;
-            d.setTextColor(paused ? COL_WARN : COL_ACCENT, COL_BG);
+            d.setTextColor(paused ? T_WARN : T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 40);
             d.printf("frames: %lu", (unsigned long)s_sent);
             d.setCursor(4, BODY_Y + 50);

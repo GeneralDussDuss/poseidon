@@ -10,6 +10,7 @@
  * you. Pick it from the list, sweep the car/bag until you find it.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -97,24 +98,24 @@ static void draw_meter(void)
     int8_t rssi = (age > 4000) ? -100 : s_lock_rssi;
 
     /* Header with MAC. */
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("HUNT  %02X:%02X:%02X:%02X:%02X:%02X",
              s_lock[0], s_lock[1], s_lock[2],
              s_lock[3], s_lock[4], s_lock[5]);
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     /* Big proximity label. */
     const char *prox;
     uint16_t prox_col;
-    if (rssi <= -99)     { prox = "NO SIGNAL"; prox_col = COL_DIM;  }
-    else if (rssi > -45) { prox = "RIGHT HERE";prox_col = COL_BAD;  }
-    else if (rssi > -60) { prox = "HOT";       prox_col = COL_BAD;  }
-    else if (rssi > -72) { prox = "WARM";      prox_col = COL_WARN; }
-    else if (rssi > -84) { prox = "COOL";      prox_col = COL_ACCENT;}
-    else                 { prox = "COLD";      prox_col = COL_DIM;  }
+    if (rssi <= -99)     { prox = "NO SIGNAL"; prox_col = T_DIM;  }
+    else if (rssi > -45) { prox = "RIGHT HERE";prox_col = T_BAD;  }
+    else if (rssi > -60) { prox = "HOT";       prox_col = T_BAD;  }
+    else if (rssi > -72) { prox = "WARM";      prox_col = T_WARN; }
+    else if (rssi > -84) { prox = "COOL";      prox_col = T_ACCENT;}
+    else                 { prox = "COLD";      prox_col = T_DIM;  }
 
-    d.setTextColor(prox_col, COL_BG);
+    d.setTextColor(prox_col, T_BG);
     d.setTextSize(3);
     int w = d.textWidth(prox) * 3;
     d.setCursor((SCR_W - w) / 2, BODY_Y + 22);
@@ -122,7 +123,7 @@ static void draw_meter(void)
     d.setTextSize(1);
 
     /* RSSI numeric readout. */
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
     d.setTextSize(2);
     char rbuf[16];
     if (rssi <= -99) snprintf(rbuf, sizeof(rbuf), "--- dBm");
@@ -136,7 +137,7 @@ static void draw_meter(void)
     int pct = (rssi + 100) * 100 / 70;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
     int by = BODY_Y + 78;
-    d.drawRect(8, by, SCR_W - 16, 8, COL_DIM);
+    d.drawRect(8, by, SCR_W - 16, 8, T_DIM);
     d.fillRect(9, by + 1, (SCR_W - 18) * pct / 100, 6, prox_col);
 }
 
@@ -144,13 +145,13 @@ static void draw_picker(int cursor)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("FINDER  %d candidate%s", s_found_n, s_found_n == 1 ? "" : "s");
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     if (s_found_n == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 28);
         d.print("scanning for nearby trackers...");
         d.setCursor(4, BODY_Y + 42);
@@ -162,13 +163,13 @@ static void draw_picker(int cursor)
         int y = BODY_Y + 18 + i * 12;
         bool sel = (i == cursor);
         if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x18C7);
-        d.setTextColor(sel ? COL_ACCENT : COL_WARN, sel ? 0x18C7 : COL_BG);
+        d.setTextColor(sel ? T_ACCENT : T_WARN, sel ? 0x18C7 : T_BG);
         d.setCursor(4, y);
         d.printf("%-9s", f.type);
-        d.setTextColor(sel ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
+        d.setTextColor(sel ? T_ACCENT : T_FG, sel ? 0x18C7 : T_BG);
         d.setCursor(68, y);
         d.printf("%02X:%02X:%02X", f.addr[3], f.addr[4], f.addr[5]);
-        d.setTextColor(COL_DIM, sel ? 0x18C7 : COL_BG);
+        d.setTextColor(T_DIM, sel ? 0x18C7 : T_BG);
         d.setCursor(140, y);
         d.printf("%d/%d", f.rssi, f.best_rssi);
     }

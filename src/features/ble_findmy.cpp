@@ -19,6 +19,7 @@
  * the raw key blindly. Good enough for emulation.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -98,14 +99,14 @@ void feat_ble_findmy(void)
     /* Sub-menu: pick single or flock. */
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("FIND MY EMULATOR");
-    d.drawFastHLine(4, BODY_Y + 12, 140, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 140, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("[1] Single fake tag");
     d.setCursor(4, BODY_Y + 34); d.print("[2] Flock of 8 tags");
     d.setCursor(4, BODY_Y + 46); d.print("[3] Flock of 32 tags");
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 60); d.print("broadcasts as apple offline finding");
     d.setCursor(4, BODY_Y + 70); d.print("iphones relay your tags to icloud");
     ui_draw_footer("1-3=pick  `=back");
@@ -126,24 +127,24 @@ void feat_ble_findmy(void)
     xTaskCreate(fm_task, "findmy", 4096, nullptr, 4, nullptr);
 
     ui_clear_body();
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("FIND MY x%d", s_fm_tags);
-    d.drawFastHLine(4, BODY_Y + 12, 130, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 130, T_BAD);
     ui_draw_footer("`=stop");
 
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
-            d.fillRect(0, BODY_Y + 20, 150, 60, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 20, 150, 60, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 20);
             d.printf("broadcasts: %lu", (unsigned long)s_fm_count);
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 32);
             d.printf("identities: %lu", (unsigned long)s_fm_rotated);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 48);
             d.print("passing iPhones will relay");
             d.setCursor(4, BODY_Y + 58);

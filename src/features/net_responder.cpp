@@ -14,6 +14,7 @@
  * into /poseidon/ntlm.log for hashcat mode 5600.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -170,10 +171,10 @@ void feat_net_responder(void)
 {
     radio_switch(RADIO_WIFI);
     if (WiFi.status() != WL_CONNECTED) {
-        ui_toast("connect to WiFi first", COL_WARN, 1500);
+        ui_toast("connect to WiFi first", T_WARN, 1500);
         return;
     }
-    if (!sd_mount()) { ui_toast("SD needed for log", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed for log", T_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_log = SD.open("/poseidon/ntlm.log", FILE_APPEND);
 
@@ -196,10 +197,10 @@ void feat_net_responder(void)
     ui_clear_body();
     ui_draw_footer("`=stop");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("RESPONDER");
     d.drawFastHLine(4, BODY_Y + 12, 100, 0xF81F);
-    d.setTextColor(COL_FG, COL_BG);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.printf("IP: %s", WiFi.localIP().toString().c_str());
     d.setCursor(4, BODY_Y + 32); d.print("poisoning LLMNR + NBT-NS + mDNS");
 
@@ -207,17 +208,17 @@ void feat_net_responder(void)
     while (true) {
         if (millis() - last > 250) {
             last = millis();
-            d.fillRect(0, BODY_Y + 48, 160, 40, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 48, 160, 40, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 48); d.printf("queries: %lu", (unsigned long)s_queries);
             d.setCursor(4, BODY_Y + 58); d.printf("replies: %lu", (unsigned long)s_replies);
-            d.setTextColor(s_hashes ? COL_GOOD : COL_DIM, COL_BG);
+            d.setTextColor(s_hashes ? T_GOOD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 68); d.printf("hashes:  %lu", (unsigned long)s_hashes);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 82); d.print("/poseidon/ntlm.log");
             ui_draw_status(radio_name(), "respond");
         }
-        ui_waves(200, BODY_Y + 56, 30, COL_GOOD);
+        ui_waves(200, BODY_Y + 56, 30, T_GOOD);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }
         if (k == PK_ESC) break;

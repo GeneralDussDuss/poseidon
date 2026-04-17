@@ -27,6 +27,7 @@ struct __attribute__((packed)) hello_frame_t {
 };
 
 static bool s_up = false;
+static TaskHandle_t s_mesh_handle = nullptr;
 static char s_name[12] = "POSEIDON";
 static mesh_peer_t s_peers[MESH_MAX_PEERS];
 static int      s_peer_count = 0;
@@ -136,8 +137,7 @@ bool mesh_begin(const char *node_name)
     s_up = true;
     s_peer_count = 0;
     s_tx = s_rx = 0;
-    static TaskHandle_t s_mesh_task = nullptr;
-    xTaskCreate(mesh_task, "mesh", 4096, nullptr, 3, &s_mesh_task);
+    xTaskCreate(mesh_task, "mesh", 4096, nullptr, 3, &s_mesh_handle);
     return true;
 }
 
@@ -145,9 +145,13 @@ void mesh_stop(void)
 {
     if (!s_up) return;
     s_up = false;
-    /* Let the task observe s_up = false and self-delete. */
-    for (int i = 0; i < 30; ++i) {
-        if (!s_up) delay(50);
+    /* Wait for the task to actually exit before tearing down ESP-NOW.
+     * The task calls vTaskDelete(nullptr) which sets handle to invalid,
+     * but we give it time to finish its current iteration. */
+    if (s_mesh_handle) {
+        for (int i = 0; i < 60 && eTaskGetState(s_mesh_handle) != eDeleted; ++i)
+            delay(50);
+        s_mesh_handle = nullptr;
     }
     esp_now_deinit();
     s_peer_count = 0;

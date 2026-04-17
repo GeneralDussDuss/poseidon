@@ -19,6 +19,7 @@
  *   FERAL    — 10+ captures stacked, unhinged energy
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -84,6 +85,7 @@ static void triton_learn_load(void)
         s_visits[i] = 0;
         s_wins[i] = 0;
     }
+    sd_remount();  /* ensure SD is accessible after CC1101 may have stolen SPI */
     File f = SD.open("/poseidon/triton_brain.bin", FILE_READ);
     if (f && f.size() == (int)(sizeof(s_q) + sizeof(s_visits) + sizeof(s_wins))) {
         f.read((uint8_t *)s_q, sizeof(s_q));
@@ -95,6 +97,7 @@ static void triton_learn_load(void)
 
 static void triton_learn_save(void)
 {
+    sd_remount();
     File f = SD.open("/poseidon/triton_brain.bin", FILE_WRITE);
     if (!f) return;
     f.write((const uint8_t *)s_q, sizeof(s_q));
@@ -425,91 +428,140 @@ static const char *mood_word(mood_t m)
     return "";
 }
 
-/* Five face states, drawn in a 60x40 area centered at (cx, cy). */
+/* Triton face — cyberpunk gotchi with visor helmet + trident crown.
+ * Much cooler than the old circle face. */
 static void draw_face(int cx, int cy, mood_t m, uint32_t tick)
 {
     auto &d = M5Cardputer.Display;
-    /* head circle */
-    uint16_t skin = 0x3F5F;  /* pale cyan */
-    uint16_t outline = COL_ACCENT;
-    d.fillCircle(cx, cy, 22, skin);
-    d.drawCircle(cx, cy, 22, outline);
-    d.drawCircle(cx, cy, 21, outline);
+    uint16_t glow  = T_ACCENT;
+    uint16_t glow2 = T_ACCENT2;
+    uint16_t dark  = 0x10A2;  /* dark steel */
+    uint16_t visor = 0x0000;
 
-    /* crown (small trident between the eyes) */
-    d.drawFastVLine(cx, cy - 26, 8, 0xE73C);
-    d.drawFastHLine(cx - 5, cy - 24, 11, 0xE73C);
-    d.drawFastVLine(cx - 5, cy - 28, 4, 0xE73C);
-    d.drawFastVLine(cx + 5, cy - 28, 4, 0xE73C);
+    /* Helmet: rounded rectangle with notch. */
+    d.fillRoundRect(cx - 24, cy - 20, 48, 40, 6, dark);
+    d.drawRoundRect(cx - 24, cy - 20, 48, 40, 6, glow);
+    /* Visor band across eyes. */
+    d.fillRect(cx - 22, cy - 8, 44, 14, visor);
+    d.drawRect(cx - 22, cy - 8, 44, 14, glow);
+    /* Chin vent slits. */
+    for (int i = 0; i < 3; i++)
+        d.drawFastHLine(cx - 6 + i * 4, cy + 12, 3, glow);
 
-    /* eyes vary by mood */
-    int eye_y = cy - 4;
-    int el = cx - 7, er = cx + 7;
+    /* Trident crown — glowing, animated pulse. */
+    uint8_t pulse = ((tick / 100) % 10);
+    uint16_t crown_c = (pulse < 5) ? glow : glow2;
+    d.drawFastVLine(cx, cy - 28, 12, crown_c);
+    d.fillTriangle(cx, cy - 30, cx - 2, cy - 26, cx + 2, cy - 26, crown_c);
+    d.drawFastVLine(cx - 7, cy - 24, 8, crown_c);
+    d.fillTriangle(cx - 7, cy - 26, cx - 9, cy - 22, cx - 5, cy - 22, crown_c);
+    d.drawFastVLine(cx + 7, cy - 24, 8, crown_c);
+    d.fillTriangle(cx + 7, cy - 26, cx + 5, cy - 22, cx + 9, cy - 22, crown_c);
+    /* Trident crossbar. */
+    d.drawFastHLine(cx - 9, cy - 20, 19, crown_c);
+
+    /* Visor eyes — inside the black visor band. */
+    int ey = cy - 2;
+    int el = cx - 10, er = cx + 10;
     switch (m) {
     case MOOD_SLEEPY: {
-        bool blink = ((tick / 500) & 1) == 0;
-        if (blink) { d.drawFastHLine(el - 2, eye_y, 5, 0x0000); d.drawFastHLine(er - 2, eye_y, 5, 0x0000); }
-        else       { d.fillCircle(el, eye_y, 1, 0x0000); d.fillCircle(er, eye_y, 1, 0x0000); }
+        /* Dim horizontal lines — drowsy scanner bars. */
+        bool blink = ((tick / 600) & 1);
+        uint16_t ec = blink ? 0x2104 : glow;
+        d.drawFastHLine(el - 4, ey, 8, ec);
+        d.drawFastHLine(er - 4, ey, 8, ec);
         break;
     }
-    case MOOD_HUNTING:
-        d.fillCircle(el, eye_y, 2, 0x0000);
-        d.fillCircle(er, eye_y, 2, 0x0000);
-        /* darting pupil */
-        d.drawPixel(el + (int)((tick / 200) % 3 - 1), eye_y, COL_BAD);
-        d.drawPixel(er + (int)((tick / 200) % 3 - 1), eye_y, COL_BAD);
+    case MOOD_HUNTING: {
+        /* Scanning pupils — slide left to right. */
+        int scan = (tick / 150) % 8;
+        d.fillRect(el - 4, ey - 2, 8, 5, glow);
+        d.fillRect(er - 4, ey - 2, 8, 5, glow);
+        d.fillRect(el - 4 + scan, ey - 1, 2, 3, 0xFFFF);
+        d.fillRect(er - 4 + scan, ey - 1, 2, 3, 0xFFFF);
         break;
-    case MOOD_HUNGRY:
-        d.drawPixel(el, eye_y, 0x0000);
-        d.drawPixel(er, eye_y, 0x0000);
-        d.drawFastHLine(el - 2, eye_y + 1, 5, 0x0000);
-        d.drawFastHLine(er - 2, eye_y + 1, 5, 0x0000);
+    }
+    case MOOD_HUNGRY: {
+        /* Half-lidded — top half dimmed. */
+        d.fillRect(el - 4, ey - 1, 8, 3, 0x2104);
+        d.fillRect(er - 4, ey - 1, 8, 3, 0x2104);
+        d.fillRect(el - 3, ey, 6, 2, glow);
+        d.fillRect(er - 3, ey, 6, 2, glow);
         break;
-    case MOOD_STOKED:
-        /* ^ ^ */
-        d.drawLine(el - 3, eye_y + 1, el, eye_y - 2, COL_BAD);
-        d.drawLine(el, eye_y - 2, el + 3, eye_y + 1, COL_BAD);
-        d.drawLine(er - 3, eye_y + 1, er, eye_y - 2, COL_BAD);
-        d.drawLine(er, eye_y - 2, er + 3, eye_y + 1, COL_BAD);
+    }
+    case MOOD_STOKED: {
+        /* Star-burst eyes — bright and pulsing. */
+        uint16_t sc = ((tick / 80) & 1) ? 0xFFFF : glow;
+        d.fillRect(el - 4, ey - 2, 8, 5, sc);
+        d.fillRect(er - 4, ey - 2, 8, 5, sc);
+        d.drawPixel(el - 5, ey, sc); d.drawPixel(el + 4, ey, sc);
+        d.drawPixel(er - 5, ey, sc); d.drawPixel(er + 4, ey, sc);
+        d.drawPixel(el, ey - 3, sc); d.drawPixel(er, ey - 3, sc);
+        d.drawPixel(el, ey + 3, sc); d.drawPixel(er, ey + 3, sc);
         break;
-    case MOOD_DESPAIR:
-        /* x x */
-        d.drawLine(el - 2, eye_y - 2, el + 2, eye_y + 2, 0x0000);
-        d.drawLine(el - 2, eye_y + 2, el + 2, eye_y - 2, 0x0000);
-        d.drawLine(er - 2, eye_y - 2, er + 2, eye_y + 2, 0x0000);
-        d.drawLine(er - 2, eye_y + 2, er + 2, eye_y - 2, 0x0000);
+    }
+    case MOOD_DESPAIR: {
+        /* X X — dead/crashed. */
+        d.drawLine(el - 3, ey - 2, el + 3, ey + 2, T_BAD);
+        d.drawLine(el - 3, ey + 2, el + 3, ey - 2, T_BAD);
+        d.drawLine(er - 3, ey - 2, er + 3, ey + 2, T_BAD);
+        d.drawLine(er - 3, ey + 2, er + 3, ey - 2, T_BAD);
         break;
-    case MOOD_FERAL:
-        /* wide red angry eyes */
-        d.fillCircle(el, eye_y, 3, COL_BAD);
-        d.fillCircle(er, eye_y, 3, COL_BAD);
-        d.fillCircle(el, eye_y, 1, 0xFFFF);
-        d.fillCircle(er, eye_y, 1, 0xFFFF);
-        /* angry brows */
-        d.drawLine(el - 4, eye_y - 6, el + 2, eye_y - 4, 0x0000);
-        d.drawLine(er - 2, eye_y - 4, er + 4, eye_y - 6, 0x0000);
+    }
+    case MOOD_FERAL: {
+        /* Red alert — glowing red, pulsing fast. */
+        uint16_t fc = ((tick / 60) & 1) ? T_BAD : 0xF800;
+        d.fillRect(el - 5, ey - 2, 10, 5, fc);
+        d.fillRect(er - 5, ey - 2, 10, 5, fc);
+        d.fillRect(el - 2, ey - 1, 4, 3, 0xFFFF);
+        d.fillRect(er - 2, ey - 1, 4, 3, 0xFFFF);
+        /* Angry brow lines on visor. */
+        d.drawLine(el - 5, ey - 5, el + 3, ey - 3, T_BAD);
+        d.drawLine(er - 3, ey - 3, er + 5, ey - 5, T_BAD);
         break;
+    }
     }
 
-    /* mouth varies */
-    int mx = cx, my = cy + 8;
+    /* Scan-line effect across visor — subtle horizontal lines. */
+    for (int sy = cy - 7; sy < cy + 5; sy += 2)
+        d.drawFastHLine(cx - 21, sy, 42, 0x0821);
+
+    /* Mouth / status indicator below visor. */
+    int mx = cx, my = cy + 10;
     switch (m) {
-    case MOOD_SLEEPY:  d.drawFastHLine(mx - 3, my, 6, 0x0000); break;
-    case MOOD_HUNTING: d.drawFastHLine(mx - 4, my, 9, 0x0000); d.drawPixel(mx, my + 1, 0x0000); break;
-    case MOOD_HUNGRY:  d.drawLine(mx - 4, my + 2, mx + 4, my, 0x0000); break;  /* downturn */
-    case MOOD_STOKED:  {
-        for (int i = 0; i <= 6; ++i) d.drawPixel(mx - 6 + i, my + (i <= 3 ? 3 - i : i - 3), 0x0000);
+    case MOOD_SLEEPY:  d.drawFastHLine(mx - 3, my, 6, glow); break;
+    case MOOD_HUNTING: {
+        /* Animated comm dots. */
+        int dot = (tick / 200) % 4;
+        for (int i = 0; i < 3; i++)
+            d.fillCircle(mx - 4 + i * 4, my, 1, i <= dot ? glow : dark);
         break;
     }
-    case MOOD_DESPAIR: d.drawLine(mx - 4, my, mx + 4, my + 3, 0x0000); break;
+    case MOOD_HUNGRY:  d.drawLine(mx - 4, my + 2, mx + 4, my, glow); break;
+    case MOOD_STOKED: {
+        /* Wide grin — curved line. */
+        for (int i = -6; i <= 6; i++)
+            d.drawPixel(mx + i, my + abs(i) / 2, glow);
+        break;
+    }
+    case MOOD_DESPAIR: d.drawLine(mx - 4, my, mx + 4, my + 2, T_BAD); break;
     case MOOD_FERAL:   {
-        /* jagged open mouth */
-        d.drawLine(mx - 5, my, mx + 5, my, 0x0000);
-        d.drawLine(mx - 5, my + 3, mx + 5, my + 3, 0x0000);
-        for (int i = -4; i <= 4; i += 2) d.drawPixel(mx + i, my + 1, 0xFFFF);
-        for (int i = -3; i <= 3; i += 2) d.drawPixel(mx + i, my + 2, 0xFFFF);
+        /* Jagged teeth. */
+        for (int i = -5; i <= 5; i += 2) {
+            d.drawLine(mx + i, my, mx + i + 1, my + 2, T_BAD);
+            d.drawLine(mx + i + 1, my + 2, mx + i + 2, my, T_BAD);
+        }
         break;
     }
+    }
+
+    /* Glitch effect — random pixels near face on FERAL/STOKED. */
+    if (m == MOOD_FERAL || m == MOOD_STOKED) {
+        for (int g = 0; g < 4; g++) {
+            int gx = cx - 28 + (esp_random() % 56);
+            int gy = cy - 22 + (esp_random() % 44);
+            d.drawPixel(gx, gy, (m == MOOD_FERAL) ? T_BAD : glow);
+        }
     }
 }
 
@@ -522,16 +574,16 @@ static bool pick_mode(void)
     ui_draw_footer(";/. pick  ENTER=launch  `=back");
     while (true) {
         ui_clear_body();
-        d.setTextColor(COL_MAGENTA, COL_BG);
+        d.setTextColor(T_ACCENT2, T_BG);
         d.setCursor(4, BODY_Y + 2); d.print("TRITON MODE");
-        d.drawFastHLine(4, BODY_Y + 12, 100, COL_MAGENTA);
+        d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT2);
         for (int i = 0; i < 4; ++i) {
             int y = BODY_Y + 18 + i * 14;
             bool s = (i == sel);
             if (s) d.fillRect(0, y - 1, SCR_W, 14, 0x3007);
-            d.setTextColor(s ? COL_ACCENT : COL_FG, s ? 0x3007 : COL_BG);
+            d.setTextColor(s ? T_ACCENT : T_FG, s ? 0x3007 : T_BG);
             d.setCursor(6, y);     d.printf("%-8s", mode_name(modes[i]));
-            d.setTextColor(s ? 0xFFFF : COL_DIM, s ? 0x3007 : COL_BG);
+            d.setTextColor(s ? 0xFFFF : T_DIM, s ? 0x3007 : T_BG);
             d.setCursor(80, y);    d.print(mode_blurb(modes[i]));
         }
         uint16_t k = input_poll();
@@ -554,7 +606,7 @@ static bool pick_surgical_target(void)
         s_target_ch = g_last_selected_ap.channel ? g_last_selected_ap.channel : 1;
         return true;
     }
-    ui_toast("scan + pick AP first", COL_WARN, 1500);
+    ui_toast("scan + pick AP first", T_WARN, 1500);
     return false;
 }
 
@@ -566,10 +618,10 @@ void feat_triton(void)
     if (!pick_mode()) return;
     if (s_mode == TM_SURGICAL && !pick_surgical_target()) return;
 
-    if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
-    if (!s_file) { ui_toast("file open fail", COL_BAD, 1500); return; }
+    if (!s_file) { ui_toast("file open fail", T_BAD, 1500); return; }
 
     triton_learn_load();
     s_pmk = 0; s_hs = 0; s_eapol = 0;
@@ -638,40 +690,78 @@ void feat_triton(void)
             auto &d = M5Cardputer.Display;
             ui_clear_body();
 
-            /* Face on the left, stats on the right. */
-            draw_face(60, BODY_Y + 42, mood, now);
+            /* ---- LEFT ZONE: face + speech bubble + uptime ---- */
+            draw_face(54, BODY_Y + 36, mood, now);
 
-            d.setTextColor(COL_ACCENT, COL_BG);
-            d.setCursor(118, BODY_Y + 4);
-            d.print("TRITON");
-            d.setTextColor(COL_MAGENTA, COL_BG);
-            d.setCursor(176, BODY_Y + 4);
-            d.print(mode_name(s_mode));
-            d.drawFastHLine(118, BODY_Y + 14, 100, COL_ACCENT);
-            d.setTextColor(COL_FG, COL_BG);
-            d.setCursor(118, BODY_Y + 18); d.printf("ch:   %u", s_ch);
-            d.setCursor(118, BODY_Y + 28); d.printf("APs:  %d", s_bs_n);
-            d.setCursor(118, BODY_Y + 38); d.printf("EAP:  %lu", (unsigned long)s_eapol);
-            d.setTextColor(s_pmk > 0 ? COL_GOOD : COL_DIM, COL_BG);
-            d.setCursor(118, BODY_Y + 48); d.printf("PMK:  %lu", (unsigned long)s_pmk);
-            d.setTextColor(s_hs > 0 ? COL_GOOD : COL_DIM, COL_BG);
-            d.setCursor(118, BODY_Y + 58); d.printf("HS:   %lu", (unsigned long)s_hs);
-
-            /* Best learned channel */
-            int best_c = 1; float best_q = s_q[1];
-            for (int i = 2; i <= 13; ++i) if (s_q[i] > best_q) { best_q = s_q[i]; best_c = i; }
-            d.setTextColor(COL_MAGENTA, COL_BG);
-            d.setCursor(118, BODY_Y + 68); d.printf("fav:  %d", best_c);
-
-            /* C5 helper badge — green dot if a C5 is helping with 5G. */
-            d.fillCircle(112, BODY_Y + 18, 3, c5_online ? COL_GOOD : COL_DIM);
-            d.fillCircle(112, BODY_Y + 28, 3, c5_online ? COL_MAGENTA : COL_DIM);
-
-            /* Mood speech bubble below the face. */
-            d.setTextColor(COL_WARN, COL_BG);
-            int ty = BODY_Y + 76;
+            /* Bordered speech bubble beneath the face. */
             const char *w = mood_word(mood);
-            d.setCursor(4, ty); d.printf("> %s", w);
+            d.fillRoundRect(4, BODY_Y + 72, 106, 14, 3, 0x10A2);
+            d.drawRoundRect(4, BODY_Y + 72, 106, 14, 3, T_WARN);
+            d.drawPixel(20, BODY_Y + 71, T_WARN);  /* connector tail */
+            d.setTextColor(T_WARN, 0x10A2);
+            d.setCursor(8, BODY_Y + 75);
+            d.printf("%s", w);
+
+            /* Uptime. */
+            uint32_t up_s = (now - s_born) / 1000;
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 90);
+            if (up_s >= 3600) d.printf("%luh%02lum", (unsigned long)(up_s/3600), (unsigned long)((up_s%3600)/60));
+            else              d.printf("%lum%02lus", (unsigned long)(up_s/60), (unsigned long)(up_s%60));
+
+            /* ---- RIGHT ZONE: title + stats + sparkline ---- */
+            int rx = 114;
+
+            /* Header: TRITON + mode + C5 dot. */
+            d.setTextColor(T_ACCENT, T_BG);
+            d.setCursor(rx, BODY_Y + 4); d.print("TRITON");
+            d.setTextColor(T_ACCENT2, T_BG);
+            d.setCursor(rx + 58, BODY_Y + 4); d.print(mode_name(s_mode));
+            if (c5_online) d.fillCircle(236, BODY_Y + 7, 3, T_GOOD);
+            d.drawFastHLine(rx, BODY_Y + 14, 122, T_ACCENT);
+
+            /* Channel + TX indicator. */
+            d.setTextColor(T_FG, T_BG);
+            d.setCursor(rx, BODY_Y + 18); d.printf("ch: %u", s_ch);
+            /* Blink TX dot when in an active deauth mode. */
+            if (s_mode != TM_STEALTH && ((now / 250) & 1))
+                d.fillCircle(rx + 50, BODY_Y + 21, 2, T_BAD);
+            if (s_mode == TM_STEALTH)
+                d.setCursor(rx + 46, BODY_Y + 18), d.setTextColor(T_DIM, T_BG), d.print("RX");
+
+            /* APs. */
+            d.setTextColor(T_FG, T_BG);
+            d.setCursor(rx, BODY_Y + 28); d.printf("APs: %d", s_bs_n);
+            /* EAP — demoted to dim. */
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(rx, BODY_Y + 38); d.printf("EAP: %lu", (unsigned long)s_eapol);
+
+            /* PMK — green when captured. */
+            d.setTextColor(s_pmk > 0 ? T_GOOD : T_DIM, T_BG);
+            d.setCursor(rx, BODY_Y + 48); d.printf("PMK: %lu", (unsigned long)s_pmk);
+
+            /* HS — the hero stat. Flash row on capture. */
+            static uint32_t hs_flash_until = 0;
+            if (s_hs > 0 && now < stoked_until) hs_flash_until = now + 500;
+            bool hs_flash = (now < hs_flash_until) && ((now / 100) & 1);
+            if (hs_flash) d.fillRect(rx - 2, BODY_Y + 56, 126, 12, T_ACCENT);
+            d.setTextColor(hs_flash ? T_BG : (s_hs > 0 ? T_ACCENT : T_FG),
+                           hs_flash ? T_ACCENT : T_BG);
+            d.setCursor(rx, BODY_Y + 58); d.printf("HS:  %lu", (unsigned long)s_hs);
+
+            /* Channel quality sparkline — 13 bars for the RL brain. */
+            int spark_y = BODY_Y + 74;
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(rx, spark_y - 8); d.print("RL:");
+            for (int i = 1; i <= 13; i++) {
+                int bx = rx + 20 + (i - 1) * 8;
+                int bh = (int)(s_q[i] * 12);
+                if (bh < 1) bh = 1;
+                if (bh > 12) bh = 12;
+                uint16_t bc = (i == (int)s_ch) ? T_ACCENT : T_DIM;
+                d.fillRect(bx, spark_y + 12 - bh, 6, bh, bc);
+                d.drawRect(bx, spark_y, 6, 12, 0x2104);
+            }
 
             ui_draw_status("wifi", "triton");
         }

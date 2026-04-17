@@ -11,6 +11,7 @@
  * never block the UI, always let the keyboard drive actions.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -87,11 +88,11 @@ static void draw_list(int cursor)
     auto &d = M5Cardputer.Display;
 
     /* Header row with filter status. */
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("APs %d", s_ap_count);
     if (s_filter[0] || s_filter_open_only) {
-        d.setTextColor(COL_WARN, COL_BG);
+        d.setTextColor(T_WARN, T_BG);
         d.printf("  filter:%s%s", s_filter, s_filter_open_only ? "+open" : "");
     }
 
@@ -102,7 +103,7 @@ static void draw_list(int cursor)
         if (ap_matches_filter(s_aps[i])) idx[n++] = i;
     }
     if (n == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 18);
         d.print(s_scan_running ? "scanning..." : "no matches");
         return;
@@ -120,18 +121,18 @@ static void draw_list(int cursor)
         const ap_t &a = s_aps[ai];
         int y = BODY_Y + 14 + r * 11;
         bool sel = (first + r == cursor);
-        uint16_t bg = sel ? 0x18A3 : COL_BG;
-        uint16_t fg = sel ? COL_ACCENT : COL_FG;
+        uint16_t bg = sel ? 0x18A3 : T_BG;
+        uint16_t fg = sel ? T_ACCENT : T_FG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
         /* ch | rssi | auth | ssid */
-        d.setTextColor(COL_DIM, bg);
+        d.setTextColor(T_DIM, bg);
         d.setCursor(2, y);
         d.printf("%2u", a.channel);
         d.setTextColor(fg, bg);
         d.setCursor(18, y);
         d.printf("%4d", a.rssi);
-        d.setTextColor(a.auth == WIFI_AUTH_OPEN ? COL_BAD : COL_GOOD, bg);
+        d.setTextColor(a.auth == WIFI_AUTH_OPEN ? T_BAD : T_GOOD, bg);
         d.setCursor(44, y);
         d.printf("%-5s", auth_str(a.auth));
         d.setTextColor(fg, bg);
@@ -154,10 +155,10 @@ static void show_details(const ap_t &a)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);  d.print("AP DETAILS");
-    d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 18); d.printf("SSID : %.24s", a.ssid);
     d.setCursor(4, BODY_Y + 30); d.printf("BSSID: %02X:%02X:%02X:%02X:%02X:%02X",
         a.bssid[0], a.bssid[1], a.bssid[2], a.bssid[3], a.bssid[4], a.bssid[5]);

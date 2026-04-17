@@ -3,6 +3,7 @@
  * once) and passive deauth detector.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -74,16 +75,16 @@ void feat_wifi_deauth_broadcast(void)
 
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(COL_WARN, COL_BG);
+    d.setTextColor(T_WARN, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("NUKING ALL APs");
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 20); d.print("scanning 2.4 GHz...");
     ui_draw_footer("scanning");
-    ui_radar(SCR_W / 2, BODY_Y + 60, 24, COL_ACCENT);
+    ui_radar(SCR_W / 2, BODY_Y + 60, 24, T_ACCENT);
 
     db_scan_populate();
     if (s_b_target_n == 0) {
-        ui_toast("no APs found", COL_BAD, 1500);
+        ui_toast("no APs found", T_BAD, 1500);
         return;
     }
 
@@ -95,7 +96,7 @@ void feat_wifi_deauth_broadcast(void)
 
     /* Dramatic intro. */
     ui_action_overlay("NUKE LAUNCHED", "jamming every AP in sight",
-                      ACT_BG_GLITCH, COL_MAGENTA, 900);
+                      ACT_BG_GLITCH, T_ACCENT2, 900);
 
     ui_clear_body();
     ui_draw_footer("`=stop");
@@ -114,24 +115,24 @@ void feat_wifi_deauth_broadcast(void)
             ui_clear_body();
             ui_dashboard_chrome(">> DEAUTH ALL <<", rotated);
 
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);
             d.printf("targets: %d", s_b_target_n);
             d.setCursor(4, BODY_Y + 26);
             d.printf("frames : %lu", (unsigned long)s_b_sent);
             uint32_t fps = (s_b_sent - last_sent) * 5;
             last_sent = s_b_sent;
-            d.setTextColor(fps > 40 ? COL_ACCENT : COL_WARN, COL_BG);
+            d.setTextColor(fps > 40 ? T_ACCENT : T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 36);
             d.printf("rate   : %lu/s", (unsigned long)fps);
 
             ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 28);
 
             const db_target_t &t = s_b_targets[cur];
-            d.setTextColor(COL_MAGENTA, COL_BG);
+            d.setTextColor(T_ACCENT2, T_BG);
             d.setCursor(4, BODY_Y + 50);
             d.printf("> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 62);
             d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
                      t.channel,
@@ -197,17 +198,17 @@ void feat_wifi_deauth_detect(void)
             }
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("DEAUTH DETECT");
-            d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-            d.setTextColor(COL_FG, COL_BG);
+            d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 22); d.printf("channel : %u", ch);
-            d.setTextColor(window_count > 5 ? COL_BAD : COL_GOOD, COL_BG);
+            d.setTextColor(window_count > 5 ? T_BAD : T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 34); d.printf("rate    : %lu/s", (unsigned long)window_count);
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 46); d.printf("total   : %lu", (unsigned long)s_det_total);
             if (s_det_total > 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 60);
                 d.printf("last BSSID %02X:%02X:%02X:%02X:%02X:%02X",
                          s_det_last_bssid[0], s_det_last_bssid[1], s_det_last_bssid[2],

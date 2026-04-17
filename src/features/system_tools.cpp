@@ -2,6 +2,7 @@
  * system_tools — saved WiFi connect, file browser, clock, settings.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -22,10 +23,10 @@ void feat_wifi_connect(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("WIFI CONNECT");
-    d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     String ssid = s_prefs.getString("ssid", "");
     String pass = s_prefs.getString("pass", "");
 
@@ -49,14 +50,14 @@ void feat_wifi_connect(void)
             s_prefs.putString("ssid", s);
             s_prefs.putString("pass", p);
             ssid = s; pass = p;
-            ui_toast("saved", COL_GOOD, 600);
+            ui_toast("saved", T_GOOD, 600);
             break;
         }
         if ((k == 'x' || k == 'X') && ssid.length() > 0) {
             s_prefs.remove("ssid");
             s_prefs.remove("pass");
             s_prefs.end();
-            ui_toast("forgotten", COL_WARN, 600);
+            ui_toast("forgotten", T_WARN, 600);
             return;
         }
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
@@ -65,29 +66,29 @@ void feat_wifi_connect(void)
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
-    d.setTextColor(COL_WARN, COL_BG);
+    d.setTextColor(T_WARN, T_BG);
     d.setCursor(4, BODY_Y + 2); d.printf("connecting to %s", ssid.c_str());
 
     uint32_t deadline = millis() + 15000;
     while (WiFi.status() != WL_CONNECTED && millis() < deadline) {
-        d.fillRect(0, BODY_Y + 22, SCR_W, 12, COL_BG);
+        d.fillRect(0, BODY_Y + 22, SCR_W, 12, T_BG);
         d.setCursor(4, BODY_Y + 22);
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.printf("%ds", (int)((deadline - millis()) / 1000));
         if (input_poll() == PK_ESC) { WiFi.disconnect(); s_prefs.end(); return; }
         delay(250);
     }
 
-    d.fillRect(0, BODY_Y + 22, SCR_W, 60, COL_BG);
+    d.fillRect(0, BODY_Y + 22, SCR_W, 60, T_BG);
     if (WiFi.status() == WL_CONNECTED) {
-        d.setTextColor(COL_GOOD, COL_BG);
+        d.setTextColor(T_GOOD, T_BG);
         d.setCursor(4, BODY_Y + 22); d.print("CONNECTED");
-        d.setTextColor(COL_FG, COL_BG);
+        d.setTextColor(T_FG, T_BG);
         d.setCursor(4, BODY_Y + 34); d.printf("IP : %s", WiFi.localIP().toString().c_str());
         d.setCursor(4, BODY_Y + 46); d.printf("GW : %s", WiFi.gatewayIP().toString().c_str());
         d.setCursor(4, BODY_Y + 58); d.printf("DNS: %s", WiFi.dnsIP().toString().c_str());
     } else {
-        d.setTextColor(COL_BAD, COL_BG);
+        d.setTextColor(T_BAD, T_BG);
         d.setCursor(4, BODY_Y + 22); d.print("FAILED");
     }
     s_prefs.end();
@@ -124,7 +125,7 @@ static void fb_list(const char *path)
 
 void feat_file_browser(void)
 {
-    if (!sd_mount()) { ui_toast("SD mount fail", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD mount fail", T_BAD, 1500); return; }
     char path[128] = "/poseidon";
     fb_list(path);
     int cursor = 0;
@@ -132,11 +133,11 @@ void feat_file_browser(void)
     auto draw = [&]() {
         auto &d = M5Cardputer.Display;
         ui_clear_body();
-        d.setTextColor(COL_ACCENT, COL_BG);
+        d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 2); d.printf("FILES  %s", path);
-        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
         if (s_fb_count == 0) {
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 24);
             d.print("(empty)");
             return;
@@ -150,7 +151,7 @@ void feat_file_browser(void)
             int y = BODY_Y + 16 + r * 11;
             bool sel = (first + r == cursor);
             if (sel) d.fillRect(0, y - 1, SCR_W, 11, 0x18C7);
-            d.setTextColor(e.is_dir ? COL_ACCENT : COL_FG, sel ? 0x18C7 : COL_BG);
+            d.setTextColor(e.is_dir ? T_ACCENT : T_FG, sel ? 0x18C7 : T_BG);
             d.setCursor(4, y);
             if (e.is_dir) d.printf("[DIR] %.24s", e.name);
             else          d.printf("%.24s  %luB", e.name, (unsigned long)e.size);
@@ -183,8 +184,8 @@ void feat_file_browser(void)
             const fb_entry_t &e = s_fb[cursor];
             char full[192];
             snprintf(full, sizeof(full), "%s/%s", path, e.name);
-            if (SD.remove(full)) { ui_toast("deleted", COL_GOOD, 500); fb_list(path); if (cursor >= s_fb_count) cursor = s_fb_count - 1; draw(); }
-            else { ui_toast("fail", COL_BAD, 500); }
+            if (SD.remove(full)) { ui_toast("deleted", T_GOOD, 500); fb_list(path); if (cursor >= s_fb_count) cursor = s_fb_count - 1; draw(); }
+            else { ui_toast("fail", T_BAD, 500); }
         }
     }
 }
@@ -203,14 +204,14 @@ void feat_clock(void)
         if (millis() - last > 500) {
             last = millis();
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("CLOCK");
-            d.drawFastHLine(4, BODY_Y + 12, 50, COL_ACCENT);
+            d.drawFastHLine(4, BODY_Y + 12, 50, T_ACCENT);
 
             /* Big uptime. */
             uint32_t s = millis() / 1000;
             uint32_t h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setTextSize(3);
             char buf[16];
             snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
@@ -219,7 +220,7 @@ void feat_clock(void)
             d.setCursor((SCR_W - w) / 2, BODY_Y + 30);
             d.print(buf);
             d.setTextSize(1);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(SCR_W / 2 - 20, BODY_Y + 70);
             d.print("uptime");
             ui_draw_status(radio_name(), "clock");
@@ -236,10 +237,10 @@ void feat_settings(void)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("SETTINGS");
-    d.drawFastHLine(4, BODY_Y + 12, 70, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 70, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("[W] saved WiFi");
     d.setCursor(4, BODY_Y + 34); d.print("[C] clear creds log");
     d.setCursor(4, BODY_Y + 46); d.print("[F] format preferences");
@@ -252,18 +253,18 @@ void feat_settings(void)
         if (k == PK_ESC) return;
         if (k == 'w' || k == 'W') { extern void feat_wifi_connect(); feat_wifi_connect(); return; }
         if (k == 'c' || k == 'C') {
-            if (sd_mount() && SD.remove("/poseidon/creds.log")) ui_toast("cleared", COL_GOOD, 600);
-            else ui_toast("fail", COL_BAD, 600);
+            if (sd_mount() && SD.remove("/poseidon/creds.log")) ui_toast("cleared", T_GOOD, 600);
+            else ui_toast("fail", T_BAD, 600);
             return;
         }
         if (k == 'f' || k == 'F') {
             Preferences p; p.begin("poseidon", false); p.clear(); p.end();
-            ui_toast("prefs cleared", COL_GOOD, 600); return;
+            ui_toast("prefs cleared", T_GOOD, 600); return;
         }
         if (k == 's' || k == 'S') {
-            ui_toast("formatting...", COL_WARN, 300);
-            if (sd_format()) ui_toast("SD formatted", COL_GOOD, 900);
-            else             ui_toast("SD format fail", COL_BAD, 1200);
+            ui_toast("formatting...", T_WARN, 300);
+            if (sd_format()) ui_toast("SD formatted", T_GOOD, 900);
+            else             ui_toast("SD format fail", T_BAD, 1200);
             return;
         }
         if (k == 'r' || k == 'R') { ESP.restart(); }

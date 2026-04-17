@@ -12,6 +12,7 @@
  * Uses a random address per broadcast so targets don't dedup us.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -147,10 +148,10 @@ static spam_kind_t pick_kind(void)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BLE SPAM");
-    d.drawFastHLine(4, BODY_Y + 12, 90, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     for (int i = 0; i < SPAM_COUNT; ++i) {
         d.setCursor(4, BODY_Y + 22 + i * 12);
         d.printf("[%d] %s", i + 1, s_kind_name[i]);
@@ -178,16 +179,16 @@ void feat_ble_spam(void)
     ui_clear_body();
     ui_draw_footer("`=stop");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.printf("%s SPAM", s_kind_name[s_kind]);
-    d.drawFastHLine(4, BODY_Y + 12, 140, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 140, T_BAD);
 
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 300) {
             last = millis();
-            d.fillRect(0, BODY_Y + 20, SCR_W, 40, COL_BG);
-            d.setTextColor(COL_FG, COL_BG);
+            d.fillRect(0, BODY_Y + 20, SCR_W, 40, T_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 20);
             d.printf("sent: %lu", (unsigned long)s_sent);
             ui_draw_status(radio_name(), "spam");

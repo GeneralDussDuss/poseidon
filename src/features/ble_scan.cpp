@@ -13,6 +13,7 @@
  *   FN+`     back
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -153,14 +154,14 @@ static void draw_list(int cursor)
     auto &d = M5Cardputer.Display;
     ui_clear_body();
 
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.printf("BLE %d", s_count);
     if (s_filter[0]) {
-        d.setTextColor(COL_WARN, COL_BG);
+        d.setTextColor(T_WARN, T_BG);
         d.printf("  filter:%s", s_filter);
     }
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
     /* Filter + window. */
     int idx[BLE_MAX_DEVS];
@@ -168,7 +169,7 @@ static void draw_list(int cursor)
     for (int i = 0; i < s_count; ++i)
         if (dev_matches_filter(s_devs[i])) idx[n++] = i;
     if (n == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
         d.print(s_scanning ? "scanning..." : "no devices");
         return;
@@ -186,14 +187,14 @@ static void draw_list(int cursor)
         const ble_dev_t &x = s_devs[i];
         int y = BODY_Y + 16 + r * 11;
         bool sel = (first + r == cursor);
-        uint16_t bg = sel ? 0x18C7 : COL_BG;
+        uint16_t bg = sel ? 0x18C7 : T_BG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
-        d.setTextColor(COL_ACCENT, bg);
+        d.setTextColor(T_ACCENT, bg);
         d.setCursor(2, y);  d.printf("%4d", x.rssi);
-        d.setTextColor(x.is_public ? COL_WARN : COL_GOOD, bg);
+        d.setTextColor(x.is_public ? T_WARN : T_GOOD, bg);
         d.setCursor(30, y); d.printf("%-14.14s", x.type);
-        d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+        d.setTextColor(sel ? T_ACCENT : T_FG, bg);
         d.setCursor(124, y);
         if (x.name[0]) {
             d.printf("%.19s", x.name);
@@ -280,10 +281,10 @@ void feat_ble_scan(void)
             /* Detail view with signal bar + action hotkeys. */
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("BLE DEVICE");
-            d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
-            d.setTextColor(COL_FG, COL_BG);
+            d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 18);
             d.printf("MAC  : %02X:%02X:%02X:%02X:%02X:%02X",
                      x.addr[0], x.addr[1], x.addr[2],
@@ -297,8 +298,8 @@ void feat_ble_scan(void)
             int pct = (x.rssi + 100) * 100 / 70;
             if (pct < 0) pct = 0; if (pct > 100) pct = 100;
             d.setCursor(4, BODY_Y + 66); d.printf("RSSI : %d dBm", x.rssi);
-            d.drawRect(90, BODY_Y + 66, bar_w, 7, COL_DIM);
-            uint16_t col = (x.rssi > -60) ? COL_GOOD : (x.rssi > -80) ? COL_WARN : COL_BAD;
+            d.drawRect(90, BODY_Y + 66, bar_w, 7, T_DIM);
+            uint16_t col = (x.rssi > -60) ? T_GOOD : (x.rssi > -80) ? T_WARN : T_BAD;
             d.fillRect(91, BODY_Y + 67, (bar_w - 2) * pct / 100, 5, col);
 
             ui_draw_footer("G=gatt C=clone H=hid X=flood P=spam `=back");

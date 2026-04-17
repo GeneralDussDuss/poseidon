@@ -15,8 +15,10 @@
  *   COMBO CTRL ALT T    — chord any modifiers + final key
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
+#include "mimir.h"
 #include <USB.h>
 #include <USBHIDKeyboard.h>
 #include <SD.h>
@@ -163,9 +165,9 @@ static void run_payload(const char *script)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("RUNNING");
-    d.drawFastHLine(4, BODY_Y + 12, 80, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 80, T_BAD);
     ui_draw_footer("`=abort");
     ui_draw_status("usb-hid", "run");
 
@@ -181,8 +183,8 @@ static void run_payload(const char *script)
         line[n] = '\0';
 
         ln++;
-        d.fillRect(0, BODY_Y + 22, SCR_W, 14, COL_BG);
-        d.setTextColor(COL_FG, COL_BG);
+        d.fillRect(0, BODY_Y + 22, SCR_W, 14, T_BG);
+        d.setTextColor(T_FG, T_BG);
         d.setCursor(4, BODY_Y + 22);
         d.printf("%d: %.36s", ln, line);
 
@@ -200,22 +202,22 @@ static void run_payload(const char *script)
     }
 
     s_kbd.releaseAll();
-    ui_toast("done", COL_GOOD, 800);
+    ui_toast("done", T_GOOD, 800);
 }
 
 static int pick_payload(void)
 {
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BADUSB PAYLOADS");
-    d.drawFastHLine(4, BODY_Y + 12, 130, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 130, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     for (size_t i = 0; i < PAY_N; ++i) {
         d.setCursor(4, BODY_Y + 22 + (int)i * 12);
         d.printf("[%d] %s", (int)(i + 1), s_payloads[i].name);
     }
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 22 + (int)PAY_N * 12);
     d.print("[T] Type custom now");
     ui_draw_footer("1-5=run  T=type  `=back");
@@ -231,6 +233,7 @@ static int pick_payload(void)
 
 void feat_badusb(void)
 {
+    if (g_mimir_cdc_active) { ui_toast("MIMIR using USB", T_WARN, 1000); return; }
     while (true) {
         int pick = pick_payload();
         if (pick == -1) return;
@@ -240,7 +243,7 @@ void feat_badusb(void)
             hid_ensure();
             type_string(line);
             s_kbd.write(KEY_RETURN);
-            ui_toast("sent", COL_GOOD, 500);
+            ui_toast("sent", T_GOOD, 500);
             continue;
         }
         run_payload(s_payloads[pick].script);

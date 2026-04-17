@@ -17,6 +17,7 @@
  * instead for those.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -154,12 +155,12 @@ static void draw_picker(int cursor, bool scanning)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.print("THE SALTY DEEP");
     d.drawFastHLine(4, BODY_Y + 12, 120, 0xF81F);
     if (s_toy_count == 0) {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
         d.print(scanning ? "searching the deep..." : "no toys found");
         d.setCursor(4, BODY_Y + 36);
@@ -178,15 +179,15 @@ static void draw_picker(int cursor, bool scanning)
         const toy_t &t = s_toys[first + r];
         int y = BODY_Y + 18 + r * 12;
         bool sel = (first + r == cursor);
-        uint16_t bg = sel ? 0x3007 : COL_BG;
+        uint16_t bg = sel ? 0x3007 : T_BG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 12, bg);
         d.setTextColor(sel ? 0xF81F : 0xFFFF, bg);
         d.setCursor(4, y);
         d.printf("[%s]", t.brand);
-        d.setTextColor(sel ? 0xFFFF : COL_FG, bg);
+        d.setTextColor(sel ? 0xFFFF : T_FG, bg);
         d.setCursor(80, y);
         d.printf("%.18s", t.name);
-        d.setTextColor(COL_DIM, bg);
+        d.setTextColor(T_DIM, bg);
         d.setCursor(SCR_W - 28, y);
         d.printf("%4d", t.rssi);
     }
@@ -196,16 +197,16 @@ static void draw_control(void)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2);  d.print("CONTROL");
     d.drawFastHLine(4, BODY_Y + 12, 70, 0xF81F);
 
-    d.setTextColor(s_connected ? COL_GOOD : COL_BAD, COL_BG);
+    d.setTextColor(s_connected ? T_GOOD : T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 22);
     d.print(s_connected ? "CONNECTED" : "DISCONNECTED");
 
     /* Big intensity number. */
-    d.setTextColor(0xFFFF, COL_BG);
+    d.setTextColor(0xFFFF, T_BG);
     d.setTextSize(4);
     char buf[4]; snprintf(buf, sizeof(buf), "%2d", s_intensity);
     int w = d.textWidth(buf) * 4;
@@ -215,7 +216,7 @@ static void draw_control(void)
 
     /* Bar. */
     int bx = 8, by = BODY_Y + 78, bw = SCR_W - 16, bh = 8;
-    d.drawRect(bx, by, bw, bh, COL_DIM);
+    d.drawRect(bx, by, bw, bh, T_DIM);
     uint16_t fill = s_intensity > 15 ? 0xF800 : s_intensity > 8 ? 0xFD20 : 0xF81F;
     d.fillRect(bx + 1, by + 1, (bw - 2) * s_intensity / 20, bh - 2, fill);
 
@@ -246,9 +247,9 @@ void feat_ble_toys(void)
         if ((k == '.' || k == PK_DOWN) && cursor + 1 < s_toy_count) { cursor++; }
         if (k == PK_ENTER && s_toy_count > 0) {
             scan->stop();
-            ui_toast("connecting...", COL_WARN, 0);
+            ui_toast("connecting...", T_WARN, 0);
             if (!connect_lovense(s_toys[cursor])) {
-                ui_toast("connect failed", COL_BAD, 1200);
+                ui_toast("connect failed", T_BAD, 1200);
                 scan->start(0, nullptr, false);
                 continue;
             }

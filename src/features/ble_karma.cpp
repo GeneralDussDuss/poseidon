@@ -19,6 +19,7 @@
  * auto-pair with known names.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -75,7 +76,7 @@ void feat_ble_karma(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(0xF81F, COL_BG);
+    d.setTextColor(0xF81F, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("BLE KARMA");
     d.drawFastHLine(4, BODY_Y + 12, 80, 0xF81F);
     ui_draw_footer("`=stop");
@@ -110,16 +111,16 @@ void feat_ble_karma(void)
 
         if (now - last_draw > 200) {
             last_draw = now;
-            d.fillRect(0, BODY_Y + 18, 150, 70, COL_BG);
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.fillRect(0, BODY_Y + 18, 150, 70, T_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 18); d.printf("posing as:");
-            d.setTextColor(0xF81F, COL_BG);
+            d.setTextColor(0xF81F, T_BG);
             d.setCursor(4, BODY_Y + 30); d.printf("  %.24s", s_karma_current);
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 48); d.printf("seen:     %lu", (unsigned long)s_karma_requests);
-            d.setTextColor(COL_GOOD, COL_BG);
+            d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 60); d.printf("spoofed:  %lu", (unsigned long)s_karma_responses);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 76); d.print("rotating identity every 2s");
         }
         /* Magenta matrix rain + EQ pulse bars below the stats. */

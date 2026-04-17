@@ -8,6 +8,7 @@
  * Samsung, LG, Panasonic, Philips, Toshiba, Sharp, Vizio, RCA).
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include <driver/ledc.h>
@@ -162,19 +163,19 @@ void feat_ir_tvbgone(void)
     ui_clear_body();
     ui_draw_footer("`=stop");
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_BAD, COL_BG);
+    d.setTextColor(T_BAD, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("TV-B-GONE");
-    d.drawFastHLine(4, BODY_Y + 12, 90, COL_BAD);
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_BAD);
 
     uint32_t last = 0;
     while (true) {
         if (millis() - last > 250) {
             last = millis();
-            d.fillRect(0, BODY_Y + 20, SCR_W, 60, COL_BG);
-            d.setTextColor(COL_WARN, COL_BG);
+            d.fillRect(0, BODY_Y + 20, SCR_W, 60, T_BG);
+            d.setTextColor(T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 22);
             d.printf("Blasting: %s", s_code_names[s_code_idx]);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 38);
             d.print("Point the top edge at the TV.");
             d.setCursor(4, BODY_Y + 50);

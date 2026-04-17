@@ -10,6 +10,7 @@
  * + latest GPS fix win.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -18,6 +19,8 @@
 #include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
+
+static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
 #define WARDRIVE_MAX_APS 256
 
@@ -112,9 +115,9 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     if (pkt->rx_ctrl.sig_len < 36) return;
     uint8_t fc = p[0];
     uint8_t subtype = (fc >> 4) & 0xF;
-    /* Subtypes 8 (beacon) and 5 (probe response) carry SSID + capabilities. */
     if (subtype != 0x8 && subtype != 0x5) return;
 
+    portENTER_CRITICAL_ISR(&s_wdr_mux);
     const uint8_t *bssid = p + 16;
     int idx = find_ap(bssid);
     if (idx < 0) {
@@ -165,6 +168,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         if (gps_snapshot(&g)) { a.lat = g.lat_deg; a.lon = g.lon_deg; a.alt = g.alt_m; }
         a.dirty = true;
     }
+    portEXIT_CRITICAL_ISR(&s_wdr_mux);
 }
 
 static void hop_task(void *)
@@ -184,11 +188,11 @@ void feat_wifi_wardrive(void)
     gps_begin();  /* idempotent */
 
     if (!sd_mount()) {
-        ui_toast("SD card required", COL_BAD, 1500);
+        ui_toast("SD card required", T_BAD, 1500);
         return;
     }
     if (!wdr_open_csv()) {
-        ui_toast("cant open csv", COL_BAD, 1500);
+        ui_toast("cant open csv", T_BAD, 1500);
         return;
     }
 
@@ -221,18 +225,18 @@ void feat_wifi_wardrive(void)
             auto &d = M5Cardputer.Display;
             ui_draw_status(radio_name(), "wardrive");
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2);  d.print("WARDRIVE");
-            d.setTextColor(COL_FG, COL_BG);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 18); d.printf("APs:     %d", s_ap_count);
             d.setCursor(4, BODY_Y + 30); d.printf("Beacons: %lu", (unsigned long)s_beacons);
             d.setCursor(4, BODY_Y + 42); d.printf("Channel: %u", s_current_ch);
             const gps_fix_t &g = gps_get();
-            d.setTextColor(g.valid ? COL_GOOD : COL_DIM, COL_BG);
+            d.setTextColor(g.valid ? T_GOOD : T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 54);
             if (g.valid) d.printf("GPS: %.4f, %.4f (%d sats)", g.lat_deg, g.lon_deg, g.sats);
             else         d.printf("GPS: waiting for fix...");
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 70); d.printf("%s", s_csv_path);
         }
 
@@ -241,7 +245,7 @@ void feat_wifi_wardrive(void)
         if (k == PK_ESC) break;
         if (k == 'f' || k == 'F') {
             flush_dirty_rows();
-            ui_toast("flushed", COL_GOOD, 400);
+            ui_toast("flushed", T_GOOD, 400);
         }
     }
 

@@ -9,6 +9,7 @@
  * deauth to the client MAC spoofed-from the AP).
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -98,7 +99,7 @@ void feat_wifi_clients(void)
     WiFi.mode(WIFI_STA);
 
     if (!g_last_selected_valid) {
-        ui_toast("scan + select AP first", COL_WARN, 1500);
+        ui_toast("scan + select AP first", T_WARN, 1500);
         return;
     }
     memcpy(s_target, g_last_selected_ap.bssid, 6);
@@ -124,17 +125,17 @@ void feat_wifi_clients(void)
             last = millis();
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2);
             d.printf("CLIENTS  %d  ch%u", s_count, s_target_ch);
-            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_ACCENT);
+            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 14);
             d.printf("%.24s", g_last_selected_ap.ssid);
 
             if (s_count == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 34);
                 d.print("no traffic yet. waiting...");
                 d.setCursor(4, BODY_Y + 46);
@@ -153,7 +154,7 @@ void feat_wifi_clients(void)
                     const cli_t &c = s_clients[first + r];
                     int y = BODY_Y + 28 + r * 11;
                     bool sel = (first + r == cursor);
-                    uint16_t bg = sel ? 0x18C7 : COL_BG;
+                    uint16_t bg = sel ? 0x18C7 : T_BG;
                     if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
                     uint32_t oui = ((uint32_t)c.mac[0] << 16) |
@@ -164,19 +165,19 @@ void feat_wifi_clients(void)
 
                     /* Hostname wins over vendor. */
                     if (hostname) {
-                        d.setTextColor(sel ? COL_ACCENT : COL_GOOD, bg);
+                        d.setTextColor(sel ? T_ACCENT : T_GOOD, bg);
                         d.setCursor(4, y); d.printf("%-14.14s", hostname);
                     } else if (vendor) {
-                        d.setTextColor(sel ? COL_ACCENT : COL_WARN, bg);
+                        d.setTextColor(sel ? T_ACCENT : T_WARN, bg);
                         d.setCursor(4, y); d.printf("%-14.14s", vendor);
                     } else {
-                        d.setTextColor(COL_DIM, bg);
+                        d.setTextColor(T_DIM, bg);
                         d.setCursor(4, y); d.print("?");
                     }
-                    d.setTextColor(sel ? COL_ACCENT : COL_FG, bg);
+                    d.setTextColor(sel ? T_ACCENT : T_FG, bg);
                     d.setCursor(90, y);
                     d.printf("%02X:%02X:%02X", c.mac[3], c.mac[4], c.mac[5]);
-                    d.setTextColor(COL_DIM, bg);
+                    d.setTextColor(T_DIM, bg);
                     d.setCursor(146, y);
                     d.printf("%3d %lu", c.rssi, (unsigned long)c.frames);
                 }
@@ -191,7 +192,7 @@ void feat_wifi_clients(void)
         if (k == '.' || k == PK_DOWN) { if (cursor + 1 < s_count) cursor++; }
         if ((k == 'd' || k == 'D') && s_count > 0 && cursor < s_count) {
             deauth_client(s_clients[cursor].mac);
-            ui_toast("deauth sent", COL_BAD, 600);
+            ui_toast("deauth sent", T_BAD, 600);
         }
     }
 

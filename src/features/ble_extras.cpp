@@ -2,6 +2,7 @@
  * ble_extras — tracker detector, sniffer (CSV log), iBeacon broadcaster.
  */
 #include "app.h"
+#include "../theme.h"
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
@@ -94,13 +95,13 @@ void feat_ble_tracker(void)
             last = millis();
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2);
             d.printf("TRACKERS  %d", s_tracker_count);
-            d.drawFastHLine(4, BODY_Y + 12, 100, COL_ACCENT);
+            d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
 
             if (s_tracker_count == 0) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 24);
                 d.print("scanning for AirTag/SmartTag/Tile");
             } else {
@@ -114,17 +115,17 @@ void feat_ble_tracker(void)
 
                     const char *prox;
                     uint16_t prox_col;
-                    if (t.rssi > -55)      { prox = "CLOSE"; prox_col = COL_BAD; }
-                    else if (t.rssi > -72) { prox = "NEAR ";  prox_col = COL_WARN; }
-                    else                   { prox = "FAR  ";  prox_col = COL_DIM; }
+                    if (t.rssi > -55)      { prox = "CLOSE"; prox_col = T_BAD; }
+                    else if (t.rssi > -72) { prox = "NEAR ";  prox_col = T_WARN; }
+                    else                   { prox = "FAR  ";  prox_col = T_DIM; }
 
-                    d.setTextColor(prox_col, COL_BG);
+                    d.setTextColor(prox_col, T_BG);
                     d.setCursor(4, y);
                     d.printf("%-5s", prox);
-                    d.setTextColor(COL_BAD, COL_BG);
+                    d.setTextColor(T_BAD, T_BG);
                     d.setCursor(36, y);
                     d.printf("%-9s %ddB", t.type, t.rssi);
-                    d.setTextColor(COL_DIM, COL_BG);
+                    d.setTextColor(T_DIM, T_BG);
                     d.setCursor(140, y);
                     d.printf("%02X:%02X %lus",
                              t.addr[4], t.addr[5],
@@ -133,7 +134,7 @@ void feat_ble_tracker(void)
                     /* Signal bar (small). */
                     int pct = (t.rssi + 100) * 100 / 70;
                     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-                    d.drawRect(200, y + 1, 36, 6, COL_DIM);
+                    d.drawRect(200, y + 1, 36, 6, T_DIM);
                     d.fillRect(201, y + 2, 34 * pct / 100, 4, prox_col);
                 }
                 /* Alert on new detection: flash screen border + chirp. */
@@ -143,11 +144,11 @@ void feat_ble_tracker(void)
                     M5Cardputer.Speaker.tone(2400, 80);
                     /* Red border flash. */
                     for (int f = 0; f < 3; ++f) {
-                        d.drawRect(0, 0, SCR_W, SCR_H, COL_BAD);
-                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, COL_BAD);
+                        d.drawRect(0, 0, SCR_W, SCR_H, T_BAD);
+                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, T_BAD);
                         delay(60);
-                        d.drawRect(0, 0, SCR_W, SCR_H, COL_BG);
-                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, COL_BG);
+                        d.drawRect(0, 0, SCR_W, SCR_H, T_BG);
+                        d.drawRect(1, 1, SCR_W - 2, SCR_H - 2, T_BG);
                         delay(60);
                     }
                     last_alert_count = s_tracker_count;
@@ -193,12 +194,12 @@ static sniff_cb *s_sniff_cb = &s_sniff_cb_obj;
 void feat_ble_sniff(void)
 {
     radio_switch(RADIO_BLE);
-    if (!sd_mount()) { ui_toast("SD needed", COL_BAD, 1500); return; }
+    if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     char path[64];
     snprintf(path, sizeof(path), "/poseidon/blesniff-%lu.csv", (unsigned long)(millis() / 1000));
     s_sniff_file = SD.open(path, FILE_WRITE);
-    if (!s_sniff_file) { ui_toast("cant open file", COL_BAD, 1500); return; }
+    if (!s_sniff_file) { ui_toast("cant open file", T_BAD, 1500); return; }
     s_sniff_file.println("ms,mac,rssi,addr_type,name,adv_hex");
     s_sniff_count = 0;
 
@@ -216,12 +217,12 @@ void feat_ble_sniff(void)
             last = millis();
             auto &d = M5Cardputer.Display;
             ui_clear_body();
-            d.setTextColor(COL_ACCENT, COL_BG);
+            d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("BLE SNIFFER");
-            d.drawFastHLine(4, BODY_Y + 12, 90, COL_ACCENT);
-            d.setTextColor(COL_FG, COL_BG);
+            d.drawFastHLine(4, BODY_Y + 12, 90, T_ACCENT);
+            d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 22); d.printf("packets: %lu", (unsigned long)s_sniff_count);
-            d.setTextColor(COL_DIM, COL_BG);
+            d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 40); d.printf("%s", path);
             ui_draw_status(radio_name(), "sniff");
         }
@@ -259,12 +260,12 @@ void feat_ble_beacon(void)
 
     ui_clear_body();
     auto &d = M5Cardputer.Display;
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2); d.print("iBEACON");
-    d.drawFastHLine(4, BODY_Y + 12, 60, COL_ACCENT);
-    d.setTextColor(COL_FG, COL_BG);
+    d.drawFastHLine(4, BODY_Y + 12, 60, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22); d.print("broadcasting iBeacon 1/1");
-    d.setTextColor(COL_DIM, COL_BG);
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 40); d.print("UUID: E2C56DB5-...96E0");
     ui_draw_footer("`=stop");
     ui_draw_status(radio_name(), "beacon");
