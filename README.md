@@ -13,12 +13,15 @@
               ≋≋≋   commander of the deep   ≋≋≋
 ```
 
-**A keyboard-first pentesting firmware for the M5Stack Cardputer**
+**Keyboard-first pentesting firmware for the M5Stack Cardputer-Adv**
 
-![target](https://img.shields.io/badge/target-M5Stack%20Cardputer-red?style=flat-square)
+![target](https://img.shields.io/badge/target-Cardputer--Adv-red?style=flat-square)
 ![platform](https://img.shields.io/badge/framework-Arduino%2FPlatformIO-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![status](https://img.shields.io/badge/status-actively%20terrifying-magenta?style=flat-square)
+![features](https://img.shields.io/badge/features-80+-magenta?style=flat-square)
+![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
+
+[**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
 
 </div>
 
@@ -26,225 +29,168 @@
 
 ## What is this?
 
-POSEIDON is a pentesting firmware written from scratch for the M5Stack Cardputer (ESP32-S3 + 1.14" LCD + 56-key QWERTY + IR + microSD + Grove I²C + speaker). It's in the same family as Flipper Zero, Bruce, Evil-Cardputer, and ESP32Marauder — but designed around the one thing those all lack: **a real keyboard**.
+POSEIDON is a pentesting firmware for the M5Stack Cardputer-Adv (ESP32-S3). 80+ features across WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, network attacks, and more. In the same family as Flipper Zero, Bruce, Evil-M5Project, and ESP32Marauder — but built around a **real keyboard** with letter mnemonics, typed parameters, and 6 swappable visual themes.
 
-Every menu has letter mnemonics (press `W` for WiFi, `S` for Scan, two keystrokes to a running attack). Every feature has a typed-parameter mode (type a BSSID directly, no list picking). Every list supports `/`-filter. No Flipper-style index-counting.
+Supports three hardware hats (one at a time):
+- **M5Stack CAP-LoRa1262** — LoRa (SX1262) + GNSS (GPS)
+- **PINGEQUA Hydra RF Cap 424** — CC1101 sub-GHz + nRF24L01+ 2.4 GHz
+- **ESP32-C5 companion node** — 5 GHz WiFi + Zigbee via ESP-NOW mesh
 
-## Highlights
-
-- **44 features** across WiFi, BLE, IR, USB-HID, Network, Mesh, and drop-box LAN recon
-- **Hierarchical menus with letter mnemonics** — never more than 3 keystrokes to anything
-- **In-menu `=` info panel** — thorough description of every tool, not just a footer hint
-- **Slide transitions** between menus, scrollable lists with cursor-centered viewport
-- **Animated splash** — Hokusai's *Great Wave* with magenta scanline sweep
-- **Sick ass animations** everywhere: radar sweeps on scans, matrix rain on handshake capture, hex packet streams on beacon spam, glitch blocks on flood attacks, EQ bars on Karma, radial wave pulses on Responder
-- **Lazy radio management** — only one radio stack (WiFi/BLE) active at a time; 100 KB RAM reclaimed when you leave a domain
-- **Keyboard-first everywhere** — typed BSSIDs, typed DuckyScript, typed wireshark-style filters
-- **Adaptive learning** — the Triton handshake-hunter pet has a reinforcement-learning layer that remembers which channels produce captures and biases its dwell time toward them, persisted across reboots
-
-## Feature matrix
-
-### WiFi (16)
-Scan · Clients (all + per-AP) · Deauth · Deauth all · Deauth detector · AP Clone · Evil Portal (4 templates) · Karma · Beacon spam · Probe sniff · PMKID + 4-way Handshake capture · 2.4 GHz Spectrum · GPS Wardrive → WiGLE · Connect
-
-### Bluetooth (14)
-Scan (OUI + Apple Continuity + Fast Pair DB) · Spam (4 brands) · Bad-KB HID keyboard · Tracker detect (AirTag/SmartTag/Tile) · Tracker Finder (Geiger) · Sniffer → CSV · iBeacon · Clone (connectable GATT) · GATT Explorer (read/write) · Flood · Karma · Sour Apple (CVE-2023-42941) · Find My emulator · **The Salty Deep** (Lovense/WeVibe/Satisfyer controller)
-
-### IR (2)
-TV-B-Gone · Samsung remote
-
-### BadUSB (1)
-USB-HID payload runner with DuckyScript-lite + built-in library
-
-### Network (6) — drop-box mode
-Port scan · Ping · DNS · Connect · **Responder** (LLMNR/NBT-NS/mDNS poisoner → NTLM hash capture) · **UPnP / SSDP scanner** · **LAN Recon** (ARP + port + banner + vendor + CSV export)
-
-### Mesh (1)
-**PigSync** — ESP-NOW presence beacon (foundation for the C5 drop-node C2 concept when those boards arrive)
-
-### Triton
-The autonomous handshake gotchi. Runs promisc capture, hunt-mode deauth, and mood states. Learns its best channels via ε-greedy softmax and persists the brain to SD.
-
-### Tools (8)
-Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse sender · MAC randomizer · Calculator · Screen test · SD format
-
-### System (4)
-File browser · Clock · Settings · About
-
-## Usage
+## Quick Start
 
 ```bash
-# Clone + build
+# Build from source
 git clone https://github.com/GeneralDussDuss/poseidon.git
 cd poseidon
-pio run -t upload -t monitor
+pio run -t upload
+
+# Or flash the pre-built binary
+esptool.py --chip esp32s3 write_flash 0x0 poseidon-v0.2.0-cardputer-adv.bin
 ```
 
-Plug the Cardputer in, flash, boot. Splash plays, any key drops you into the main menu.
+## Feature Matrix (80+)
 
-### Controls
+### WiFi (17)
+Scan · Clients (all-channel + per-AP) · Deauth · Deauth All · Deauth Detector · AP Clone · Evil Portal (4 templates) · Karma · Beacon Spam · Probe Sniff · PMKID + 4-Way Handshake Capture · 2.4 GHz Spectrum · GPS Wardrive (WiGLE CSV) · Connect · **CIW Zeroclick** (157 SSID payloads: cmd injection, Log4Shell, XSS, buffer overflow)
 
-| key | action |
+### Bluetooth (14)
+Scan (OUI + Apple Continuity + Fast Pair DB) · Spam (4 brands) · Bad-KB HID · Tracker Detect (AirTag/SmartTag/Tile) · Tracker Finder (Geiger) · Sniffer (CSV) · iBeacon · Clone · GATT Explorer · Flood · Karma · Sour Apple (CVE-2023-42941) · Find My Emulator · The Salty Deep (toy controller)
+
+### Sub-GHz — CC1101 (9)
+Scan/Copy (ISR capture + protocol decoder: Princeton, CAME, NICE, Linear) · Record RAW (Flipper .sub format) · Replay .sub Files · **Signal Broadcast Library** (3,190+ .sub files: cars, pranks, Tesla, home) · Spectrum Analyzer (bar + waterfall + oscilloscope) · Brute Force (Came/Nice/Linear/Chamberlain/Holtek/Ansonic) · Jammer · **Hot/Cold Signal Finder**
+
+### 2.4 GHz — nRF24L01+ (6)
+**Promiscuous ESB Sniffer** (Travis Goodspeed trick, CRC16-validated) · **MouseJack** (Logitech/Microsoft fingerprint + HID injection) · **BLE Spam** (ADV_IND via nRF24, CRC24 + whitening) · Spectrum Analyzer (WiFi/BLE/Zigbee markers) · **CW Carrier + Data Flood Jammer** (7 presets) · Hot/Cold Finder
+
+### LoRa + GNSS — SX1262 (4)
+LoRa Scan (passive RX, multi-band) · Beacon TX · Meshtastic LongFast Listener · **Live GPS Fix** (baud auto-detect, background NMEA)
+
+### Network Attacks (18)
+Port Scan · Ping · DNS · Connect · **Responder** (LLMNR/NBT-NS → NTLM) · SSDP/UPnP Scanner · LAN Recon (ARP + port + banner + vendor) · **UART Shell** (serial terminal, auto-baud) · **Reverse TCP Tunnel** · **Telnet Honeypot** · **WiFi Dead Drop** (anonymous message board) · **Printer Detection + Raw Print** · **SSDP Poisoner** · **DHCP Starvation** · **Rogue DHCP** (STA + AP) · **Network Hijacking** (chained MitM) · **WPAD Abuse** (credential capture) · **Autodiscover Abuse** (Exchange NTLM hash capture)
+
+### IR (2)
+TV-B-Gone · Samsung Remote
+
+### BadUSB (1)
+USB-HID payload runner with DuckyScript-lite
+
+### MIMIR Drop-Box Client (1)
+USB-C control client for BPI-M4 Zero pentest drop-box. Scan, 5 attack modes, pocket-mode MAC randomization. Hand-rolled JSON protocol, no heap allocation.
+
+### Triton — Autonomous Gotchi
+Cyberpunk helmet face with visor + trident crown. Hunts handshakes autonomously. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Bordered speech bubble, RL sparkline, TX indicator, HS flash.
+
+### C5 Remote Nodes
+ESP32-C5 companion for **5 GHz WiFi** + **802.15.4 Zigbee/Thread**. Dual-band scan, remote deauth, Zigbee sniff — all over ESP-NOW mesh. WS2812 NeoPixel status LED.
+
+### Mesh
+PigSync ESP-NOW presence beacon — foundation for multi-device coordination.
+
+### Tools (9)
+Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calculator · Screen Test · SD Format · **Theme Picker** (6 palettes)
+
+### Themes
+| Theme | Aesthetic |
 |---|---|
-| letter | jump to menu item by mnemonic |
-| `;` / `.` | scroll up / down |
-| `ENTER` | select / confirm |
-| `=` (also `?`) | open info panel for highlighted item |
-| `` ` `` (backtick) | back / cancel |
-| `/` | open filter prompt in any list |
-| `R` | rescan / reset (in context) |
-
-## Screenshots
-
-*(Coming soon — plug it in and see)*
-
-## Architecture
-
-```
-src/
-├── main.cpp             boot, splash, hand off to menu
-├── app.h                screen geometry + palette
-├── input.h / .cpp       keyboard polling, modal line editor
-├── ui.h / .cpp          status/footer, splash, animation primitives
-├── menu.h / .cpp        hierarchical menu + slide transitions + info panels
-├── radio.h / .cpp       lazy domain switcher (WiFi ↔ BLE ↔ idle)
-├── splash.cpp           Hokusai splash animation
-├── ble_db.h / .cpp      ~200 OUIs + Apple Continuity + Fast Pair + BT SIG UUIDs
-├── ble_types.h          shared BLE target struct
-├── wifi_types.h         shared AP struct
-├── gps.h / .cpp         NMEA parser for the LoRa-GNSS HAT
-├── mesh.h / .cpp        ESP-NOW presence protocol
-├── dhcp_cache.h / .cpp  MAC → hostname cache from DHCP Option 12
-└── features/            one file per feature
-    ├── wifi_*.cpp       (15 wifi features)
-    ├── ble_*.cpp        (14 ble features)
-    ├── ir_*.cpp         (2 ir features)
-    ├── net_*.cpp        (6 network features)
-    ├── triton.cpp       handshake gotchi
-    ├── badusb.cpp       usb-hid payload runner
-    ├── tools.cpp        flashlight / stopwatch / dice / etc.
-    ├── system_tools.cpp saved wifi / clock / file browser / settings
-    ├── mesh_status.cpp  pigsync peer table viewer
-    ├── splash.cpp       animated splash with wave + title glow
-    └── stubs.cpp        about screen
-```
-
-## Massive shoutouts
-
-This firmware would not exist without the work of these people. Where code or protocol knowledge was ported, it's credited inline in the source.
-
-- **[@7h30th3r0n3](https://github.com/7h30th3r0n3)** → [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project)
-  The canonical Cardputer pentest firmware. The radial wave + arc pulse animation in POSEIDON's Handshake Capture screen is ported directly from Evil-Cardputer's `showWaitingAnimationNTLM`. Many UX patterns and feature ideas borrowed.
-
-- **[@0ct0sec](https://github.com/0ct0sec)** → [M5PORKCHOP](https://github.com/0ct0sec/M5PORKCHOP)
-  Inspiration for the PigSync ESP-NOW mesh, WiGLE v1.6 wardrive CSV format, and the 2.4 GHz spectrum analyzer concept.
-
-- **[@justcallmekoko](https://github.com/justcallmekoko)** → [ESP32Marauder](https://github.com/justcallmekoko/ESP32Marauder)
-  Foundational work on ESP32 WiFi promisc attacks. Deauth frame formats, beacon spam patterns, and probe sniff techniques borrowed.
-
-- **[@bmorcelli](https://github.com/bmorcelli) / [@pr3y](https://github.com/pr3y)** → [Bruce](https://github.com/pr3y/Bruce)
-  Multi-device pentest firmware. Feature-set ideas for captive portal, RF replay, network attacks.
-
-- **[@ECTO-1A](https://github.com/ECTO-1A)** → [AppleJuice](https://github.com/ECTO-1A/AppleJuice)
-  Original research on CVE-2023-42941 (the iOS 17 Apple Continuity DoS). POSEIDON's Sour Apple feature is built directly on this work.
-
-- **[@RapierXbox](https://github.com/RapierXbox)** → [ESP32-Sour-Apple](https://github.com/RapierXbox/ESP32-Sour-Apple)
-  ESP32 port of AppleJuice. The exact Sour Apple payload bytes come from this repo.
-
-- **[@SpiderLabs](https://github.com/SpiderLabs)** → [Responder](https://github.com/SpiderLabs/Responder)
-  The canonical LLMNR/NBT-NS/mDNS poisoner. POSEIDON's Responder feature is a lite port of its core protocol handling.
-
-- **[@h2zero](https://github.com/h2zero)** → [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino)
-  The BLE stack this entire firmware relies on.
-
-- **[@M5Stack](https://github.com/m5stack)** → [M5Cardputer](https://github.com/m5stack/M5Cardputer) + [M5Unified](https://github.com/m5stack/M5Unified)
-  The hardware and the base drivers.
-
-- **Agostino Carracci (1557 – 1602)** / **Katsushika Hokusai (1760 – 1849)**
-  Long dead, but the two public-domain engravings I rolled through during splash-screen iteration are theirs. Current splash is Hokusai's *Great Wave off Kanagawa*, c. 1831.
-
-**If you see anything in this code that came from your project and isn't credited — please open an issue or PR so I can fix the attribution.**
-
-## Comparison
-
-|  | POSEIDON | Flipper Zero | Evil-Cardputer | Marauder | Bruce |
-|---|---|---|---|---|---|
-| Hardware | Cardputer | custom | Cardputer | any ESP32 | multi-device |
-| Keyboard input | ✅ native | ❌ | ✅ native | ❌ | ⚠️ |
-| Typed parameters | ✅ | ❌ | ⚠️ | ❌ | ⚠️ |
-| Letter mnemonics | ✅ everywhere | ❌ | ❌ | ❌ | ❌ |
-| Per-item info panels | ✅ (`=` key) | ❌ | ❌ | ❌ | ❌ |
-| Slide transitions | ✅ | ⚠️ basic | ❌ | ❌ | ❌ |
-| WiFi scan + deauth + portal | ✅ | ❌ (sub-GHz focus) | ✅ | ✅ | ✅ |
-| PMKID + full 4-way handshake | ✅ hashcat 22000 | ❌ | ✅ | ✅ | ✅ |
-| BLE HID Bad-KB | ✅ w/ 11 disguises | ❌ | ⚠️ | ❌ | ⚠️ |
-| Sour Apple (CVE-2023-42941) | ✅ | ✅ (with app) | ✅ | ❌ | ✅ |
-| Find My / AirTag emulator | ✅ flocks of 32 | ⚠️ | ❌ | ❌ | ⚠️ |
-| LAN auto-recon (drop-box) | ✅ | ❌ | ⚠️ | ❌ | ⚠️ |
-| Responder (NTLM capture) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| UPnP/SSDP enumerator | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Triton / autonomous gotchi | ✅ w/ RL | ❌ | ⚠️ karma-auto | ❌ | ❌ |
-| USB HID BadUSB | ✅ | ✅ | ✅ | ❌ | ⚠️ |
-| Wireless toy controller | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Adaptive ML per-channel | ✅ Triton | ❌ | ❌ | ❌ | ❌ |
+| POSEIDON | Cyan/magenta on black |
+| PHANTOM | Deep purple/violet |
+| MATRIX | Green phosphor on black |
+| AMBER | Warm retro terminal |
+| E-INK | Black on white (paper) |
+| TRON | Neon cyan + electric blue glow |
 
 ## Hardware
 
 | Component | Spec |
 |---|---|
 | MCU | ESP32-S3 @ 240 MHz |
-| RAM | 8 MB PSRAM |
-| Flash | 8 MB |
-| Display | 1.14" ST7789v2 240×135 |
-| Keyboard | 56-key QWERTY (MX1.25) |
+| Display | 1.14" ST7789v2 240x135 |
+| Keyboard | TCA8418 I2C matrix (Adv) |
 | Radio | WiFi 4 + BLE 5.0 |
-| IR | transmit-only LED on GPIO 44 |
-| USB | native USB-C (HID capable) |
+| IR | transmit-only LED |
+| USB | native USB-C (HID + CDC) |
 | Storage | microSD |
-| Speaker | I²S |
-| Grove | I²C |
 
-**Planned expansion:** ESP32-C5 for **5 GHz WiFi** + **802.15.4 (Zigbee/Thread)** as remote-radio nodes over ESP-NOW mesh. The C5 is the only ESP with 5 GHz — once wired in, POSEIDON becomes the only keyboard-driven pentesting device on the planet that can see 5 GHz networks.
+### Supported Hats (one at a time)
 
-## Building
+| Hat | Chips | Features |
+|---|---|---|
+| M5Stack CAP-LoRa1262 | SX1262 + ATGM336H | LoRa 868/915 MHz + GPS |
+| PINGEQUA Hydra RF Cap 424 | CC1101 + nRF24L01+ | Sub-GHz 300-928 MHz + 2.4 GHz |
+| ESP32-C5 (custom node) | ESP32-C5 | 5 GHz WiFi + 802.15.4 |
 
-### Prerequisites
-- [PlatformIO](https://platformio.org/install/cli)
-- An M5Stack Cardputer
+### Future Integration: MIMIR Drop-Box
 
-### Build
+**MIMIR** is a companion pentest drop-box running on a **Banana Pi BPI-M4 Zero** (Allwinner H618, 4GB RAM). POSEIDON connects via USB-C as the pocket-mode control client — no wireless link, pure opsec. MIMIR runs autonomous handshake hunting, cracking, and post-exploitation. The Cardputer is the interactive UI.
 
-```bash
-pio run
-```
+| MIMIR Component | Detail |
+|---|---|
+| SBC | BPI-M4 Zero (quad A53, 4GB LPDDR4) |
+| Attack Radio | Alfa AWUS036ACM (MT7612U, dual-band) |
+| UPS | Geekworm X306 (18650, MAX17040 gauge) |
+| Display | Waveshare 4" Spectra 6 e-ink (640x400) |
+| Sidecar | DAVEY JONES (ESP32-C6 + SX1262 LoRa) |
+| Control | POSEIDON Cardputer via USB-CDC |
 
-### Flash
+## Controls
 
-Hold the Cardputer's **G0** button, press **Reset**, release G0. Screen goes dark = download mode.
+| Key | Action |
+|---|---|
+| letter | jump to menu item |
+| `;` / `.` | scroll up / down |
+| `ENTER` | select / confirm |
+| `=` | info panel |
+| `` ` `` | back / ESC |
+| `+` / `-` | tune frequency (in RF features) |
+| `A` | auto-scan (in scan features) |
+| `S` | save capture |
+| `R` | replay / reset |
 
-```bash
-pio run -t upload
-```
+## Comparison
 
-Windows sometimes needs `--upload-port COMn` explicit. Check device manager for the virtual serial.
+|  | POSEIDON | Flipper Zero | Evil-M5 | Marauder | Bruce |
+|---|---|---|---|---|---|
+| Keyboard | native QWERTY | D-pad | native QWERTY | none | varies |
+| Features | 80+ | 50+ | 87 | 30+ | 40+ |
+| Sub-GHz | CC1101 | CC1101 | CC1101 | none | CC1101 |
+| 2.4 GHz RF | nRF24 | none | none | none | nRF24 |
+| LoRa | SX1262 | none | none | none | SX1262 |
+| 5 GHz WiFi | C5 node | none | none | none | none |
+| Zigbee | C5 node | none | none | none | none |
+| MouseJack | full suite | none | none | none | partial |
+| BLE Spam (nRF24) | CRC24+whiten | none | none | none | none |
+| Protocol Decoder | Princeton/CAME/NICE/Linear | 40+ | none | none | partial |
+| Signal Library | 3,190+ .sub | community | none | none | community |
+| DHCP Attacks | starve+rogue+hijack | none | starve+rogue | none | none |
+| WPAD/Autodiscover | NTLM capture | none | yes | none | none |
+| CIW Zeroclick | 157 payloads | none | yes | none | none |
+| Gotchi/Pet | Triton (RL brain) | Dolphin | none | none | none |
+| Themes | 6 palettes | 1 | 1 | 1 | 1 |
+| Drop-box Client | MIMIR USB-C | none | none | none | none |
 
-### Monitor
+## Massive Shoutouts
 
-```bash
-pio run -t monitor
-```
+- **[@7h30th3r0n3](https://github.com/7h30th3r0n3)** → [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) — DHCP attacks, WPAD, Autodiscover, CIW, honeypot, dead drop, SSDP poisoner ported from here
+- **[@JesseCHale](https://github.com/JesseCHale)** → [HaleHound-CYD](https://github.com/JesseCHale/HaleHound-CYD) — CC1101 init sequence reference
+- **[@insecurityofthings](https://github.com/insecurityofthings)** → [uC_mousejack](https://github.com/insecurityofthings/uC_mousejack) — MouseJack ESB sniffer + HID injection protocol
+- **[@0ct0sec](https://github.com/0ct0sec)** → [M5PORKCHOP](https://github.com/0ct0sec/M5PORKCHOP) — PigSync mesh, wardrive, spectrum concepts
+- **[@justcallmekoko](https://github.com/justcallmekoko)** → [ESP32Marauder](https://github.com/justcallmekoko/ESP32Marauder) — WiFi promisc attack patterns
+- **[@bmorcelli](https://github.com/bmorcelli) / [@pr3y](https://github.com/pr3y)** → [Bruce](https://github.com/pr3y/Bruce) — CC1101/nRF24 feature reference
+- **[@ECTO-1A](https://github.com/ECTO-1A)** → [AppleJuice](https://github.com/ECTO-1A/AppleJuice) — CVE-2023-42941 research
+- **[@SpiderLabs](https://github.com/SpiderLabs)** → [Responder](https://github.com/SpiderLabs/Responder) — LLMNR/NBT-NS protocol
+- **[@UberGuidoZ](https://github.com/UberGuidoZ)** → [Flipper](https://github.com/UberGuidoZ/Flipper) — Sub-GHz signal library (3,190+ .sub files)
+- **[@h2zero](https://github.com/h2zero)** → [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) — BLE stack
+- **[@jgromes](https://github.com/jgromes)** → [RadioLib](https://github.com/jgromes/RadioLib) — SX1262 LoRa driver
+- **[@M5Stack](https://github.com/m5stack)** → [M5Cardputer](https://github.com/m5stack/M5Cardputer) + [M5Unified](https://github.com/m5stack/M5Unified) — hardware + drivers
+- **[@PINGEQUA](https://www.pingequa.com/)** — Hydra RF Cap 424 hardware
+
+**If you see anything in this code that came from your project and isn't credited — please open an issue.**
 
 ## Legal
 
-This is for **authorized security testing, research, and education only**. You are responsible for complying with all applicable laws. Do not run any of this against networks or devices you don't own or have explicit written authorization to test.
+This is for **authorized security testing, research, and education only**. You are responsible for complying with all applicable laws. Do not use against networks or devices without explicit authorization.
 
-**RF region compliance is on you.** POSEIDON does not enforce regional channel restrictions. 2.4 GHz channels 12–14 behave differently depending on country. 5 GHz channel availability (DFS, UNII-2/2C/3) varies heavily. Deauth frame injection is illegal in many jurisdictions regardless of network ownership — even on your own AP. Check your local rules before firing.
-
-That said — it's your Cardputer, your network, your pentest engagement. Go find things.
-
-## License
-
-MIT. Take it, fork it, improve it. Credit the people above who deserve credit.
+MIT License. Take it, fork it, improve it.
 
 ---
 
