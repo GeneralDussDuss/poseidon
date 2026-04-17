@@ -18,9 +18,17 @@
 
 void ui_init(void);
 void ui_clear_body(void);
+void ui_force_clear_body(void);
 void ui_draw_status(const char *radio, const char *extra);
 void ui_draw_footer(const char *hints);
 void ui_toast(const char *msg, uint16_t color, uint32_t ms);
+
+/* Flicker-free text helper. Prints text at (x,y) padded to pad_w pixels
+ * with background color, so old content is overwritten without clearing.
+ * Use in redraw loops instead of ui_clear_body() + setCursor + print. */
+void ui_text(int x, int y, uint16_t fg, const char *fmt, ...);
+/* Same but with explicit width to clear. */
+void ui_text_w(int x, int y, int w, uint16_t fg, const char *fmt, ...);
 void ui_splash(void);
 
 /* Convenience wrappers around M5Cardputer.Display for body text drawing. */

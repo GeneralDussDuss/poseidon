@@ -3,6 +3,7 @@
  * with gradient bars, pulse indicator, and accent underlines.
  */
 #include "ui.h"
+#include "theme.h"
 #include "input.h"
 #include <stdarg.h>
 #include <math.h>
@@ -10,11 +11,11 @@
 #include <esp_random.h>
 #include <esp_heap_caps.h>
 
-/* Palette refinements — deeper blacks, sharper accents. */
-#define COL_STATUS_BG  0x0841  /* very dark blue-green */
-#define COL_FOOTER_BG  0x1082  /* deep slate */
-#define COL_RULE       0x2124  /* muted cyan rule */
-#define COL_SEL_BG     0x18C7  /* selected row dark cyan */
+/* Legacy compat — these now pull from the active theme. */
+#define COL_STATUS_BG  (theme().status_bg2)
+#define COL_FOOTER_BG  (theme().footer_bg)
+#define COL_RULE       (theme().rule)
+#define COL_SEL_BG     (theme().sel_bg)
 
 static uint32_t s_pulse_at = 0;
 static bool     s_pulse_on = false;
@@ -27,14 +28,55 @@ static void fill_row(int y, int h, uint16_t c)
 void ui_init(void)
 {
     auto &d = M5Cardputer.Display;
-    d.fillScreen(COL_BG);
+    d.fillScreen(T_BG);
     d.setTextWrap(false, false);
     d.setTextSize(1);
 }
 
+static uint32_t s_last_clear = 0;
+
 void ui_clear_body(void)
 {
-    M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, COL_BG);
+    uint32_t now = millis();
+    /* Only actually fill on the first call or after a >300ms gap
+     * (screen transition). Rapid redraws (<300ms) skip the fill
+     * entirely — callers use ui_text() or setTextColor(fg, bg) to
+     * overwrite in place. This kills the strobe globally. */
+    if (now - s_last_clear > 300) {
+        M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
+    }
+    s_last_clear = now;
+}
+
+/* Force a real clear — use for screen transitions, menu entry/exit. */
+void ui_force_clear_body(void)
+{
+    M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
+    s_last_clear = millis();
+}
+
+void ui_text(int x, int y, uint16_t fg, const char *fmt, ...)
+{
+    auto &d = M5Cardputer.Display;
+    char buf[64];
+    va_list ap; va_start(ap, fmt); vsnprintf(buf, sizeof(buf), fmt, ap); va_end(ap);
+    /* Overwrite with bg — fills the text bbox so no clear needed. */
+    d.setTextColor(fg, T_BG);
+    d.setCursor(x, y);
+    d.print(buf);
+    int tx = d.getCursorX();
+    if (tx < SCR_W - 4) d.fillRect(tx, y, SCR_W - 4 - tx, 10, T_BG);
+}
+
+void ui_text_w(int x, int y, int w, uint16_t fg, const char *fmt, ...)
+{
+    auto &d = M5Cardputer.Display;
+    char buf[64];
+    va_list ap; va_start(ap, fmt); vsnprintf(buf, sizeof(buf), fmt, ap); va_end(ap);
+    d.fillRect(x, y, w, 10, T_BG);
+    d.setTextColor(fg, T_BG);
+    d.setCursor(x, y);
+    d.print(buf);
 }
 
 /* Draw a vertical gradient fill between two colors. */
@@ -55,22 +97,20 @@ static void vgradient(int x, int y, int w, int h, uint16_t top, uint16_t bot)
 void ui_draw_status(const char *radio, const char *extra)
 {
     auto &d = M5Cardputer.Display;
-    vgradient(0, 0, SCR_W, STATUS_H - 1, 0x20A5, COL_STATUS_BG);  /* teal → dark */
+    vgradient(0, 0, SCR_W, STATUS_H - 1, theme().status_bg, theme().status_bg2);
 
-    /* Live pulse dot — cycles so users can see the UI is alive. */
     uint32_t now = millis();
     if (now - s_pulse_at > 400) { s_pulse_at = now; s_pulse_on = !s_pulse_on; }
-    d.fillCircle(5, 6, 2, s_pulse_on ? COL_ACCENT : COL_DIM);
+    d.fillCircle(5, 6, 2, s_pulse_on ? T_ACCENT : T_DIM);
 
-    /* Title + current radio domain. */
-    d.setTextColor(COL_ACCENT, 0);
+    d.setTextColor(T_ACCENT, 0);
     d.setCursor(12, 2);
     d.print("POSEIDON");
-    d.setTextColor(COL_FG, 0);
+    d.setTextColor(T_FG, 0);
     d.printf("  %s", radio ? radio : "idle");
 
     /* Right-aligned heap + extra status. */
-    d.setTextColor(COL_DIM, 0);
+    d.setTextColor(T_DIM, 0);
     char buf[32];
     uint32_t heap_kb = esp_get_free_heap_size() / 1024;
     snprintf(buf, sizeof(buf), "%luK%s%s",
@@ -82,7 +122,7 @@ void ui_draw_status(const char *radio, const char *extra)
     d.print(buf);
 
     /* Accent rule. */
-    d.drawFastHLine(0, STATUS_H - 1, SCR_W, COL_ACCENT);
+    d.drawFastHLine(0, STATUS_H - 1, SCR_W, T_ACCENT);
 }
 
 void ui_draw_footer(const char *hints)
@@ -90,7 +130,7 @@ void ui_draw_footer(const char *hints)
     auto &d = M5Cardputer.Display;
     vgradient(0, FOOTER_Y + 1, SCR_W, FOOTER_H - 1, COL_FOOTER_BG, 0x0000);
     d.drawFastHLine(0, FOOTER_Y, SCR_W, COL_RULE);
-    d.setTextColor(COL_DIM, 0);
+    d.setTextColor(T_DIM, 0);
     d.setCursor(4, FOOTER_Y + 2);
     if (hints) d.print(hints);
 }
@@ -103,12 +143,12 @@ void ui_toast(const char *msg, uint16_t color, uint32_t ms)
     int h = 20;
     int x = (SCR_W - w) / 2;
     int y = (SCR_H - h) / 2;
-    d.fillRoundRect(x, y, w, h, 3, COL_BG);
+    d.fillRoundRect(x, y, w, h, 3, T_BG);
     d.drawRoundRect(x, y, w, h, 3, color);
     /* drop shadow */
     d.drawFastHLine(x + 2, y + h, w, 0x18C3);
     d.drawFastVLine(x + w, y + 2, h, 0x18C3);
-    d.setTextColor(color, COL_BG);
+    d.setTextColor(color, T_BG);
     d.setCursor(x + (w - tw) / 2, y + 6);
     d.print(msg);
     delay(ms);
@@ -129,8 +169,8 @@ void ui_body_println(int row, uint16_t color, const char *fmt, ...)
     va_end(ap);
 
     int y = BODY_Y + 2 + row * 11;
-    d.fillRect(0, y, SCR_W, 11, COL_BG);
-    d.setTextColor(color, COL_BG);
+    d.fillRect(0, y, SCR_W, 11, T_BG);
+    d.setTextColor(color, T_BG);
     d.setCursor(4, y);
     d.print(buf);
 }
@@ -217,7 +257,7 @@ void ui_notify_slide(const char *title, const char *sub,
         d.setTextSize(1);
         if (sub && *sub) {
             int sw = d.textWidth(sub);
-            d.setTextColor(COL_FG, 0x0000);
+            d.setTextColor(T_FG, 0x0000);
             d.setCursor(bx + (bw - sw) / 2, y + 22);
             d.print(sub);
         }
@@ -249,7 +289,7 @@ void ui_ripple(int cx, int cy, uint16_t color)
     for (int r = 3; r < 24; r += 3) {
         d.drawCircle(cx, cy, r, color);
         delay(20);
-        d.drawCircle(cx, cy, r, COL_BG);
+        d.drawCircle(cx, cy, r, T_BG);
     }
 }
 
@@ -516,23 +556,23 @@ void ui_dashboard_chrome(const char *title, bool flash_now)
     if (dt < 500) {
         /* alpha 31 → 0 linearly. */
         uint8_t alpha = 31 - (dt * 31) / 500;
-        uint16_t c = dim565(COL_MAGENTA, alpha);
+        uint16_t c = dim565(T_ACCENT2, alpha);
         d.drawRect(0, BODY_Y, SCR_W, BODY_H, c);
     }
 
     /* Title bar. */
-    d.setTextColor(COL_MAGENTA, COL_BG);
+    d.setTextColor(T_ACCENT2, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.print(title);
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, COL_MAGENTA);
+    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
 
     /* Corner radar. */
-    ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, COL_MAGENTA);
+    ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, T_ACCENT2);
 }
 
 void ui_freq_bars(int x, int y, int bar_w, int bar_h_max)
 {
-    ui_eq_bars(x, y, bar_w, bar_h_max, COL_ACCENT);
+    ui_eq_bars(x, y, bar_w, bar_h_max, T_ACCENT);
 }
 
 /* ---- full-screen action overlay ---- */
@@ -668,7 +708,7 @@ void ui_matrix_rain(int x, int y, int w, int h, uint16_t color)
             if (t == 1) tcol = color;
             else if (t == 2) tcol = 0x0440;  /* dim */
             else if (t >= 3) tcol = 0x0220;
-            d.setTextColor(tcol, COL_BG);
+            d.setTextColor(tcol, T_BG);
             d.setCursor(x + c * col_w, y + ty * row_h);
             char g = 0x21 + (char)(esp_random() % 0x5D);
             d.printf("%c", g);
@@ -677,13 +717,13 @@ void ui_matrix_rain(int x, int y, int w, int h, uint16_t color)
             /* Erase the tail row below the 5-char trail. */
             int erase_y = mx_head[c] - 5;
             if (erase_y >= 0 && erase_y < rows) {
-                d.fillRect(x + c * col_w, y + erase_y * row_h, col_w, row_h, COL_BG);
+                d.fillRect(x + c * col_w, y + erase_y * row_h, col_w, row_h, T_BG);
             }
             mx_head[c] += mx_speed[c];
             if (mx_head[c] >= rows + 5) {
                 mx_head[c] = -1;  /* done */
                 /* Also wipe any leftover pixels in this column. */
-                d.fillRect(x + c * col_w, y, col_w, h, COL_BG);
+                d.fillRect(x + c * col_w, y, col_w, h, T_BG);
             }
         }
     }
