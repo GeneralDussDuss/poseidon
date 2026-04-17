@@ -71,6 +71,7 @@ extern void feat_clock(void);
 extern void feat_lora_scan(void);
 extern void feat_lora_beacon(void);
 extern void feat_lora_meshtastic(void);
+extern void feat_lora_spectrum(void);
 extern void feat_gps_fix(void);
 extern void feat_subghz_scan(void);
 extern void feat_subghz_record(void);
@@ -384,6 +385,10 @@ static const menu_node_t MENU_LORA[] = {
     { 'm', "Mesh LF", "Meshtastic LongFast US listener", nullptr, feat_lora_meshtastic,
       "Tunes 906.875 MHz with LongFast US params (SF11 BW250 CR4/5). "
       "Parses Meshtastic packet headers: FROM/TO nodeId, packet ID." },
+    { 'a', "Analyzer", "LoRa band spectrum + waterfall + scope", nullptr, feat_lora_spectrum,
+      "Three visualization modes for LoRa bands: bar spectrum with gradient "
+      "RSSI + peak hold + dBm grid, waterfall spectrogram heatmap, and "
+      "live oscilloscope waveform. Covers 430-440, 860-870, 900-930 MHz." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

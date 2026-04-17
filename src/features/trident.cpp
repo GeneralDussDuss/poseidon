@@ -130,6 +130,15 @@ void feat_trident(void)
 
     radio_switch(RADIO_NONE);
 
+    /* Drain any stale boot log data from the Serial buffer so the
+     * first hello/stream command from the PC isn't lost in noise. */
+    while (Serial.available()) Serial.read();
+    delay(50);
+
+    /* Announce ourselves so PC knows bridge is ready. */
+    Serial.printf("{\"evt\":\"hello\",\"ver\":1,\"product\":\"poseidon\",\"fw\":\"%s\"}\n",
+                  poseidon_version());
+
     ui_clear_body();
     ui_draw_status("trident", "bridge");
     auto &d = M5Cardputer.Display;
