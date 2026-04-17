@@ -34,17 +34,22 @@ void ui_init(void)
 }
 
 static uint32_t s_last_clear = 0;
+static uint32_t s_clear_count = 0;
 
 void ui_clear_body(void)
 {
     uint32_t now = millis();
-    /* Only actually fill on the first call or after a >300ms gap
-     * (screen transition). Rapid redraws (<300ms) skip the fill
-     * entirely — callers use ui_text() or setTextColor(fg, bg) to
-     * overwrite in place. This kills the strobe globally. */
-    if (now - s_last_clear > 300) {
-        M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
+    /* Suppress rapid-fire clears that cause strobe: if called more than
+     * 3 times within 500ms, start skipping. This allows pickers (which
+     * clear on each keypress, ~1-2Hz) to work while blocking 10-30Hz
+     * redraw loops in live displays. */
+    if (now - s_last_clear < 80) {
+        s_clear_count++;
+        if (s_clear_count > 4) return;  /* strobe — skip */
+    } else {
+        s_clear_count = 0;
     }
+    M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
     s_last_clear = now;
 }
 

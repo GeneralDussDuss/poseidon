@@ -8,9 +8,11 @@
 #include "../app.h"
 #include "../ui.h"
 #include "../input.h"
+#include "../radio.h"
 #include "../theme.h"
 #include "../version.h"
 #include "trident.h"
+#include <esp_heap_caps.h>
 
 static uint16_t *s_frame = nullptr;
 static bool s_streaming = false;
@@ -121,8 +123,19 @@ void feat_trident(void)
     s_streaming = false;
     s_rx_len = 0;
 
-    s_frame = (uint16_t *)malloc(240 * 135 * 2);
-    if (!s_frame) { ui_toast("OOM frame buf", T_BAD, 1500); g_trident_cdc_active = false; return; }
+    /* Free heap by dropping any active radio stack. */
+    radio_switch(RADIO_NONE);
+
+    /* Try DMA-capable memory first, fall back to regular heap. */
+    s_frame = (uint16_t *)heap_caps_malloc(240 * 135 * 2, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    if (!s_frame) s_frame = (uint16_t *)malloc(240 * 135 * 2);
+    if (!s_frame) {
+        /* Still OOM — try half-res (120x67, scale on PC side). */
+        ui_toast("low memory — half res", T_WARN, 1000);
+        /* For now just bail. Full fix: stream in scanline chunks. */
+        g_trident_cdc_active = false;
+        return;
+    }
 
     ui_clear_body();
     ui_draw_status("trident", "bridge");

@@ -572,26 +572,35 @@ static bool pick_mode(void)
     int sel = (int)s_mode;
     triton_mode_t modes[4] = { TM_HUNT, TM_STEALTH, TM_SURGICAL, TM_STORM };
     ui_draw_footer(";/. pick  ENTER=launch  `=back");
+    int prev_sel = -1;
     while (true) {
-        ui_clear_body();
-        d.setTextColor(T_ACCENT2, T_BG);
-        d.setCursor(4, BODY_Y + 2); d.print("TRITON MODE");
-        d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT2);
-        for (int i = 0; i < 4; ++i) {
-            int y = BODY_Y + 18 + i * 14;
-            bool s = (i == sel);
-            if (s) d.fillRect(0, y - 1, SCR_W, 14, 0x3007);
-            d.setTextColor(s ? T_ACCENT : T_FG, s ? 0x3007 : T_BG);
-            d.setCursor(6, y);     d.printf("%-8s", mode_name(modes[i]));
-            d.setTextColor(s ? 0xFFFF : T_DIM, s ? 0x3007 : T_BG);
-            d.setCursor(80, y);    d.print(mode_blurb(modes[i]));
-        }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }
         if (k == PK_ESC) return false;
         if (k == ';' || k == PK_UP)   { if (sel > 0) sel--; }
         if (k == '.' || k == PK_DOWN) { if (sel < 3) sel++; }
         if (k == PK_ENTER) { s_mode = modes[sel]; return true; }
+
+        if (sel != prev_sel || prev_sel < 0) {
+            prev_sel = sel;
+            ui_force_clear_body();
+            d.setTextColor(T_ACCENT2, T_BG);
+            d.setCursor(4, BODY_Y + 2); d.print("TRITON MODE");
+            d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT2);
+            for (int i = 0; i < 4; ++i) {
+                int y = BODY_Y + 18 + i * 14;
+                bool s = (i == sel);
+                if (s) {
+                    d.fillRoundRect(2, y - 1, SCR_W - 4, 13, 2, T_SEL_BG);
+                    d.drawRoundRect(2, y - 1, SCR_W - 4, 13, 2, T_SEL_BD);
+                }
+                d.setTextColor(s ? T_ACCENT : T_FG, s ? T_SEL_BG : T_BG);
+                d.setCursor(6, y);  d.printf("%-8s", mode_name(modes[i]));
+                d.setTextColor(s ? T_FG : T_DIM, s ? T_SEL_BG : T_BG);
+                d.setCursor(80, y); d.print(mode_blurb(modes[i]));
+            }
+            ui_draw_footer(";/. pick  ENTER=launch  `=back");
+        }
     }
 }
 
