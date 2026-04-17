@@ -4,199 +4,363 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>POSEIDON — Commander of the Deep</title>
-<meta name="description" content="80+ feature pentesting firmware for M5Stack Cardputer-Adv. WiFi, BLE, sub-GHz, LoRa, nRF24, IR, BadUSB, DHCP attacks, MouseJack, signal replay, 6 themes.">
+<meta name="description" content="80+ feature keyboard-first pentesting firmware for M5Stack Cardputer-Adv. WiFi / BLE / sub-GHz / LoRa / nRF24 / IR / BadUSB.">
+<meta property="og:title" content="POSEIDON">
+<meta property="og:description" content="Commander of the Deep — 80+ pocket pentest tools across 6 radio bands.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 @property --angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg-void:#000;--bg-surface:#060810;--bg-raised:#0a1220;--bg-card:#0d1628;
-  --ocean-dim:#0c4a6e;--ocean-muted:#075985;--ocean-core:#0369a1;
+  --bg-void:#000;--bg-surface:#060810;--bg-raised:#0a1220;--bg-card:#0d1628;--bg-deep:#030611;
+  --ocean-abyssal:#041e33;--ocean-dim:#0c4a6e;--ocean-muted:#075985;--ocean-core:#0369a1;
   --ocean-bright:#0ea5e9;--ocean-vivid:#38bdf8;--ocean-hot:#7dd3fc;--ocean-white:#e0f2fe;
+  --coral:#f97316;--bio:#22d3ee;--gold:#fbbf24;--sea-foam:#d1fae5;
   --glow-subtle:0 0 4px rgba(14,165,233,.3);
   --glow-medium:0 0 12px rgba(14,165,233,.4),0 0 4px rgba(14,165,233,.6);
   --glow-intense:0 0 20px rgba(14,165,233,.5),0 0 8px rgba(14,165,233,.7),0 0 40px rgba(14,165,233,.2);
   --glow-neon:0 0 4px #0ea5e9,0 0 12px rgba(14,165,233,.6),0 0 30px rgba(14,165,233,.3),0 0 60px rgba(14,165,233,.15);
+  --glow-coral:0 0 12px rgba(249,115,22,.4),0 0 30px rgba(249,115,22,.15);
   --font-display:'Orbitron',sans-serif;--font-body:'Rajdhani',sans-serif;--font-mono:'JetBrains Mono',monospace;
-  --ease-smooth:cubic-bezier(.4,0,.2,1);--ease-bounce:cubic-bezier(.34,1.56,.64,1);
+  --ease-smooth:cubic-bezier(.4,0,.2,1);--ease-bounce:cubic-bezier(.34,1.56,.64,1);--ease-spring:cubic-bezier(.175,.885,.32,1.275);
 }
 html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
-body{background:var(--bg-void);color:#e2e8f0;font-family:var(--font-body);font-weight:400;line-height:1.6;overflow-x:hidden}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.03;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")}
-a{color:var(--ocean-bright);text-decoration:none;transition:color .2s}
-a:hover{color:var(--ocean-vivid)}
+body{background:var(--bg-void);color:#e2e8f0;font-family:var(--font-body);font-weight:400;line-height:1.6;overflow-x:hidden;cursor:default}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:
+  radial-gradient(ellipse at top,rgba(14,165,233,.08),transparent 60%),
+  radial-gradient(ellipse at bottom,rgba(7,89,133,.06),transparent 60%);}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.025;z-index:1;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")}
+a{color:var(--ocean-bright);text-decoration:none;transition:color .2s,text-shadow .2s}
+a:hover{color:var(--ocean-vivid);text-shadow:0 0 8px rgba(56,189,248,.5)}
 ::selection{background:rgba(14,165,233,.3);color:#fff}
 
+/* Boot overlay */
+#bootOverlay{position:fixed;inset:0;background:var(--bg-void);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s .3s,visibility 0s 1.1s;font-family:var(--font-mono);font-size:.85rem;color:var(--ocean-vivid)}
+#bootOverlay.hidden{opacity:0;visibility:hidden}
+#bootOverlay .boot-logo{font-family:var(--font-display);font-size:3rem;font-weight:900;letter-spacing:.2em;color:var(--ocean-vivid);margin-bottom:2rem;text-shadow:var(--glow-medium);opacity:0;animation:bootLogoIn 1.2s .1s var(--ease-smooth) forwards}
+#bootOverlay .boot-trident{font-size:2.5rem;color:var(--ocean-bright);margin-bottom:1rem;opacity:0;animation:bootTridentIn 1s var(--ease-spring) forwards}
+#bootOverlay .boot-lines{min-height:120px;text-align:left;min-width:280px}
+#bootOverlay .boot-line{opacity:0;animation:bootLineIn .4s forwards}
+#bootOverlay .boot-line:nth-child(1){animation-delay:.8s}
+#bootOverlay .boot-line:nth-child(2){animation-delay:1.0s}
+#bootOverlay .boot-line:nth-child(3){animation-delay:1.2s}
+#bootOverlay .boot-line:nth-child(4){animation-delay:1.4s}
+#bootOverlay .boot-line .ok{color:#22c55e}
+#bootOverlay .boot-line .dim{color:#64748b}
+@keyframes bootLogoIn{0%{opacity:0;letter-spacing:.5em;filter:blur(8px)}100%{opacity:1;letter-spacing:.2em;filter:blur(0)}}
+@keyframes bootTridentIn{0%{opacity:0;transform:scale(.5) rotate(-20deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes bootLineIn{to{opacity:1}}
+
 /* Scroll progress */
-#scrollProgress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--ocean-core),var(--ocean-vivid));box-shadow:var(--glow-medium);z-index:1001;transition:width .1s}
+#scrollProgress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--ocean-core),var(--ocean-vivid),var(--bio));box-shadow:var(--glow-medium);z-index:1001;transition:width .1s;width:0}
+
+/* HUD (top-right floating status) */
+#hud{position:fixed;top:1rem;right:1rem;z-index:999;font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-bright);background:rgba(6,8,16,.7);backdrop-filter:blur(10px);border:1px solid rgba(14,165,233,.15);border-radius:6px;padding:.4rem .7rem;letter-spacing:.05em;display:none;opacity:0;transition:opacity .4s}
+#hud.visible{display:block;opacity:1}
+#hud .hud-row{display:flex;gap:.5rem;align-items:center}
+#hud .hud-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 4px #22c55e;animation:pulse 1.5s infinite}
+@media(max-width:900px){#hud{display:none !important}}
 
 /* Nav */
 nav{position:fixed;top:0;width:100%;z-index:1000;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;transition:all .3s var(--ease-smooth)}
 nav.scrolled{background:rgba(0,0,0,.85);backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid rgba(14,165,233,.1)}
 .nav-logo{font-family:var(--font-display);font-size:.9rem;font-weight:700;letter-spacing:.15em;display:flex;align-items:center;gap:.75rem;color:var(--ocean-vivid)}
-.nav-logo .icon{width:32px;height:32px;border:1.5px solid var(--ocean-bright);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:900;box-shadow:var(--glow-subtle);transition:all .3s}
+.nav-logo .icon{width:32px;height:32px;border:1.5px solid var(--ocean-bright);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:900;box-shadow:var(--glow-subtle);transition:all .3s;position:relative;overflow:hidden}
+.nav-logo .icon::after{content:'';position:absolute;inset:0;background:conic-gradient(from var(--angle),transparent,rgba(14,165,233,.4),transparent);animation:spin 3s linear infinite;opacity:0}
+.nav-logo:hover .icon::after{opacity:1}
+@keyframes spin{to{--angle:360deg}}
 .nav-logo:hover .icon{box-shadow:var(--glow-medium);border-color:var(--ocean-vivid)}
 .nav-links{display:flex;gap:2rem;list-style:none}
-.nav-links a{font-family:var(--font-body);font-weight:500;font-size:.95rem;color:#94a3b8;transition:color .2s}
+.nav-links a{font-family:var(--font-body);font-weight:500;font-size:.95rem;color:#94a3b8;transition:color .2s;position:relative}
+.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1px;background:var(--ocean-bright);transition:width .3s}
 .nav-links a:hover{color:var(--ocean-bright)}
+.nav-links a:hover::after{width:100%}
 
 /* Hero */
-#hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;padding:2rem}
+#hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;padding:2rem;overflow:hidden}
 #heroCanvas{position:absolute;inset:0;z-index:0}
-.hero-content{position:relative;z-index:1}
-.hero-badge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3);padding:.4rem 1rem;border-radius:100px;margin-bottom:1.5rem;background:rgba(14,165,233,.05)}
+#causticLayer{position:absolute;inset:0;z-index:0;opacity:.4;mix-blend-mode:screen;pointer-events:none}
+.hero-content{position:relative;z-index:2}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3);padding:.4rem 1rem;border-radius:100px;margin-bottom:1.5rem;background:rgba(14,165,233,.05);backdrop-filter:blur(8px)}
 .hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--ocean-bright);box-shadow:var(--glow-subtle);animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
-.hero-title{font-family:var(--font-display);font-size:clamp(2.5rem,6vw,5rem);font-weight:900;letter-spacing:.08em;line-height:1.1;margin-bottom:1rem;background:linear-gradient(135deg,var(--ocean-vivid),var(--ocean-hot),#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none}
-.hero-sub{font-size:clamp(1rem,2vw,1.4rem);color:#94a3b8;max-width:600px;margin:0 auto 2rem;font-weight:300}
+.hero-title{font-family:var(--font-display);font-size:clamp(2.8rem,8vw,6rem);font-weight:900;letter-spacing:.08em;line-height:1;margin-bottom:1rem;background:linear-gradient(135deg,var(--ocean-vivid),var(--ocean-hot),#fff,var(--bio));background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:titleGradient 8s ease infinite;filter:drop-shadow(0 0 30px rgba(14,165,233,.3))}
+@keyframes titleGradient{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.hero-epithet{font-family:var(--font-display);font-size:clamp(.8rem,1.3vw,1rem);letter-spacing:.5em;color:var(--ocean-muted);margin-bottom:1.5rem;text-transform:uppercase}
+.hero-sub{font-size:clamp(1rem,2vw,1.35rem);color:#cbd5e1;max-width:620px;margin:0 auto 2rem;font-weight:300;line-height:1.5}
+.hero-sub .hl{color:var(--ocean-bright);font-weight:500}
+.hero-prompt{display:inline-flex;align-items:center;gap:.75rem;font-family:var(--font-mono);font-size:.85rem;padding:.7rem 1.2rem;background:rgba(6,8,16,.75);border:1px solid rgba(14,165,233,.25);border-radius:6px;margin-bottom:2rem;backdrop-filter:blur(10px);max-width:92vw;overflow:hidden;text-align:left}
+.hero-prompt .prompt-dollar{color:var(--coral)}
+.hero-prompt .prompt-cmd{color:var(--ocean-hot)}
+.hero-prompt .prompt-arg{color:#cbd5e1}
+.hero-prompt .prompt-flag{color:var(--gold)}
+.hero-prompt .prompt-cursor{display:inline-block;width:8px;height:1em;background:var(--ocean-hot);animation:blink 1s infinite;vertical-align:middle;margin-left:2px}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn{font-family:var(--font-body);font-weight:600;font-size:1rem;padding:.75rem 2rem;border-radius:8px;border:none;cursor:pointer;transition:all .3s var(--ease-bounce);display:inline-flex;align-items:center;gap:.5rem}
+.btn{font-family:var(--font-body);font-weight:600;font-size:1rem;padding:.8rem 2rem;border-radius:8px;border:none;cursor:pointer;transition:all .3s var(--ease-bounce);display:inline-flex;align-items:center;gap:.5rem;position:relative;overflow:hidden;letter-spacing:.02em}
 .btn-primary{background:linear-gradient(135deg,var(--ocean-core),var(--ocean-bright));color:#fff;box-shadow:var(--glow-medium)}
+.btn-primary::before{content:'';position:absolute;inset:-2px;background:linear-gradient(135deg,var(--ocean-vivid),var(--bio));border-radius:8px;z-index:-1;opacity:0;transition:opacity .3s;filter:blur(8px)}
 .btn-primary:hover{transform:translateY(-2px) scale(1.03);box-shadow:var(--glow-intense)}
+.btn-primary:hover::before{opacity:1}
 .btn-secondary{background:transparent;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.4)}
 .btn-secondary:hover{background:rgba(14,165,233,.1);border-color:var(--ocean-bright);transform:translateY(-2px)}
-.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3rem}
-.hero-stat{text-align:center}
-.hero-stat .num{font-family:var(--font-display);font-size:2.5rem;font-weight:900;color:var(--ocean-vivid);text-shadow:0 0 20px rgba(14,165,233,.4)}
-.hero-stat .label{font-size:.85rem;color:#64748b;text-transform:uppercase;letter-spacing:.1em}
+.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3rem;flex-wrap:wrap}
+.hero-stat{text-align:center;min-width:90px}
+.hero-stat .num{font-family:var(--font-display);font-size:2.5rem;font-weight:900;color:var(--ocean-vivid);text-shadow:0 0 20px rgba(14,165,233,.4);line-height:1}
+.hero-stat .label{font-size:.78rem;color:#64748b;text-transform:uppercase;letter-spacing:.15em;margin-top:.25rem}
+.hero-scroll{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-muted);letter-spacing:.2em;writing-mode:vertical-rl;animation:scrollCue 2s infinite}
+@keyframes scrollCue{0%,100%{transform:translateX(-50%) translateY(0);opacity:.4}50%{transform:translateX(-50%) translateY(8px);opacity:1}}
 
-/* Sections */
-section{padding:6rem 2rem;max-width:1200px;margin:0 auto}
+/* Section base */
+section{padding:7rem 2rem;max-width:1200px;margin:0 auto;position:relative}
 .section-label{font-family:var(--font-mono);font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ocean-bright);margin-bottom:1rem;display:flex;align-items:center;gap:1rem}
-.section-label::before{content:'';width:40px;height:1px;background:var(--ocean-bright)}
+.section-label::before{content:'';width:40px;height:1px;background:var(--ocean-bright);box-shadow:0 0 4px var(--ocean-bright)}
 .section-title{font-family:var(--font-display);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;letter-spacing:.04em;margin-bottom:1rem;color:#f1f5f9}
-.section-desc{color:#94a3b8;font-size:1.1rem;max-width:700px;margin-bottom:3rem}
+.section-desc{color:#94a3b8;font-size:1.1rem;max-width:720px;margin-bottom:3rem}
+
+/* Wave divider (between sections) */
+.wave-divider{display:block;width:100%;height:60px;margin:-30px 0}
+
+/* Stats ticker */
+.ticker{overflow:hidden;border-top:1px solid rgba(14,165,233,.1);border-bottom:1px solid rgba(14,165,233,.1);background:rgba(6,8,16,.5);padding:.75rem 0;margin:0 -2rem}
+.ticker-track{display:flex;gap:4rem;animation:ticker 40s linear infinite;font-family:var(--font-mono);font-size:.85rem;color:var(--ocean-muted);white-space:nowrap}
+.ticker-track span{letter-spacing:.1em}
+.ticker-track .val{color:var(--ocean-vivid)}
+@keyframes ticker{to{transform:translateX(-50%)}}
 
 /* Feature grid */
-.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
-.feature-card{background:var(--bg-raised);border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.5rem;transition:all .3s var(--ease-smooth);position:relative;overflow:hidden}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1.5rem}
+.feature-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:14px;padding:1.75rem 1.5rem;transition:all .4s var(--ease-smooth);position:relative;overflow:hidden;cursor:default}
 .feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ocean-bright),transparent);opacity:0;transition:opacity .3s}
-.feature-card:hover{transform:translateY(-3px);border-color:rgba(14,165,233,.2);box-shadow:0 8px 32px rgba(0,0,0,.4)}
-.feature-card:hover::before{opacity:1}
-.feature-card h3{font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--ocean-vivid);margin-bottom:.5rem;letter-spacing:.05em}
-.feature-card p{font-size:.9rem;color:#94a3b8;line-height:1.5}
-.feature-card .count{font-family:var(--font-mono);font-size:.75rem;color:var(--ocean-muted);margin-top:.75rem}
+.feature-card::after{content:'';position:absolute;inset:-1px;border-radius:14px;padding:1px;background:linear-gradient(135deg,rgba(14,165,233,.3),transparent,rgba(34,211,238,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none}
+.feature-card:hover{transform:translateY(-4px);border-color:transparent;box-shadow:0 20px 48px rgba(0,0,0,.5),0 0 40px rgba(14,165,233,.15)}
+.feature-card:hover::before,.feature-card:hover::after{opacity:1}
+.feature-card .fc-head{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.feature-card .fc-glyph{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(14,165,233,.3);border-radius:8px;background:rgba(14,165,233,.05);flex-shrink:0;transition:all .3s}
+.feature-card:hover .fc-glyph{box-shadow:0 0 12px rgba(14,165,233,.3);border-color:var(--ocean-bright);transform:rotate(5deg) scale(1.05)}
+.feature-card .fc-glyph svg{width:20px;height:20px;stroke:var(--ocean-vivid);fill:none;stroke-width:1.5}
+.feature-card h3{font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--ocean-vivid);letter-spacing:.05em;flex:1}
+.feature-card p{font-size:.92rem;color:#a3b4cf;line-height:1.55}
+.feature-card .count{font-family:var(--font-mono);font-size:.72rem;color:var(--ocean-muted);margin-top:.9rem;letter-spacing:.1em;display:flex;align-items:center;gap:.5rem}
+.feature-card .count::before{content:'';width:8px;height:8px;border:1px solid var(--ocean-muted);transform:rotate(45deg)}
 
-/* Hardware table */
+/* Hardware */
 .hw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.5rem}
-.hw-card{background:var(--bg-raised);border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:2rem;transition:all .3s}
-.hw-card:hover{border-color:rgba(14,165,233,.2)}
-.hw-card h3{font-family:var(--font-display);font-size:1rem;color:var(--ocean-vivid);margin-bottom:1rem}
-.hw-card table{width:100%;font-size:.85rem}
-.hw-card td{padding:.3rem 0;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,.03)}
-.hw-card td:first-child{color:#cbd5e1;font-weight:500;width:40%}
+.hw-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:14px;padding:2rem;transition:all .3s;position:relative;overflow:hidden}
+.hw-card::before{content:'';position:absolute;top:0;right:0;width:80px;height:80px;background:radial-gradient(circle at top right,rgba(14,165,233,.15),transparent 70%);pointer-events:none}
+.hw-card:hover{border-color:rgba(14,165,233,.25);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.hw-card h3{font-family:var(--font-display);font-size:1rem;color:var(--ocean-vivid);margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;letter-spacing:.05em}
+.hw-card h3 .chip{font-family:var(--font-mono);font-size:.65rem;color:var(--coral);border:1px solid rgba(249,115,22,.3);padding:2px 6px;border-radius:4px;font-weight:400}
+.hw-card table{width:100%;font-size:.86rem}
+.hw-card td{padding:.4rem 0;color:#a3b4cf;border-bottom:1px solid rgba(255,255,255,.03)}
+.hw-card td:first-child{color:#cbd5e1;font-weight:500;width:38%;font-size:.8rem;letter-spacing:.03em}
+
+/* Roadmap */
+.roadmap{position:relative;padding-left:2.5rem}
+.roadmap::before{content:'';position:absolute;left:.9rem;top:.5rem;bottom:.5rem;width:2px;background:linear-gradient(180deg,var(--ocean-vivid),var(--ocean-core),var(--ocean-muted),transparent);border-radius:2px}
+.rm-item{position:relative;margin-bottom:2.5rem}
+.rm-item::before{content:'';position:absolute;left:-1.6rem;top:1rem;width:14px;height:14px;border-radius:50%;background:var(--bg-void);border:2px solid var(--ocean-bright);box-shadow:0 0 8px var(--ocean-bright)}
+.rm-item.shipped::before{background:var(--ocean-bright)}
+.rm-item.current::before{animation:rmPulse 1.8s infinite}
+.rm-item.planned::before{border-color:var(--ocean-muted);box-shadow:none}
+@keyframes rmPulse{0%,100%{box-shadow:0 0 0 0 rgba(14,165,233,.6),0 0 8px var(--ocean-bright)}50%{box-shadow:0 0 0 8px rgba(14,165,233,0),0 0 8px var(--ocean-bright)}}
+.rm-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.25rem 1.5rem;transition:all .3s}
+.rm-card:hover{border-color:rgba(14,165,233,.2);transform:translateX(4px)}
+.rm-head{display:flex;align-items:baseline;gap:.75rem;margin-bottom:.4rem;flex-wrap:wrap}
+.rm-ver{font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--ocean-vivid);letter-spacing:.05em}
+.rm-date{font-family:var(--font-mono);font-size:.72rem;color:var(--ocean-muted);letter-spacing:.1em}
+.rm-tag{font-family:var(--font-mono);font-size:.65rem;padding:2px 8px;border-radius:100px;letter-spacing:.1em;text-transform:uppercase}
+.rm-tag.shipped{background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
+.rm-tag.current{background:rgba(14,165,233,.1);color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3)}
+.rm-tag.planned{background:rgba(148,163,184,.06);color:#94a3b8;border:1px solid rgba(148,163,184,.2)}
+.rm-title{font-family:var(--font-display);font-size:1rem;color:#e2e8f0;margin-bottom:.5rem;letter-spacing:.03em}
+.rm-body{color:#94a3b8;font-size:.92rem;line-height:1.5}
+.rm-body ul{list-style:none;padding:0;margin-top:.5rem}
+.rm-body li{padding:.25rem 0;padding-left:1.2rem;position:relative;color:#a3b4cf;font-size:.88rem}
+.rm-body li::before{content:'▸';position:absolute;left:0;color:var(--ocean-bright);font-size:.7rem;top:.45rem}
 
 /* Theme cards */
 .theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem}
-.theme-card{background:var(--bg-raised);border-radius:10px;padding:1rem;text-align:center;border:1px solid rgba(255,255,255,.05);transition:all .3s}
-.theme-card:hover{border-color:rgba(14,165,233,.2);transform:translateY(-2px)}
-.theme-swatch{width:100%;height:40px;border-radius:6px;margin-bottom:.75rem}
+.theme-card{background:var(--bg-raised);border-radius:10px;padding:1rem;text-align:center;border:1px solid rgba(255,255,255,.05);transition:all .3s var(--ease-smooth);position:relative;overflow:hidden}
+.theme-card:hover{border-color:rgba(14,165,233,.3);transform:translateY(-3px) scale(1.02)}
+.theme-swatch{width:100%;height:44px;border-radius:6px;margin-bottom:.75rem;position:relative;overflow:hidden}
+.theme-swatch::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.2) 50%,transparent 60%);transform:translateX(-100%);transition:transform .6s}
+.theme-card:hover .theme-swatch::after{transform:translateX(100%)}
 .theme-card .name{font-family:var(--font-display);font-size:.75rem;color:#e2e8f0;letter-spacing:.1em}
 
-/* Arch diagram */
-.arch-box{background:var(--bg-raised);border:1px solid rgba(14,165,233,.1);border-radius:12px;padding:2rem;font-family:var(--font-mono);font-size:.8rem;line-height:1.8;color:#94a3b8;overflow-x:auto;white-space:pre}
-.arch-box .hl{color:var(--ocean-vivid)}
+/* Credits / shoutouts */
+.credits-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}
+.credit-card{display:flex;align-items:center;gap:.9rem;background:var(--bg-raised);border:1px solid rgba(14,165,233,.06);border-radius:10px;padding:.9rem 1rem;transition:all .3s;text-decoration:none}
+.credit-card:hover{border-color:rgba(14,165,233,.25);background:var(--bg-card);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.credit-card .avatar{width:40px;height:40px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--ocean-core),var(--ocean-muted));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:900;font-size:.9rem;color:#fff;overflow:hidden;border:1px solid rgba(14,165,233,.2)}
+.credit-card .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.credit-card .meta{flex:1;min-width:0}
+.credit-card .handle{font-family:var(--font-mono);font-size:.75rem;color:var(--ocean-bright);letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.credit-card .role{font-size:.78rem;color:#94a3b8;line-height:1.3;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.credit-card .arrow{color:var(--ocean-muted);opacity:.5;transition:all .2s;flex-shrink:0}
+.credit-card:hover .arrow{opacity:1;transform:translateX(2px);color:var(--ocean-bright)}
 
 /* Download CTA */
-.cta-section{text-align:center;padding:6rem 2rem;position:relative}
-.cta-section .btn-primary{font-size:1.2rem;padding:1rem 3rem}
-.cta-version{font-family:var(--font-mono);font-size:.8rem;color:#64748b;margin-top:1rem}
+.cta-section{text-align:center;padding:8rem 2rem;position:relative;max-width:900px;margin:0 auto}
+.cta-section::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:80%;height:1px;background:linear-gradient(90deg,transparent,var(--ocean-bright),transparent)}
+.cta-section .btn-primary{font-size:1.2rem;padding:1.1rem 3rem}
+.cta-version{font-family:var(--font-mono);font-size:.8rem;color:#64748b;margin-top:1rem;letter-spacing:.1em}
+.cta-install{margin-top:2rem;text-align:left;display:inline-block;background:rgba(6,8,16,.7);border:1px solid rgba(14,165,233,.15);border-radius:8px;padding:1rem 1.5rem;font-family:var(--font-mono);font-size:.85rem;color:#a3b4cf}
+.cta-install .prompt-dollar{color:var(--coral);margin-right:.5rem}
+.cta-install .comment{color:var(--ocean-muted)}
 
 /* Footer */
-footer{border-top:1px solid rgba(14,165,233,.08);padding:3rem 2rem;text-align:center}
-footer .suite-links{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem}
-footer .suite-links a{font-family:var(--font-mono);font-size:.8rem;color:#64748b;letter-spacing:.1em}
+footer{border-top:1px solid rgba(14,165,233,.08);padding:4rem 2rem 2rem;text-align:center;position:relative}
+footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:120px;height:3px;background:var(--ocean-vivid);box-shadow:var(--glow-medium);border-radius:100px}
+footer .foot-glyph{font-family:var(--font-display);font-size:2rem;color:var(--ocean-vivid);letter-spacing:.3em;margin-bottom:1rem}
+footer .suite-label{font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-muted);letter-spacing:.2em;margin-bottom:1rem}
+footer .suite-links{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin-bottom:2rem}
+footer .suite-links a{font-family:var(--font-mono);font-size:.8rem;color:#64748b;letter-spacing:.1em;transition:color .2s}
 footer .suite-links a:hover{color:var(--ocean-bright)}
-footer .copy{font-family:var(--font-mono);font-size:.75rem;color:#334155}
+footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-spacing:.1em}
 
 /* Scroll reveal */
 .reveal{opacity:0;transform:translateY(40px);transition:all .8s var(--ease-smooth)}
 .reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-left{opacity:0;transform:translateX(-40px);transition:all .8s var(--ease-smooth)}
+.reveal-left.visible{opacity:1;transform:translateX(0)}
 
 /* Mobile */
 @media(max-width:768px){
   .nav-links{display:none}
-  .hero-stats{flex-direction:column;gap:1.5rem}
-  .hero-btns{flex-direction:column;align-items:center}
-  section{padding:4rem 1.5rem}
+  .hero-stats{gap:1.25rem;margin-top:2rem}
+  .hero-stat{min-width:80px}
+  .hero-stat .num{font-size:1.8rem}
+  .hero-btns{flex-direction:column;align-items:stretch;width:100%;max-width:320px}
+  .hero-prompt{font-size:.7rem}
+  section{padding:4rem 1.25rem}
+  .credits-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 
+<!-- Boot sequence overlay -->
+<div id="bootOverlay">
+  <div class="boot-trident">⟠</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines">
+    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> radio stack online</div>
+    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> CC1101 / nRF24 / SX1262 hats detected</div>
+    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> keyboard matrix calibrated</div>
+    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> commander of the deep is awake</div>
+  </div>
+</div>
+
 <div id="scrollProgress"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-row"><span class="hud-dot"></span><span>SYS <span class="val">ONLINE</span></span></div>
+</div>
 
 <nav id="mainNav">
   <a href="#" class="nav-logo"><span class="icon">P</span> POSEIDON</a>
   <ul class="nav-links">
-    <li><a href="#features">Features</a></li>
+    <li><a href="#features">Arsenal</a></li>
     <li><a href="#hardware">Hardware</a></li>
-    <li><a href="#themes">Themes</a></li>
-    <li><a href="#download">Download</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#credits">Credits</a></li>
+    <li><a href="#download">Deploy</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
   </ul>
 </nav>
 
 <section id="hero">
   <canvas id="heroCanvas"></canvas>
+  <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; COMMANDER OF THE DEEP</div>
+    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; FRESH DEAUTH PATCH</div>
+    <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
-    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack Cardputer-Adv. 80+ features across every radio band. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. All from your pocket.</p>
+    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 80+ features across <span class="hl">six radio bands</span>. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. All from your pocket.</p>
+    <div class="hero-prompt">
+      <span class="prompt-dollar">poseidon ▸</span>
+      <span class="prompt-cmd">attack</span>
+      <span class="prompt-arg">--mode deauth</span>
+      <span class="prompt-flag">--pair</span>
+      <span class="prompt-flag">--band all</span>
+      <span class="prompt-cursor"></span>
+    </div>
     <div class="hero-btns">
-      <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary">Download .bin</a>
-      <a href="https://github.com/GeneralDussDuss/poseidon" class="btn btn-secondary">View Source</a>
+      <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary">⬇ Flash Latest</a>
+      <a href="https://github.com/GeneralDussDuss/poseidon" class="btn btn-secondary">⎇ View Source</a>
     </div>
     <div class="hero-stats">
-      <div class="hero-stat"><div class="num">80+</div><div class="label">Features</div></div>
-      <div class="hero-stat"><div class="num">6</div><div class="label">RF Bands</div></div>
-      <div class="hero-stat"><div class="num">6</div><div class="label">Themes</div></div>
-      <div class="hero-stat"><div class="num">3190+</div><div class="label">.sub Signals</div></div>
+      <div class="hero-stat"><div class="num" data-count="80">80</div><div class="label">Features</div></div>
+      <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">RF Bands</div></div>
+      <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">Themes</div></div>
+      <div class="hero-stat"><div class="num" data-count="3190" data-suffix="+">3190+</div><div class="label">.sub Signals</div></div>
     </div>
   </div>
+  <div class="hero-scroll">SCROLL</div>
 </section>
 
+<!-- Stats ticker -->
+<div class="ticker">
+  <div class="ticker-track">
+    <span>SEQ <span class="val">auto-increment</span></span>
+    <span>DISASSOC <span class="val">paired</span></span>
+    <span>PMF <span class="val">detected</span></span>
+    <span>CLIENTS <span class="val">live-sniffed</span></span>
+    <span>TX <span class="val">error-tracked</span></span>
+    <span>CHANNEL <span class="val">hopper-locked</span></span>
+    <span>SEQ <span class="val">auto-increment</span></span>
+    <span>DISASSOC <span class="val">paired</span></span>
+    <span>PMF <span class="val">detected</span></span>
+    <span>CLIENTS <span class="val">live-sniffed</span></span>
+    <span>TX <span class="val">error-tracked</span></span>
+    <span>CHANNEL <span class="val">hopper-locked</span></span>
+  </div>
+</div>
+
 <section id="features">
-  <div class="section-label">01 // ARSENAL</div>
+  <div class="section-label reveal">01 // ARSENAL</div>
   <h2 class="section-title reveal">Every Radio. Every Attack.</h2>
-  <p class="section-desc reveal">From WiFi deauth to LoRa beacons. From MouseJack to DHCP starvation. POSEIDON covers more attack surface than any other pocketable device.</p>
+  <p class="section-desc reveal">WiFi deauth to LoRa beacons. MouseJack to DHCP starvation. POSEIDON covers more attack surface than any other pocketable device — and it's keyboard-first so you actually fly through it.</p>
 
   <div class="feature-grid">
-    <div class="feature-card reveal"><h3>WiFi Offensive</h3><p>Scan, deauth, evil portal, karma, beacon spam, probe sniff, PMKID + 4-way handshake capture, wardrive with GPS, CIW zeroclick SSID injection.</p><div class="count">17 tools</div></div>
-    <div class="feature-card reveal"><h3>Bluetooth Low Energy</h3><p>Device scan with OUI DB, BLE spam (4 brands), Bad-KB HID, tracker detect, GATT explorer, Sour Apple CVE-2023-42941, Find My emulator, clone, flood.</p><div class="count">14 tools</div></div>
-    <div class="feature-card reveal"><h3>Sub-GHz (CC1101)</h3><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 tools</div></div>
-    <div class="feature-card reveal"><h3>2.4 GHz (nRF24L01+)</h3><p>Promiscuous ESB sniffer (Travis Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 tools</div></div>
-    <div class="feature-card reveal"><h3>LoRa + GNSS (SX1262)</h3><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener. Live GPS fix with NMEA diagnostics and baud auto-detect.</p><div class="count">4 tools</div></div>
-    <div class="feature-card reveal"><h3>Network Attacks</h3><p>DHCP starvation + rogue DHCP + chained MitM. WPAD abuse. Exchange Autodiscover NTLM capture. Responder. SSDP poisoner. Honeypot. Reverse TCP tunnel. UART shell.</p><div class="count">18 tools</div></div>
-    <div class="feature-card reveal"><h3>MIMIR Drop-Box</h3><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link &mdash; pure opsec.</p><div class="count">1 module</div></div>
-    <div class="feature-card reveal"><h3>TRIDENT PC Bridge</h3><p>Mirror the Cardputer screen to your desktop at 10fps. Send keystrokes remotely. Screenshot capture. PyQt6 companion app.</p><div class="count">1 module</div></div>
-    <div class="feature-card reveal"><h3>Triton Gotchi</h3><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Speech bubble. Sparkline brain visualizer.</p><div class="count">1 creature</div></div>
-    <div class="feature-card reveal"><h3>Signal Finder</h3><p>Hot/cold proximity tracker for both sub-GHz (CC1101 RSSI) and 2.4 GHz (nRF24 RPD). Auto-calibrating gradient meter. Find hidden cameras, rogue transmitters, wireless devices.</p><div class="count">2 tools</div></div>
-    <div class="feature-card reveal"><h3>C5 Remote Nodes</h3><p>ESP32-C5 companion for 5 GHz WiFi + 802.15.4 Zigbee/Thread. Dual-band scan, remote deauth, Zigbee sniff &mdash; all over ESP-NOW mesh. WS2812 status LED.</p><div class="count">4 tools</div></div>
-    <div class="feature-card reveal"><h3>Tools + BadUSB + IR</h3><p>USB-HID payload runner. TV-B-Gone. Samsung remote. Flashlight, stopwatch, calculator, morse, MAC randomizer, SD format, file browser. 6-palette theme engine.</p><div class="count">12 tools</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M2 12c2-4 7-6 10-6s8 2 10 6M5 16c2-3 5-4 7-4s5 1 7 4M8 20c1-2 3-2 4-2s3 0 4 2M12 22v.01"/></svg></span><h3>WiFi Offensive</h3></div><p>Scan, deauth with client sniffer + disassoc pair + seq counter, evil portal, karma, beacon spam, probe sniff, PMKID + 4-way handshake capture, wardrive + GPS, CIW zeroclick SSID injection.</p><div class="count">17 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M6 3h3l2 3 3-4 2 4 2-2v16h-12z M10 8v8 M13 8v8"/></svg></span><h3>Bluetooth Low Energy</h3></div><p>Classifying scan with OUI + Continuity + Fast Pair DBs. Spam (Apple/Samsung/Google/Windows). Bad-KB HID, tracker detect, GATT explorer, Sour Apple CVE-2023-42941, Find-My emulator, clone, flood.</p><div class="count">14 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg></span><h3>Sub-GHz (CC1101)</h3></div><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83 M8 12a4 4 0 018 0"/></svg></span><h3>2.4 GHz (nRF24L01+)</h3></div><p>Promiscuous ESB sniffer (Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 1-4.5 4 1 6L12 16l-5.5 3 1-6L3 9l6-1z"/></svg></span><h3>LoRa + GNSS (SX1262)</h3></div><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener. Live GPS fix with NMEA diagnostics + baud auto-detect.</p><div class="count">4 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M8 14h2 M12 14h2 M16 14h2"/></svg></span><h3>Network Attacks</h3></div><p>DHCP starvation + rogue DHCP + chained MitM. WPAD abuse. Exchange Autodiscover NTLM capture. Responder. SSDP poisoner. Honeypot. Reverse TCP tunnel. UART shell.</p><div class="count">18 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z M10 7h4 M7 10v4 M14 17h3 M17 14v-4"/></svg></span><h3>MIMIR Drop-Box</h3></div><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link — pure opsec.</p><div class="count">1 MODULE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 5h18v12H3z M3 19h18 M9 9l6 3-6 3z"/></svg></span><h3>TRIDENT PC Bridge</h3></div><p>Mirror the Cardputer screen to your desktop at 10+ fps. Send keystrokes remotely. Screenshot capture + MP4 record. PyQt6 companion app, USB-CDC only.</p><div class="count">1 MODULE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 00-5 5v3a5 5 0 0010 0V7a5 5 0 00-5-5z M8 22c0-2 2-3 4-3s4 1 4 3 M9 14h6 M9 11h.01 M15 11h.01"/></svg></span><h3>Triton Gotchi</h3></div><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Now inherits the full deauth correctness stack.</p><div class="count">1 CREATURE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1 M12 8a4 4 0 014 4 M12 16a4 4 0 01-4-4"/></svg></span><h3>Signal Finder</h3></div><p>Hot/cold proximity tracker for both sub-GHz (CC1101 RSSI) and 2.4 GHz (nRF24 RPD). Auto-calibrating gradient meter. Find hidden cameras, rogue transmitters, wireless devices.</p><div class="count">2 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h18 M12 3v18 M6 6l12 12 M18 6L6 18"/></svg></span><h3>C5 Remote Nodes</h3></div><p>ESP32-C5 companion for 5 GHz WiFi + 802.15.4 Zigbee/Thread. Dual-band scan, remote deauth, Zigbee sniff — all over ESP-NOW mesh. WS2812 status LED.</p><div class="count">4 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 8h8v2H8z M8 12h8v2H8z M8 16h4v2H8z"/></svg></span><h3>Tools + BadUSB + IR</h3></div><p>USB-HID payload runner. TV-B-Gone. Samsung remote. Flashlight, stopwatch, calculator, morse, MAC randomizer, SD format, file browser. 6-palette theme engine.</p><div class="count">12 TOOLS</div></div>
   </div>
 </section>
 
 <section id="hardware">
-  <div class="section-label">02 // HARDWARE</div>
+  <div class="section-label reveal">02 // HARDWARE</div>
   <h2 class="section-title reveal">Three Hats. Every Frequency.</h2>
-  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports three expansion hats &mdash; swap for the mission.</p>
+  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports three expansion hats — swap for the mission.</p>
 
   <div class="hw-grid">
     <div class="hw-card reveal">
-      <h3>Cardputer-Adv (Base)</h3>
+      <h3>Cardputer-Adv <span class="chip">BASE</span></h3>
       <table>
         <tr><td>MCU</td><td>ESP32-S3 @ 240 MHz</td></tr>
-        <tr><td>Display</td><td>1.14" ST7789 240x135</td></tr>
-        <tr><td>Keyboard</td><td>TCA8418 I2C QWERTY</td></tr>
+        <tr><td>Display</td><td>1.14" ST7789 240×135</td></tr>
+        <tr><td>Keyboard</td><td>TCA8418 I²C QWERTY</td></tr>
         <tr><td>Radio</td><td>WiFi 4 + BLE 5.0</td></tr>
         <tr><td>USB</td><td>Native USB-C (HID + CDC)</td></tr>
         <tr><td>Storage</td><td>microSD + 8MB flash</td></tr>
       </table>
     </div>
     <div class="hw-card reveal">
-      <h3>CAP-LoRa1262 Hat</h3>
+      <h3>CAP-LoRa1262 <span class="chip">HAT</span></h3>
       <table>
         <tr><td>LoRa</td><td>SX1262 (868/915 MHz)</td></tr>
         <tr><td>GNSS</td><td>ATGM336H GPS</td></tr>
@@ -205,16 +369,16 @@ footer .copy{font-family:var(--font-mono);font-size:.75rem;color:#334155}
       </table>
     </div>
     <div class="hw-card reveal">
-      <h3>Hydra RF Cap 424</h3>
+      <h3>Hydra RF Cap 424 <span class="chip">HAT</span></h3>
       <table>
-        <tr><td>Sub-GHz</td><td>CC1101 (300-928 MHz)</td></tr>
+        <tr><td>Sub-GHz</td><td>CC1101 (300–928 MHz)</td></tr>
         <tr><td>2.4 GHz</td><td>nRF24L01+</td></tr>
         <tr><td>Vendor</td><td>PINGEQUA</td></tr>
         <tr><td>Use</td><td>Signal capture/replay, MouseJack, BLE spam</td></tr>
       </table>
     </div>
     <div class="hw-card reveal">
-      <h3>ESP32-C5 Node</h3>
+      <h3>ESP32-C5 Node <span class="chip">SATELLITE</span></h3>
       <table>
         <tr><td>WiFi</td><td>5 GHz + 2.4 GHz dual-band</td></tr>
         <tr><td>802.15.4</td><td>Zigbee / Thread</td></tr>
@@ -225,30 +389,222 @@ footer .copy{font-family:var(--font-mono);font-size:.75rem;color:#334155}
   </div>
 </section>
 
+<section id="roadmap">
+  <div class="section-label reveal">03 // TRAJECTORY</div>
+  <h2 class="section-title reveal">Roadmap</h2>
+  <p class="section-desc reveal">Where we've been and where we're diving next. Timeline reflects real pushes, not fantasy.</p>
+
+  <div class="roadmap">
+    <div class="rm-item shipped reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.1.0</span>
+          <span class="rm-date">2026-04-14</span>
+          <span class="rm-tag shipped">Shipped</span>
+        </div>
+        <div class="rm-title">First tagged release — the foundation</div>
+        <div class="rm-body">
+          Every radio band brought online. Full menu shell with slide transitions.
+          Hokusai splash. 80+ features across WiFi, BLE, sub-GHz, LoRa, nRF24, IR,
+          net attacks, BadUSB, theme engine, Triton gotchi, C5 companion, TRIDENT
+          PC bridge, MIMIR remote.
+        </div>
+      </div>
+    </div>
+    <div class="rm-item current reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.2.0</span>
+          <span class="rm-date">2026-04-17</span>
+          <span class="rm-tag current">Current</span>
+        </div>
+        <div class="rm-title">Deauth correctness — every frame actually lands</div>
+        <div class="rm-body">
+          Testers flagged deauth was weaker than peer tools. Root cause: <code>addr1</code>
+          was self-addressed to the AP's BSSID in the main targeted path. Plus
+          secondary filtering: static seq=0, no disassoc pair, no unicast follow-up,
+          no PMF warning.
+          <ul>
+            <li>Shared frame builder — correct 802.11-2016 Sequence Control encoding</li>
+            <li>Deauth + disassoc pair, per-frame seq increment from random seed</li>
+            <li>In-attack client sniffer → alternating broadcast + unicast rounds</li>
+            <li>PMF / WPA3 / WPA2-Enterprise warning before firing</li>
+            <li>TX error counter surfaces driver-level drops in the UI</li>
+            <li>Triton inherits the entire correctness stack</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="rm-item planned reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.3.0</span>
+          <span class="rm-date">Q3 2026</span>
+          <span class="rm-tag planned">Planned</span>
+        </div>
+        <div class="rm-title">Platform patch + concurrency hardening</div>
+        <div class="rm-body">
+          <ul>
+            <li>Platform fork with patched esp_wifi blob — full frame-injection parity with Marauder / Ghost ESP</li>
+            <li>Unified FreeRTOS task lifecycle (stored TaskHandles, proper join)</li>
+            <li>WiFi promisc-callback races fixed in PMKID + wardrive paths</li>
+            <li>Mesh-task stop synchronization rewrite</li>
+            <li>RMT cleanup on sub-GHz record ESC paths</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="rm-item planned reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.4.0</span>
+          <span class="rm-date">Q4 2026</span>
+          <span class="rm-tag planned">Planned</span>
+        </div>
+        <div class="rm-title">Post-exploit orchestration + tri-band</div>
+        <div class="rm-body">
+          <ul>
+            <li>Bjorn-style action DAG — auto-exploit newly cracked networks via MIMIR</li>
+            <li>WiFi 6E support via MT7921 USB hat passthrough</li>
+            <li>FENRIR RL policy head wired into MIMIR's exploit orchestrator</li>
+            <li>Full POSEIDON ⇄ MIMIR ⇄ DUSSIGOTCHI mesh for three-device coverage</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="themes">
-  <div class="section-label">03 // AESTHETICS</div>
+  <div class="section-label reveal">04 // AESTHETICS</div>
   <h2 class="section-title reveal">Six Visual Palettes</h2>
-  <p class="section-desc reveal">Swap the entire UI vibe from System &gt; Theme. Every screen follows the active palette.</p>
+  <p class="section-desc reveal">Swap the entire UI vibe from System ▸ Theme. Every screen follows the active palette.</p>
 
   <div class="theme-grid">
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07FF,#F81F)"></div><div class="name">POSEIDON</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#C01F,#780F)"></div><div class="name">PHANTOM</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07E0,#03E0)"></div><div class="name">MATRIX</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#FCA0,#C460)"></div><div class="name">AMBER</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#fff,#ccc)"></div><div class="name">E-INK</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#07FF,#04DF)"></div><div class="name">TRON</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#7dd3fc 45%,#f97316)"></div><div class="name">POSEIDON</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#c026d3,#f0abfc 45%,#7c3aed)"></div><div class="name">PHANTOM</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#16a34a,#86efac 45%,#052e16)"></div><div class="name">MATRIX</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f59e0b,#fde68a 45%,#b45309)"></div><div class="name">AMBER</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f8fafc,#94a3b8 45%,#0f172a)"></div><div class="name">E-INK</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#06b6d4,#67e8f9 45%,#155e75)"></div><div class="name">TRON</div></div>
+  </div>
+</section>
+
+<section id="credits">
+  <div class="section-label reveal">05 // SHOULDERS OF GIANTS</div>
+  <h2 class="section-title reveal">Built on open work</h2>
+  <p class="section-desc reveal">POSEIDON stands on a mountain of open-source pentest, radio, and firmware work. Respect to the people who made the primitives we compose.</p>
+
+  <div class="credits-grid">
+    <a class="credit-card reveal" href="https://github.com/m5stack/M5Cardputer" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/m5stack.png?size=80" alt="m5stack" onerror="this.style.display='none';this.parentNode.textContent='M5'"></div>
+      <div class="meta"><div class="handle">@m5stack</div><div class="role">Cardputer-Adv hardware + driver library</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/espressif/arduino-esp32" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/espressif.png?size=80" alt="espressif" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
+      <div class="meta"><div class="handle">@espressif</div><div class="role">ESP32-S3 silicon + Arduino core</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/lovyan03/LovyanGFX" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/lovyan03.png?size=80" alt="lovyan03" onerror="this.style.display='none';this.parentNode.textContent='LG'"></div>
+      <div class="meta"><div class="handle">@lovyan03</div><div class="role">LovyanGFX — the display backbone</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/h2zero/NimBLE-Arduino" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/h2zero.png?size=80" alt="h2zero" onerror="this.style.display='none';this.parentNode.textContent='H2'"></div>
+      <div class="meta"><div class="handle">@h2zero</div><div class="role">NimBLE-Arduino — lean BLE stack</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/jgromes/RadioLib" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/jgromes.png?size=80" alt="jgromes" onerror="this.style.display='none';this.parentNode.textContent='JG'"></div>
+      <div class="meta"><div class="handle">@jgromes</div><div class="role">RadioLib — SX1262 LoRa driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/LSatan/SmartRC-CC1101-Driver-Lib" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/LSatan.png?size=80" alt="LSatan" onerror="this.style.display='none';this.parentNode.textContent='LS'"></div>
+      <div class="meta"><div class="handle">@LSatan</div><div class="role">SmartRC-CC1101 — sub-GHz driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/sui77/rc-switch" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/sui77.png?size=80" alt="sui77" onerror="this.style.display='none';this.parentNode.textContent='S7'"></div>
+      <div class="meta"><div class="handle">@sui77</div><div class="role">rc-switch — 433 MHz protocol decoder</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/nRF24/RF24" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/nRF24.png?size=80" alt="nRF24" onerror="this.style.display='none';this.parentNode.textContent='N24'"></div>
+      <div class="meta"><div class="handle">@nRF24</div><div class="role">RF24 — 2.4 GHz ESB driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/justcallmekoko/ESP32Marauder" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/justcallmekoko.png?size=80" alt="justcallmekoko" onerror="this.style.display='none';this.parentNode.textContent='JK'"></div>
+      <div class="meta"><div class="handle">@justcallmekoko</div><div class="role">ESP32Marauder — deauth pattern reference</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/Spooks4576/Ghost_ESP" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/Spooks4576.png?size=80" alt="Spooks4576" onerror="this.style.display='none';this.parentNode.textContent='S4'"></div>
+      <div class="meta"><div class="handle">@Spooks4576</div><div class="role">Ghost ESP — disassoc-pair inspiration</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/pr3y.png?size=80" alt="pr3y" onerror="this.style.display='none';this.parentNode.textContent='PR'"></div>
+      <div class="meta"><div class="handle">@pr3y</div><div class="role">Bruce — sibling M5 pentest firmware</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/evilsocket/pwnagotchi" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/evilsocket.png?size=80" alt="evilsocket" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
+      <div class="meta"><div class="handle">@evilsocket</div><div class="role">Pwnagotchi — Triton's spiritual parent</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/aircrack-ng/aircrack-ng" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/aircrack-ng.png?size=80" alt="aircrack-ng" onerror="this.style.display='none';this.parentNode.textContent='AC'"></div>
+      <div class="meta"><div class="handle">@aircrack-ng</div><div class="role">aircrack-ng — deauth canonical reference</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/ZerBea/hcxdumptool" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/ZerBea.png?size=80" alt="ZerBea" onerror="this.style.display='none';this.parentNode.textContent='ZB'"></div>
+      <div class="meta"><div class="handle">@ZerBea</div><div class="role">hcxdumptool / hcxtools — WPA capture format</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/hashcat/hashcat" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/hashcat.png?size=80" alt="hashcat" onerror="this.style.display='none';this.parentNode.textContent='HC'"></div>
+      <div class="meta"><div class="handle">@hashcat</div><div class="role">hashcat — 22000 output target format</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/marian-craciunescu/ESP32Ping" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/marian-craciunescu.png?size=80" alt="marian-craciunescu" onerror="this.style.display='none';this.parentNode.textContent='MC'"></div>
+      <div class="meta"><div class="handle">@marian-craciunescu</div><div class="role">ESP32Ping — network recon helper</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/travisgoodspeed" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/travisgoodspeed.png?size=80" alt="travisgoodspeed" onerror="this.style.display='none';this.parentNode.textContent='TG'"></div>
+      <div class="meta"><div class="handle">@travisgoodspeed</div><div class="role">Promisc nRF24 trick — MouseJack origin</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/RetroRuin/ESP32-Sour-Apple" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/RetroRuin.png?size=80" alt="RetroRuin" onerror="this.style.display='none';this.parentNode.textContent='RR'"></div>
+      <div class="meta"><div class="handle">@RetroRuin</div><div class="role">Sour Apple — CVE-2023-42941 PoC</div></div>
+      <div class="arrow">↗</div>
+    </a>
   </div>
 </section>
 
 <section class="cta-section" id="download">
-  <div class="section-label" style="justify-content:center">04 // DEPLOY</div>
+  <div class="section-label reveal" style="justify-content:center">06 // DEPLOY</div>
   <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
-  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash the .bin with M5Burner or esptool at offset 0x0. Or build from source with PlatformIO.</p>
-  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">Download v0.2.0</a>
+  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO.</p>
+  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download v0.2.0</a>
   <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; 1.8 MB &bull; Flash at 0x0</div>
+  <div class="cta-install reveal">
+    <span class="comment"># build + flash from source</span><br>
+    <span class="prompt-dollar">▸</span>git clone github.com/GeneralDussDuss/poseidon<br>
+    <span class="prompt-dollar">▸</span>cd poseidon &amp;&amp; pio run -t upload
+  </div>
 </section>
 
 <footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
   <div class="suite-links">
     <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
     <a href="https://generaldussduss.github.io/aether/">AETHER</a>
@@ -257,35 +613,64 @@ footer .copy{font-family:var(--font-mono);font-size:.75rem;color:#334155}
     <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
     <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
   </div>
-  <div class="copy">&copy; 2077 POSEIDON &mdash; commander of the deep</div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
 </footer>
 
 <canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
 
 <script>
+// Boot sequence
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    document.getElementById('bootOverlay').classList.add('hidden');
+    setTimeout(()=>document.getElementById('hud').classList.add('visible'),400);
+  },1900);
+});
+
 // Scroll progress
 const bar=document.getElementById('scrollProgress');
 window.addEventListener('scroll',()=>{
   const pct=window.scrollY/(document.documentElement.scrollHeight-window.innerHeight)*100;
   bar.style.width=pct+'%';
   document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>50);
-});
+},{passive:true});
 
 // Scroll reveal
 const obs=new IntersectionObserver((entries)=>{
   entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}});
 },{threshold:0.1});
-document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+document.querySelectorAll('.reveal,.reveal-left').forEach(el=>obs.observe(el));
 
-// Floating particles
+// Stat number counters
+const counterObs=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    const el=e.target;
+    const target=parseInt(el.dataset.count,10);
+    const suffix=el.dataset.suffix||'';
+    const dur=1400;
+    const start=performance.now();
+    const tick=(t)=>{
+      const p=Math.min(1,(t-start)/dur);
+      const eased=1-Math.pow(1-p,3);
+      el.textContent=Math.round(target*eased)+(p>=1?suffix:'');
+      if(p<1)requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    counterObs.unobserve(el);
+  });
+},{threshold:0.6});
+document.querySelectorAll('[data-count]').forEach(el=>counterObs.observe(el));
+
+// Floating particles (ocean depth)
 const pc=document.getElementById('particles');
 const px=pc.getContext('2d');
 function resizeParticles(){pc.width=window.innerWidth;pc.height=window.innerHeight}
 resizeParticles();window.addEventListener('resize',resizeParticles);
-const pts=Array.from({length:40},()=>({
+const pts=Array.from({length:50},()=>({
   x:Math.random()*pc.width,y:Math.random()*pc.height,
   vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,
-  r:Math.random()*2+1,hue:Math.random()>.5?200:195
+  r:Math.random()*2+.8,hue:Math.random()>.6?190:205
 }));
 function drawParticles(){
   px.clearRect(0,0,pc.width,pc.height);
@@ -295,7 +680,7 @@ function drawParticles(){
     if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;
     if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;
     px.beginPath();px.arc(p.x,p.y,p.r,0,Math.PI*2);
-    px.fillStyle=`hsla(${p.hue},80%,60%,.4)`;px.fill();
+    px.fillStyle=`hsla(${p.hue},80%,60%,.45)`;px.fill();
     px.beginPath();px.arc(p.x,p.y,p.r*3,0,Math.PI*2);
     px.fillStyle=`hsla(${p.hue},80%,60%,.06)`;px.fill();
   });
@@ -303,14 +688,14 @@ function drawParticles(){
 }
 drawParticles();
 
-// Hero constellation canvas
+// Hero constellation
 const hc=document.getElementById('heroCanvas');
 const hx=hc.getContext('2d');
 function resizeHero(){hc.width=hc.parentElement.clientWidth;hc.height=hc.parentElement.clientHeight}
 resizeHero();window.addEventListener('resize',resizeHero);
-const nodes=Array.from({length:20},()=>({
-  x:Math.random()*1200,y:Math.random()*800,
-  vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4
+const nodes=Array.from({length:24},()=>({
+  x:Math.random()*1400,y:Math.random()*900,
+  vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35
 }));
 function drawHero(){
   hx.clearRect(0,0,hc.width,hc.height);
@@ -320,40 +705,80 @@ function drawHero(){
     if(n.x<0||n.x>hc.width)n.vx*=-1;
     if(n.y<0||n.y>hc.height)n.vy*=-1;
   });
-  // connections
   for(let i=0;i<nodes.length;i++){
     for(let j=i+1;j<nodes.length;j++){
       const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y;
       const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<200){
+      if(dist<220){
         hx.beginPath();hx.moveTo(nodes[i].x,nodes[i].y);hx.lineTo(nodes[j].x,nodes[j].y);
-        hx.strokeStyle=`rgba(14,165,233,${.15*(1-dist/200)})`;hx.lineWidth=.5;hx.stroke();
+        hx.strokeStyle=`rgba(14,165,233,${.2*(1-dist/220)})`;hx.lineWidth=.6;hx.stroke();
       }
     }
   }
-  // nodes
   nodes.forEach(n=>{
     hx.beginPath();hx.arc(n.x,n.y,2,0,Math.PI*2);
-    hx.fillStyle='rgba(14,165,233,.5)';hx.fill();
+    hx.fillStyle='rgba(14,165,233,.6)';hx.fill();
+    hx.beginPath();hx.arc(n.x,n.y,6,0,Math.PI*2);
+    hx.fillStyle='rgba(14,165,233,.08)';hx.fill();
   });
-  // energy wave
   const t=Date.now()*.001;
-  const waveR=(t%4)*150;
-  hx.beginPath();hx.arc(cx,cy,waveR,0,Math.PI*2);
-  hx.strokeStyle=`rgba(14,165,233,${.15*(1-waveR/600)})`;hx.lineWidth=1;hx.stroke();
+  for(let w=0;w<2;w++){
+    const waveR=((t+w*1.3)%4)*180;
+    hx.beginPath();hx.arc(cx,cy,waveR,0,Math.PI*2);
+    hx.strokeStyle=`rgba(14,165,233,${.18*(1-waveR/720)})`;hx.lineWidth=1;hx.stroke();
+  }
   requestAnimationFrame(drawHero);
 }
 drawHero();
 
+// Caustic water shader (2D approximation)
+const cc=document.getElementById('causticLayer');
+const cx2=cc.getContext('2d');
+function resizeCaustic(){cc.width=cc.parentElement.clientWidth;cc.height=cc.parentElement.clientHeight}
+resizeCaustic();window.addEventListener('resize',resizeCaustic);
+function drawCaustic(){
+  const t=Date.now()*.0006;
+  const w=cc.width,h=cc.height;
+  const img=cx2.createImageData(Math.floor(w/4),Math.floor(h/4));
+  const iw=img.width,ih=img.height;
+  for(let y=0;y<ih;y++){
+    for(let x=0;x<iw;x++){
+      const u=x/iw*6, v=y/ih*4;
+      const n=Math.sin(u+t)+Math.sin(v*1.3+t*1.2)+Math.sin((u+v)*.8+t*.7);
+      const c=Math.pow(Math.max(0,n+1)/4,3);
+      const i=(y*iw+x)*4;
+      img.data[i]=14*c;img.data[i+1]=165*c;img.data[i+2]=233*c;
+      img.data[i+3]=Math.min(255,c*140);
+    }
+  }
+  cx2.putImageData(img,0,0);
+  // Upscale the 1/4 image to full canvas for a painterly effect.
+  cx2.imageSmoothingEnabled=true;
+  cx2.globalCompositeOperation='copy';
+  cx2.drawImage(cc,0,0,iw,ih,0,0,w,h);
+  cx2.globalCompositeOperation='source-over';
+  requestAnimationFrame(drawCaustic);
+}
+drawCaustic();
+
 // Click ripple
 document.addEventListener('click',e=>{
   const r=document.createElement('div');
-  r.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:0;height:0;border-radius:50%;background:radial-gradient(circle,rgba(14,165,233,.3),transparent);transform:translate(-50%,-50%);pointer-events:none;z-index:9999;animation:ripple .6s ease-out forwards`;
-  document.body.appendChild(r);setTimeout(()=>r.remove(),600);
+  r.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:0;height:0;border-radius:50%;background:radial-gradient(circle,rgba(14,165,233,.4),transparent);transform:translate(-50%,-50%);pointer-events:none;z-index:9999;animation:ripple .7s ease-out forwards`;
+  document.body.appendChild(r);setTimeout(()=>r.remove(),700);
 });
 const rippleStyle=document.createElement('style');
-rippleStyle.textContent='@keyframes ripple{to{width:200px;height:200px;opacity:0}}';
+rippleStyle.textContent='@keyframes ripple{to{width:280px;height:280px;opacity:0}}';
 document.head.appendChild(rippleStyle);
+
+// Subtle parallax on hero content
+const heroContent=document.querySelector('.hero-content');
+document.addEventListener('mousemove',e=>{
+  if(window.scrollY>400)return;
+  const cx=window.innerWidth/2,cy=window.innerHeight/2;
+  const dx=(e.clientX-cx)/cx*6,dy=(e.clientY-cy)/cy*6;
+  heroContent.style.transform=`translate(${dx}px,${dy}px)`;
+});
 </script>
 </body>
 </html>
