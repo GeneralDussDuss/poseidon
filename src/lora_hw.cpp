@@ -89,24 +89,26 @@ int lora_begin(const lora_config_t &cfg)
     }
 
     /* RadioLib's SX1262 setBandwidth takes kHz directly. cfg.bw_khz is already
-     * in kHz (125.0, 250.0, 500.0), so pass it unchanged. Previous code
-     * divided by 1000, passing 0.125 which isn't in the SX1262's discrete
-     * bandwidth set — config silently failed, leaving the radio in a bad
-     * state that crashed on the next setFrequency + startReceive cycle. */
-    int st_cfg = RADIOLIB_ERR_NONE;
-    if ((st_cfg = s_radio->setSpreadingFactor(cfg.sf))       != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setBandwidth(cfg.bw_khz))         != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setCodingRate(cfg.cr))            != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setSyncWord(cfg.sync))            != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setOutputPower(cfg.power))        != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setPreambleLength(8))             != RADIOLIB_ERR_NONE ||
-        (st_cfg = s_radio->setDio2AsRfSwitch(true))          != RADIOLIB_ERR_NONE) {
-        Serial.printf("[lora] post-begin config failed: %d\n", st_cfg);
-        delete s_radio; s_radio = nullptr;
-        delete s_mod;   s_mod   = nullptr;
-        loraSpi.end();
-        return st_cfg;
-    }
+     * in kHz (125.0, 250.0, 500.0), so pass it unchanged. Previously it was
+     * divided by 1000, passing 0.125 which isn't a valid SX1262 bandwidth —
+     * config silently failed and the radio was left in a bad state that
+     * crashed on the next setFrequency + startReceive cycle.
+     *
+     * Setter return values are logged for diagnostics but we don't tear down
+     * the radio on a single setter failure — some return non-OK on certain
+     * RadioLib versions (e.g. setDio2AsRfSwitch on older builds) even though
+     * the hardware is configured correctly. Fail-fast here would cause
+     * lora_radio() to esp_restart() once the caller dereferences the null. */
+    auto log_if_err = [](const char *name, int st) {
+        if (st != RADIOLIB_ERR_NONE) Serial.printf("[lora] %s -> %d\n", name, st);
+    };
+    log_if_err("setSpreadingFactor", s_radio->setSpreadingFactor(cfg.sf));
+    log_if_err("setBandwidth",       s_radio->setBandwidth(cfg.bw_khz));
+    log_if_err("setCodingRate",      s_radio->setCodingRate(cfg.cr));
+    log_if_err("setSyncWord",        s_radio->setSyncWord(cfg.sync));
+    log_if_err("setOutputPower",     s_radio->setOutputPower(cfg.power));
+    log_if_err("setPreambleLength",  s_radio->setPreambleLength(8));
+    log_if_err("setDio2AsRfSwitch",  s_radio->setDio2AsRfSwitch(true));
     lora_rf_switch(true);
 
     s_up = true;
