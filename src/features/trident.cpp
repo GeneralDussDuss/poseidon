@@ -30,6 +30,8 @@ static void send_frame(void)
     Serial.printf("{\"evt\":\"frame\",\"w\":240,\"h\":135,\"fmt\":\"rgb565\",\"len\":%d}\n", frame_bytes);
     for (int y = 0; y < 135; y++) {
         d.readRect(0, y, 240, 1, s_line);
+        /* Swap to big-endian — TRIDENT expects BE, ESP32-S3 is LE. */
+        for (int i = 0; i < 240; i++) s_line[i] = __builtin_bswap16(s_line[i]);
         Serial.write(reinterpret_cast<const uint8_t *>(s_line), 480);
     }
 }
