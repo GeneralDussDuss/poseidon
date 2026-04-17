@@ -6,6 +6,60 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — WiFi deauth correctness (2026-04-17)
+
+Testers reported POSEIDON's deauth was noticeably weaker than Flipper Marauder,
+Ghost ESP, and aircrack-ng. Audit of the deauth pipeline found the primary path
+(`feat_wifi_deauth`) was firing frames self-addressed to the AP's own BSSID —
+no client ever saw a frame addressed to it or broadcast. Plus several
+secondary issues that added up to real-world ineffectiveness.
+
+**Core fix:**
+- `wifi_deauth.cpp` — `addr1` (destination) now correctly set to broadcast
+  `FF:FF:FF:FF:FF:FF` for the sweep phase, and to specific STA MACs for unicast
+  rounds. Was previously hardcoded to the target BSSID, which is a no-op.
+
+**Attack pipeline hardening:**
+- Every deauth frame is now paired with a disassoc frame (subtype 0xA0,
+  reason 8). Mirrors aircrack-ng `--deauth`, Marauder, and Ghost ESP patterns.
+  Some client drivers ignore one but honor the other.
+- Sequence Control field now increments per frame (starts at a random 12-bit
+  seed). Previously static zero, which caused modern client drivers and AP
+  firmware to rate-limit or drop our frames as apparent duplicates.
+- `esp_wifi_80211_tx` return value now checked at every call site. A `drops:`
+  counter surfaces driver-level rejects to the UI so you can see when the
+  blob is filtering frames vs actually sending them.
+- Targeted mode (`feat_wifi_deauth`) now runs a promiscuous sniffer in parallel
+  with the attack to harvest connected STA MACs, then alternates broadcast
+  bursts + unicast bursts to each learned client. Matches aircrack-ng's
+  64-frame alternating pattern.
+- Channel-hopper in `wifi_clients_all` no longer races unicast/broadcast
+  bursts. The hotkey deauth handlers lock the hopper for the duration of the
+  burst, restore after.
+
+**New safety:**
+- PMF / 802.11w / WPA3 warning screen before firing targeted deauth against
+  WPA3-PSK, WPA2/WPA3 transition, WPA2-Enterprise, or WPA3-ENT-192 targets.
+  These use Protected Management Frames which cryptographically drop plain
+  deauth — previously the UI showed "flooding 40fps" with zero actual kicks.
+
+**New shared code:**
+- `src/features/wifi_deauth_frame.h` — single source of truth for frame
+  construction. Deauth + disassoc pair builder, correct 802.11-2016 Sequence
+  Control encoding, PMF detection helper. All four deauth sites now use it.
+
+**Docs:**
+- `docs/deauth-injection-patch.md` — explains why stock ESP-IDF's WiFi blob
+  filters some spoofed-addr2 frames at the TX FIFO, and documents the
+  platform-fork approach for full parity with Marauder/Ghost ESP on-air
+  effectiveness. Not required for the above fixes to land; the blob patch
+  is a multiplier, not a replacement.
+
+**Testers:** rebuild + reflash. No config changes required. You should see
+the `drops:` counter in the targeted deauth UI and an `sta:N` counter showing
+learned clients. Feedback welcome — specifically whether previously stubborn
+targets (modern iPhones / Androids, OpenWrt APs) now kick.
+
 ## [0.1.0] - 2026-04-14
 
 First tagged release. Everything up to this point.

