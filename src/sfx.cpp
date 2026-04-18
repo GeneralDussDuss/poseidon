@@ -107,9 +107,12 @@ static void sweep(int f0, int f1, int dur_ms)
 
 void sfx_click(void)
 {
-    /* Ultra-short 2-tone digital blip. Two stacked high freqs = data-tick feel. */
-    note(3600, 2);
-    note(4800, 2);
+    /* Short digital tick — reliably audible. 8ms with a descending second
+     * tone. Previous 2ms × 2-stacked was below the M5 speaker's floor and
+     * got clipped. */
+    note(2800, 6);
+    delay(3);
+    note(2200, 5);
 }
 
 void sfx_select(void)
