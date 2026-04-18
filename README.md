@@ -26,6 +26,10 @@
 
 **v0.3.0 just shipped** — POSEIDON is now a full Meshtastic leaf node (send, receive, page, position) plus WiFi deauth correctness, LoRa crash fixes, and a rewritten spectrum analyzer with real packet capture. See [CHANGELOG](CHANGELOG.md) and [TESTERS.md](TESTERS.md) for what to stress-test.
 
+**v0.4 incoming (master)** — platform fork lands. Stock ESP-IDF 5.3's WiFi blob filters deauth/disassoc frame subtypes, so every v0.3 deauth mode returned `ESP_ERR_INVALID_ARG` at TX. Master now builds against `pioarduino@55.03.38` (Core 3.3.8 / IDF 5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched `libnet80211.a` with the subtype filter NOP'd. See [`KnownDeauthBugFixSoon.md`](KnownDeauthBugFixSoon.md) and [`docs/v0.4-platform-migration.md`](docs/v0.4-platform-migration.md). v0.4.0 gets tagged once on-hardware verification confirms frames land.
+
+**New — SaltyJack LAN attack suite** ported from [@7h30th3r0n3](https://github.com/7h30th3r0n3)'s [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) / [RaspyJack](https://github.com/7h30th3r0n3/Raspyjack). DHCP starvation shipping first; Rogue DHCP, Responder (LLMNR/NBNS/SMB-NTLMv2), WPAD harvest, and on-device NTLMv2 cracker coming in subsequent commits. All credit where credit is due — every file in `src/features/saltyjack/` has a prominent homage header.
+
 </div>
 
 ---
@@ -173,7 +177,7 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 
 ## Massive Shoutouts
 
-- **[@7h30th3r0n3](https://github.com/7h30th3r0n3)** → [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) — DHCP attacks, WPAD, Autodiscover, CIW, honeypot, dead drop, SSDP poisoner ported from here
+- **[@7h30th3r0n3](https://github.com/7h30th3r0n3)** → [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) + [RaspyJack](https://github.com/7h30th3r0n3/Raspyjack) — **SaltyJack submenu** (DHCP Starve, Rogue DHCP, Responder, WPAD, NTLMv2 crack), plus WPAD, Autodiscover, CIW, honeypot, dead drop, SSDP poisoner all ported from his work. Hands down the single biggest code-inspiration for POSEIDON's LAN/creds side. Go star both repos.
 - **[@JesseCHale](https://github.com/JesseCHale)** → [HaleHound-CYD](https://github.com/JesseCHale/HaleHound-CYD) — CC1101 init sequence reference
 - **[@insecurityofthings](https://github.com/insecurityofthings)** → [uC_mousejack](https://github.com/insecurityofthings/uC_mousejack) — MouseJack ESB sniffer + HID injection protocol
 - **[@0ct0sec](https://github.com/0ct0sec)** → [M5PORKCHOP](https://github.com/0ct0sec/M5PORKCHOP) — PigSync mesh, wardrive, spectrum concepts

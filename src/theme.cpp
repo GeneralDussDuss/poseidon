@@ -4,11 +4,6 @@
 #include "theme.h"
 #include <M5Cardputer.h>
 
-static uint16_t c(uint8_t r, uint8_t g, uint8_t b)
-{
-    return M5Cardputer.Display.color565(r, g, b);
-}
-
 static const poseidon_theme_t THEMES[] = {
     /* POSEIDON — cyan/magenta on black. The original. */
     {

@@ -6,6 +6,64 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — deauth frames actually TX on-air (v0.4 platform migration)
+
+Replaced stock `espressif32@6.7.0` (Arduino Core 3.1.0 / ESP-IDF 5.3) with
+`pioarduino/platform-espressif32@55.03.38` (Arduino Core 3.3.8 / ESP-IDF
+5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched
+`framework-arduinoespressif32-libs` (`bruce_esp32-arduino-libs-20260407`).
+The patched `libnet80211.a` lifts the IDF 5.3 blob-level filter on management
+frame subtypes `0xC` (deauth) and `0xA` (disassoc) — frames from
+`esp_wifi_80211_tx` now leave the chip instead of returning
+`ESP_ERR_INVALID_ARG`.
+
+Fixes all five deauth paths: targeted (`wifi_deauth`), per-client
+(`wifi_clients`), all-clients channel-hop (`wifi_clients_all`), broadcast-all
+(`wifi_deauth_extras`), and Triton autonomous. No code changes to the deauth
+features themselves — the Marauder-pattern silent-AP TX + addr1 / disassoc
+pair / seq increment logic was already correct, just blocked at the blob.
+
+Toolchain fallout (fixed):
+- `c5_cmd.cpp`, `mesh.cpp` — ESP-NOW recv callback changed in IDF 5.x from
+  `(mac, data, len)` to `(recv_info, data, len)` where `recv_info->src_addr`
+  holds the source MAC. Updated both callbacks.
+- `meshtastic_node.cpp` — `esp_read_mac` / `ESP_MAC_WIFI_STA` moved to
+  `esp_mac.h` in IDF 5.x. Added include.
+- Library versions (NimBLE-Arduino 1.4.1, RadioLib 7.4.0, M5Cardputer 1.1.1,
+  M5Unified 0.2.13) compile clean on Core 3.3.8 / IDF 5.5.4 without bumps.
+
+Rollback path: `cp platformio.ini.stable platformio.ini` restores the v0.3
+stock platform (deauth returns to blob-filtered).
+
+Build note: migration must run from WSL2 / native Linux, not Git Bash on
+Windows. The pioarduino install runs `idf_tools.py` which hard-fails if it
+sees MSys environment markers. See `docs/v0.4-platform-migration.md` for
+the full execution log, including the 3.3.6 → 3.3.8 tarball mirror 504
+workaround.
+
+### Added — SaltyJack LAN attack suite (phase 1)
+
+New top-level submenu (`j` from root) that ports LAN-side pentest attacks from
+[@7h30th3r0n3](https://github.com/7h30th3r0n3)'s [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project)
+and [RaspyJack](https://github.com/7h30th3r0n3/Raspyjack). Named in homage.
+
+- **SaltyJack ▸ About** — homage landing page, credits, arsenal overview
+- **SaltyJack ▸ DHCP Starve** — floods the associated network's DHCP server
+  with random-MAC Discover/Request cycles until the pool is exhausted. Live
+  counters for discover / offer / request / ACK / NAK. Auto-detects pool
+  exhaustion (NAK >= 20). Requires POSEIDON to be associated to the target
+  WiFi first.
+
+Phase-2 attacks coming in subsequent commits: Rogue DHCP (STA + AP modes),
+Responder (LLMNR + NBT-NS + SMB1 NTLMv2), WPAD proxy NTLM harvest, on-device
+NTLMv2 wordlist cracker. All direct ports of Evil-Cardputer source with
+proper attribution in every file.
+
+Hardware path: works now on WiFi STA mode (device joins target). Once the
+user's W5500 SPI Ethernet module arrives, same attacks work over wired too
+via lwIP's transport-agnostic `netif`.
+
+
 ## [0.3.0] - 2026-04-17
 
 ### Added — Meshtastic node (full participant)

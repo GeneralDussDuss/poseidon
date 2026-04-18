@@ -3,39 +3,52 @@
 If you're helping stress-test POSEIDON, this doc tells you **what just changed**,
 **what to hit hardest**, and **how to report what you find**.
 
-**Currently testing:** v0.3.0 — Meshtastic + deauth correctness + LoRa stability
+**Currently testing:** v0.4 pre-release on master — **platform fork + Bruce
+patched WiFi libs**. If you flash master, you're the first person to confirm
+whether deauth frames actually land on-air. That is the single most
+important thing to verify right now; everything else is regression.
 
 ---
 
-## Priority 1 — Deauth correctness (high-signal test)
+## Priority 1 — Deauth frames actually TX on-air (PLATFORM FORK VALIDATION)
 
-**What changed.** The deauth pipeline had a primary bug where the destination
-address was self-addressed to the AP's own BSSID — frames never reached any
-client. Plus static seq=0 (rate-limited by modern drivers), no disassoc pair,
-and no unicast follow-up. All four deauth paths (including Triton's autonomous
-hunter) got the fix.
+**What changed.** Migration from stock `espressif32@6.7.0` (ESP-IDF 5.3,
+deauth subtype filtered at the WiFi blob) to `pioarduino@55.03.38` (Core
+3.3.8 / IDF 5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched
+`libnet80211.a` with the `0xC` / `0xA` subtype filter NOP'd. All five
+deauth paths (targeted, per-client, all-clients channel-hop, broadcast-all,
+Triton) go through the same TX helper — if one works, all should work.
 
 **How to test:**
-1. Pick a known non-PMF WPA2 AP you own
+1. Pick a known non-PMF WPA2 AP you own (anything WPA3 or transition-mode
+   uses PMF — the UI blocks those by design)
 2. Associate a phone / laptop to it
-3. POSEIDON → WiFi → Deauth → pick target
-4. Watch the UI for `drops:` and `sta:N` counters — `sta` should climb as the
-   sniffer spots connected clients, `drops` should stay near zero
-5. Phone / laptop should disassociate within seconds
+3. POSEIDON → WiFi → Scan → select the target AP → press `D`
+4. Watch the UI counters:
+   - `sent:` should climb rapidly (100s/sec)
+   - `drops:` should stay at 0 or near-zero
+   - Serial monitor (if attached) should NOT print `[80211_tx] deauth rc=258`
+5. Phone / laptop should disassociate within 2–5 seconds
 
-**What to report:**
-- Did the client actually disconnect? (yes / no / sometimes)
-- Was there a `drops:` count above zero? (if yes, the ESP-IDF blob is filtering
-  — not your fault, it's a known platform limitation)
-- Which target this was against (router model, phone model + OS version)
+**What to report — critical signal:**
+- **Did `sent:` climb and `drops:` stay near zero?** — this is THE question
+- **Did the target client actually disconnect?** (yes / no / stayed on)
+- Did you see any `[80211_tx] deauth rc=<non-zero>` in serial?
+- Router model, target client model + OS
+- If you want to sanity-check the blob is patched, try "WiFi → Deauth All"
+  — every AP in range should see its clients kicked. Rapid verification.
 
-**Known limits:**
+**If ALL five deauth paths work:** reply "deauth verified v0.4" on GitHub
+Issues — that's the signal to cut the v0.4.0 release tag.
+
+**If `drops:` is climbing and target doesn't disconnect:** something went
+wrong with the platform_packages override. Serial log + `pio pkg list`
+output on the issue and we'll dig in.
+
+**Known limits (unchanged from v0.3):**
 - WPA3-PSK, WPA2-Enterprise, WPA3-transition networks use PMF (Protected
-  Management Frames) — the UI now warns before firing and those targets
-  won't kick by design
-- Stock ESP-IDF WiFi blob still filters some spoofed-addr2 frames at the
-  TX FIFO. Full parity with Marauder/Ghost ESP requires a custom
-  Arduino Core fork. This is v0.4 work
+  Management Frames) — the UI warns before firing and those targets won't
+  kick by design. This is a protocol-level defense, not a POSEIDON limit.
 
 ## Priority 2 — Meshtastic node participation (new feature)
 

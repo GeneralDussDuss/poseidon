@@ -16,3 +16,13 @@ c5_node/sdkconfig.old
 c5_node/managed_components/
 c5_node/dependencies.lock
 meshtastic_research/
+
+# Local reference copies (Marauder, Bruce, etc.) — not for redistribution
+.refs/
+_audit_raspyjack/
+
+# Platform migration sidecar (workaround for local file reverts, regenerate from platformio.ini)
+platformio.ini.migration
+
+# pioarduino auto-generated manifest
+src/idf_component.yml

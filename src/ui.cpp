@@ -20,11 +20,6 @@
 static uint32_t s_pulse_at = 0;
 static bool     s_pulse_on = false;
 
-static void fill_row(int y, int h, uint16_t c)
-{
-    M5Cardputer.Display.fillRect(0, y, SCR_W, h, c);
-}
-
 void ui_init(void)
 {
     auto &d = M5Cardputer.Display;
