@@ -166,11 +166,25 @@ void lora_end(void)
 
 bool lora_is_up(void) { return s_up; }
 
+/*
+ * Fallback SX1262 instance used when lora_radio() is called before
+ * lora_begin(). Never talks to real hardware (module pins are all -1)
+ * so any register write is a RadioLib no-op or error return. This is
+ * far better than esp_restart() which caused a hard boot-loop if a
+ * feature accessed the radio without going through lora_begin() first.
+ * Callers that care about correctness should check lora_is_up() first.
+ */
+static Module *s_dummy_mod = nullptr;
+static SX1262 *s_dummy_radio = nullptr;
+
 SX1262 &lora_radio(void)
 {
-    if (!s_radio) {
-        Serial.println("[lora] BUG: lora_radio() not init");
-        esp_restart();
+    if (s_radio) return *s_radio;
+
+    if (!s_dummy_radio) {
+        s_dummy_mod = new Module(RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC);
+        s_dummy_radio = new SX1262(s_dummy_mod);
     }
-    return *s_radio;
+    Serial.println("[lora] WARN: lora_radio() called before lora_begin — returning dummy");
+    return *s_dummy_radio;
 }
