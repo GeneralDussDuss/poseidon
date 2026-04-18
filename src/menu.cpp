@@ -72,6 +72,10 @@ extern void feat_lora_scan(void);
 extern void feat_lora_beacon(void);
 extern void feat_lora_meshtastic(void);
 extern void feat_lora_spectrum(void);
+extern void feat_mesh_chat(void);
+extern void feat_mesh_nodes(void);
+extern void feat_mesh_page(void);
+extern void feat_mesh_position(void);
 extern void feat_gps_fix(void);
 extern void feat_subghz_scan(void);
 extern void feat_subghz_record(void);
@@ -389,6 +393,21 @@ static const menu_node_t MENU_LORA[] = {
       "Three visualization modes for LoRa bands: bar spectrum with gradient "
       "RSSI + peak hold + dBm grid, waterfall spectrogram heatmap, and "
       "live oscilloscope waveform. Covers 430-440, 860-870, 900-930 MHz." },
+    { 'c', "Mesh Chat", "Meshtastic text chat — send + receive", nullptr, feat_mesh_chat,
+      "Live feed of received Meshtastic text messages on the default "
+      "LongFast channel, with a text input to broadcast back. POSEIDON "
+      "participates as a real mesh node with a MAC-derived node ID." },
+    { 'n', "Mesh Nodes", "Live roster of seen Meshtastic nodes", nullptr, feat_mesh_nodes,
+      "Scrollable list of all detected mesh nodes with short name, "
+      "node ID, SNR/RSSI, hops, last-seen, and GPS pin indicator. "
+      "ENTER on a node opens the direct-message page screen." },
+    { 'p', "Mesh Page", "Send a direct message to a specific node", nullptr, feat_mesh_page,
+      "Type a hex node ID (!xxxxxxxx) and a text message, send as a "
+      "unicast Meshtastic packet. Or pick a node from the roster first." },
+    { 'g', "Mesh Pos", "Toggle our own position broadcasts", nullptr, feat_mesh_position,
+      "When enabled, POSEIDON broadcasts NodeInfo every 30min and Position "
+      "every 15min (if GPS has a fix). We'll show up as a pin on other "
+      "Meshtastic apps within range." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
