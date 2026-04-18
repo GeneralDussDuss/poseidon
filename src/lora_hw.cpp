@@ -11,6 +11,7 @@
 #include <M5Unified.h>
 #include <SD.h>
 #include <SPI.h>
+#include <Wire.h>
 
 #define LORA_NSS   5
 #define LORA_RST   3
@@ -49,12 +50,48 @@ const char *lora_band_name(lora_band_t b)
     }
 }
 
+/*
+ * Drive the PI4IOE5V6408 antenna switch at I2C 0x43 directly.
+ *
+ * Previously this called M5.getIOExpander(0) — but nothing in POSEIDON
+ * ever registers an IOExpander with M5Unified, so that API returns a
+ * reference to an uninitialized slot and the first method call on it
+ * LoadProhibited-panics the whole device (Core 1, hard restart via
+ * Guru Meditation). Direct I2C is both safer and doesn't depend on
+ * M5Unified internals.
+ *
+ * PI4IOE5V6408 register map (datasheet):
+ *   0x01 I/O direction  (bit N: 1=input, 0=output)
+ *   0x05 Output register (bit N: 1=high, 0=low)
+ * GPIO 0 is the antenna switch enable on the CAP-LoRa1262 hat.
+ */
+#define PI4IOE_ADDR   0x43
+#define PI4IOE_REG_DIR 0x01
+#define PI4IOE_REG_OUT 0x05
+
+static bool pi4ioe_write(uint8_t reg, uint8_t val)
+{
+    Wire.beginTransmission(PI4IOE_ADDR);
+    Wire.write(reg);
+    Wire.write(val);
+    return Wire.endTransmission() == 0;
+}
+
+static bool pi4ioe_present(void)
+{
+    Wire.beginTransmission(PI4IOE_ADDR);
+    return Wire.endTransmission() == 0;
+}
+
 static void lora_rf_switch(bool on)
 {
-    auto &io = M5.getIOExpander(0);
-    if (!io.isEnabled()) return;
-    io.setDirection(0, true);
-    io.digitalWrite(0, on);
+    if (!pi4ioe_present()) {
+        Serial.println("[lora] PI4IOE antenna switch not present at 0x43");
+        return;
+    }
+    /* Bit 0 = GPIO 0 = antenna switch. Configure as output first. */
+    pi4ioe_write(PI4IOE_REG_DIR, 0xFE);  /* GPIO 0 output, rest inputs */
+    pi4ioe_write(PI4IOE_REG_OUT, on ? 0x01 : 0x00);
 }
 
 int lora_begin(const lora_config_t &cfg)
