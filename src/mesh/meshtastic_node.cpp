@@ -33,15 +33,19 @@ static char              s_own_long[40] = {0};
 static char              s_own_short[8] = {0};
 static uint32_t          s_packet_counter = 0;
 
-static mesh_node_t       s_nodes[MESH_MAX_NODES];
-static int               s_node_count = 0;
-static portMUX_TYPE      s_nodes_mux = portMUX_INITIALIZER_UNLOCKED;
+/* Heap-allocated on mesh_begin(), freed on mesh_end(). Was 9.5KB of
+ * static BSS, which ate DRAM 24/7 even when mesh wasn't active and
+ * contributed to WiFi.scanNetworks hitting ENOMEM under cumulative
+ * heap pressure. */
+static mesh_node_t       *s_nodes = nullptr;
+static int                s_node_count = 0;
+static portMUX_TYPE       s_nodes_mux = portMUX_INITIALIZER_UNLOCKED;
 
-static mesh_message_t    s_msgs[MESH_MSG_RING];
-static int               s_msg_head = 0;
-static int               s_msg_count = 0;
-static volatile bool     s_new_msg = false;
-static portMUX_TYPE      s_msgs_mux = portMUX_INITIALIZER_UNLOCKED;
+static mesh_message_t    *s_msgs = nullptr;
+static int                s_msg_head = 0;
+static int                s_msg_count = 0;
+static volatile bool      s_new_msg = false;
+static portMUX_TYPE       s_msgs_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static TaskHandle_t      s_rx_task = nullptr;
 static volatile bool     s_rx_task_alive = false;
@@ -118,7 +122,7 @@ static int upsert_node(uint32_t id)
 
 const mesh_node_t *mesh_nodes(int *count_out)
 {
-    if (count_out) *count_out = s_node_count;
+    if (count_out) *count_out = s_nodes ? s_node_count : 0;
     return s_nodes;
 }
 
@@ -136,7 +140,7 @@ static void push_message(const mesh_message_t &m)
 
 const mesh_message_t *mesh_messages(int *count_out)
 {
-    if (count_out) *count_out = s_msg_count;
+    if (count_out) *count_out = s_msgs ? s_msg_count : 0;
     return s_msgs;
 }
 
@@ -435,6 +439,17 @@ bool mesh_begin(void)
     s_msg_count = 0;
     s_new_msg = false;
 
+    /* Allocate node + message buffers only when mesh is active. Previously
+     * these were static BSS (9.5 KB) eating DRAM 24/7 — contributed to
+     * WiFi.scanNetworks hitting ENOMEM under cumulative heap pressure. */
+    if (!s_nodes) s_nodes = (mesh_node_t *)calloc(MESH_MAX_NODES, sizeof(mesh_node_t));
+    if (!s_msgs)  s_msgs  = (mesh_message_t *)calloc(MESH_MSG_RING, sizeof(mesh_message_t));
+    if (!s_nodes || !s_msgs) {
+        free(s_nodes); s_nodes = nullptr;
+        free(s_msgs);  s_msgs  = nullptr;
+        return false;
+    }
+
     /* Configure LoRa for Meshtastic LongFast US. lora_hw's config struct
      * takes freq_mhz, bw_khz, sf, cr (as int 5..8), sync byte, power. */
     lora_config_t cfg = {
@@ -455,9 +470,9 @@ bool mesh_begin(void)
     s_radio->startReceive();
 
     s_rx_task_stop = false;
-    /* 8KB stack — RadioLib's SPI transaction buffers + our protobuf
-     * decode path can bite a 4KB stack under the wrong frame. */
-    xTaskCreatePinnedToCore(rx_task, "mesh_rx", 8192, nullptr, 3, &s_rx_task, 1);
+    /* 5KB stack — enough for RadioLib SPI buffers + our protobuf decoder
+     * without biting into scarce heap needed for WiFi init. */
+    xTaskCreatePinnedToCore(rx_task, "mesh_rx", 5120, nullptr, 3, &s_rx_task, 1);
 
     s_up = true;
     Serial.printf("[mesh] up id=!%08x long=%s\n",
@@ -484,6 +499,12 @@ void mesh_end(void)
     s_rx_task = nullptr;
     lora_end();
     s_radio = nullptr;
+    /* Free heap-allocated buffers so WiFi has room. */
+    free(s_nodes); s_nodes = nullptr;
+    free(s_msgs);  s_msgs  = nullptr;
+    s_node_count = 0;
+    s_msg_count = 0;
+    s_msg_head = 0;
     s_up = false;
 }
 

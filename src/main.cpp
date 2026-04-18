@@ -69,6 +69,9 @@ void setup()
     /* Load persisted sound settings + set speaker volume. */
     sfx_init();
 
+    Serial.printf("[POSEIDON] boot heap free=%u KB\n",
+                  (unsigned)(ESP.getFreeHeap() / 1024));
+
     /* Bring up the GNSS UART + background NMEA poller so GPS-consuming
      * features (Wardrive, R4 GPS fix) always have a recent snapshot. */
     gps_begin();
