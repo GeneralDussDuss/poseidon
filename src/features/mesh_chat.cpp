@@ -9,6 +9,7 @@
 #include "../ui.h"
 #include "../input.h"
 #include "../radio.h"
+#include "../sfx.h"
 #include "../mesh/meshtastic.h"
 #include <stdio.h>
 #include <string.h>
@@ -82,7 +83,7 @@ void feat_mesh_chat(void)
     ui_draw_footer("T=type  R=reset  `=back");
 
     while (true) {
-        if (mesh_drain_new_message()) dirty = true;
+        if (mesh_drain_new_message()) { dirty = true; sfx_scan_hit(); }
         if (dirty) {
             draw_chat(input, input_len, typing);
             dirty = false;

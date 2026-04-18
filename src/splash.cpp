@@ -14,6 +14,7 @@
 #include "app.h"
 #include "ui.h"
 #include "input.h"
+#include "sfx.h"
 #include "version.h"
 #include "sprites/splash_sprite.h"
 #include <esp_random.h>
@@ -55,6 +56,11 @@ void ui_splash(void)
 {
     auto &d = M5Cardputer.Display;
     d.fillScreen(0x0000);
+
+    /* Boot jingle kicks off alongside the fade-in — sub-bass rumble into
+     * glitch sweep into POSEIDON chord, runs in parallel with the
+     * visual animation below. */
+    sfx_boot();
 
     /* ---- Phase 1: fade in with magenta scanline sweep ---- */
     for (int f = 0; f <= 25; ++f) {

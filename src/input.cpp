@@ -15,6 +15,7 @@
  */
 #include "input.h"
 #include "app.h"
+#include "sfx.h"
 
 /* Last-seen debug state — shown by input_debug_draw(). */
 static uint16_t s_last_key = PK_NONE;
@@ -49,22 +50,24 @@ uint16_t input_poll(void)
     auto status = M5Cardputer.Keyboard.keysState();
 
     /* Control keys take precedence. */
-    if (status.enter) { s_last_key = PK_ENTER; return PK_ENTER; }
-    if (status.del)   { s_last_key = PK_BKSP;  return PK_BKSP;  }
-    if (status.tab)   { s_last_key = PK_TAB;   return PK_TAB;   }
+    if (status.enter) { s_last_key = PK_ENTER; sfx_select(); return PK_ENTER; }
+    if (status.del)   { s_last_key = PK_BKSP;  sfx_click();  return PK_BKSP;  }
+    if (status.tab)   { s_last_key = PK_TAB;   sfx_click();  return PK_TAB;   }
 
-    if (status.space) { s_last_key = PK_SPACE; return PK_SPACE; }
+    if (status.space) { s_last_key = PK_SPACE; sfx_click(); return PK_SPACE; }
 
     /* Any other printable — return raw. Multiple aliases map to ESC:
      *   backtick alone      (top-left of the keyboard, no modifier)
      *   Ctrl + [ or Ctrl+C  (familiar "cancel") */
     if (!status.word.empty()) {
         char c = status.word[0];
-        if (c == '`') { s_last_key = PK_ESC; return PK_ESC; }
+        if (c == '`') { s_last_key = PK_ESC; sfx_back(); return PK_ESC; }
         if (status.ctrl && (c == '[' || c == 'c' || c == 'C')) {
             s_last_key = PK_ESC;
+            sfx_back();
             return PK_ESC;
         }
+        sfx_click();
         s_last_key = (uint16_t)c;
         return (uint16_t)c;
     }

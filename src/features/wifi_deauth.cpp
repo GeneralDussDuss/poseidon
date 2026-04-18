@@ -28,6 +28,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "sfx.h"
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
 #include <WiFi.h>
@@ -221,6 +222,7 @@ void feat_wifi_deauth(void)
 
     s_running = true;
     xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, nullptr);
+    sfx_deauth_burst();
 
     ui_clear_body();
     ui_draw_footer("ESC=stop  SPACE=pause");

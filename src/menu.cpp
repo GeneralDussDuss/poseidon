@@ -93,6 +93,7 @@ extern void feat_nrf24_finder(void);
 extern void feat_subghz_finder(void);
 extern void feat_mimir(void);
 extern void feat_theme_picker(void);
+extern void feat_sfx_settings(void);
 extern void feat_trident(void);
 extern void feat_uart_shell(void);
 extern void feat_tcp_tunnel(void);
@@ -498,6 +499,10 @@ static const menu_node_t MENU_SYS[] = {
       "Choose from 6 visual themes: POSEIDON (cyan/magenta), PHANTOM "
       "(purple), MATRIX (green), AMBER (retro), E-INK (paper), TRON "
       "(neon cyberpunk). Live preview with color swatches." },
+    { 'n', "Sound", "Speaker volume + mute + SFX test", nullptr, feat_sfx_settings,
+      "Adjust SFX volume 0-10, toggle global mute. Every menu click, "
+      "deauth, handshake capture, and splash boot sequence has a tone. "
+      "Settings persist to NVS." },
     { 'a', "About", "Build info", nullptr, feat_about,
       "Version, tagline, repo URL." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },

@@ -8,6 +8,7 @@
 #include "radio.h"
 #include "sd_helper.h"
 #include "gps.h"
+#include "sfx.h"
 #include "version.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 
@@ -64,6 +65,9 @@ void setup()
     /* Mount SD on boot if a card is present. Non-fatal if absent. */
     if (sd_mount()) Serial.println("[POSEIDON] sd mounted");
     else            Serial.println("[POSEIDON] sd absent");
+
+    /* Load persisted sound settings + set speaker volume. */
+    sfx_init();
 
     /* Bring up the GNSS UART + background NMEA poller so GPS-consuming
      * features (Wardrive, R4 GPS fix) always have a recent snapshot. */
