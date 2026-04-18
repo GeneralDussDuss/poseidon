@@ -190,8 +190,22 @@ void ui_slide_transition(ui_draw_fn build_new, int direction)
     auto &d = M5Cardputer.Display;
     if (!build_new) return;
 
-    static uint16_t old_body[SCR_W * BODY_H];
-    static uint16_t new_body[SCR_W * BODY_H];
+    /* Previously two 54 KB framebuffers were static BSS — 108 KB of
+     * permanent DRAM for an animation that runs ~200 ms per menu slide.
+     * WiFi init needs ~50 KB and was failing ENOMEM on devices without
+     * PSRAM. Malloc here, free after the animation. If alloc fails
+     * (really tight heap), skip the animation and just redraw. */
+    const size_t bytes = SCR_W * BODY_H * sizeof(uint16_t);
+    uint16_t *old_body = (uint16_t *)malloc(bytes);
+    uint16_t *new_body = (uint16_t *)malloc(bytes);
+    if (!old_body || !new_body) {
+        free(old_body);
+        free(new_body);
+        /* Fallback: no animation, just draw the new body. */
+        ui_clear_body();
+        build_new();
+        return;
+    }
 
     d.readRect(0, BODY_Y, SCR_W, BODY_H, old_body);
     ui_clear_body();
@@ -211,6 +225,8 @@ void ui_slide_transition(ui_draw_fn build_new, int direction)
         delay(18);
     }
     d.pushImage(0, BODY_Y, SCR_W, BODY_H, new_body);
+    free(old_body);
+    free(new_body);
 }
 
 /* Spinner: rotating trident silhouette. Drawn as a small 3-tine shape
