@@ -1,0 +1,44 @@
+; POSEIDON — Keyboard-first pentesting firmware for M5Stack Cardputer-Adv.
+;
+; Target hardware: M5Stack Cardputer-Adv (K126-Adv)
+;   ESP32-S3 @ 240 MHz, 8MB PSRAM, 8MB flash
+;   1.14" LCD 240x135 (ST7789v2), TCA8418 I2C keyboard matrix
+;   IR LED, microSD, I2S speaker, PDM mic, USB-C, Grove I2C
+;   Keyboard on I2C frees GPIO 3/4/5/6/7/13/15 for hats (LoRa1262, etc).
+
+[env:cardputer]
+platform              = espressif32@6.7.0
+board                 = m5stack-stamps3
+framework             = arduino
+monitor_speed         = 115200
+upload_speed          = 460800
+upload_flags =
+    --no-stub
+
+; PSRAM is broken on this particular Cardputer unit — ID reads back as
+; 0xffffff or 0x0 regardless of qio_opi/qio_qspi. Disabling entirely so
+; no code path (BLE, slide transitions, etc.) assumes PSRAM exists.
+board_build.partitions = default_8MB.csv
+board_upload.flash_size = 8MB
+
+build_flags =
+    -DARDUINO_USB_MODE=1
+    -DARDUINO_USB_CDC_ON_BOOT=1
+    -DCORE_DEBUG_LEVEL=2
+    -DPOSEIDON_VERSION=\"0.3.0\"
+    -std=gnu++17
+    -Wall
+
+build_unflags = -std=gnu++11
+
+lib_deps =
+    m5stack/M5Cardputer @ ^1.1.1
+    m5stack/M5Unified   @ ^0.2.13
+    h2zero/NimBLE-Arduino @ ^1.4.1
+    marian-craciunescu/ESP32Ping @ ^1.7
+    jgromes/RadioLib @ 7.4.0
+    lsatan/SmartRC-CC1101-Driver-Lib @ ^2.5.7
+    sui77/rc-switch @ ^2.6.4
+    nrf24/RF24 @ ^1.4.11
+
+monitor_filters = esp32_exception_decoder, colorize
