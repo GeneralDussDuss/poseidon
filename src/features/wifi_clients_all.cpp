@@ -113,13 +113,12 @@ static void unicast_deauth(const uint8_t *sta, const uint8_t *bssid, uint8_t ch,
      * ESP-IDF blob sanity check. */
     bool prev_lock = s_locked;
     s_locked = true;
-    wifi_ap_spoof_begin(bssid);
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    wifi_silent_ap_begin(ch);
     for (int i = 0; i < bursts; ++i) {
         wifi_deauth_pair(sta, bssid, &s_hot_seq);
         delay(5);
     }
-    wifi_ap_spoof_end();
+    wifi_silent_ap_end();
     s_locked = prev_lock;
 }
 
@@ -128,13 +127,12 @@ static void broadcast_deauth(const uint8_t *bssid, uint8_t ch, int bursts)
     if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
     bool prev_lock = s_locked;
     s_locked = true;
-    wifi_ap_spoof_begin(bssid);
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    wifi_silent_ap_begin(ch);
     for (int i = 0; i < bursts; ++i) {
         wifi_deauth_broadcast(bssid, &s_hot_seq);
         delay(5);
     }
-    wifi_ap_spoof_end();
+    wifi_silent_ap_end();
     s_locked = prev_lock;
 }
 

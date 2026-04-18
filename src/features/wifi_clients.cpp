@@ -87,16 +87,12 @@ static void deauth_client(const uint8_t *client)
     static uint16_t seq = 0;
     if (seq == 0) seq = (uint16_t)(esp_random() & 0x0FFF);
 
-    esp_err_t mac_rc = wifi_ap_spoof_begin(s_target);
-    Serial.printf("[clients] ap_spoof rc=%d\n", (int)mac_rc);
-
-    esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
+    wifi_silent_ap_begin(s_target_ch);
     for (int i = 0; i < 30; ++i) {
         wifi_deauth_pair(client, s_target, &seq);
         delay(5);
     }
-
-    wifi_ap_spoof_end();
+    wifi_silent_ap_end();
 }
 
 void feat_wifi_clients(void)

