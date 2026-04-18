@@ -455,7 +455,9 @@ bool mesh_begin(void)
     s_radio->startReceive();
 
     s_rx_task_stop = false;
-    xTaskCreatePinnedToCore(rx_task, "mesh_rx", 4096, nullptr, 3, &s_rx_task, 1);
+    /* 8KB stack — RadioLib's SPI transaction buffers + our protobuf
+     * decode path can bite a 4KB stack under the wrong frame. */
+    xTaskCreatePinnedToCore(rx_task, "mesh_rx", 8192, nullptr, 3, &s_rx_task, 1);
 
     s_up = true;
     Serial.printf("[mesh] up id=!%08x long=%s\n",

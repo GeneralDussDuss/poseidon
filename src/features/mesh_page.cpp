@@ -81,7 +81,10 @@ static void page_to(uint32_t dest)
     }
 }
 
-/* Called from mesh_nodes after a node is selected. */
+/* Called from mesh_nodes after a node is selected.
+ * Note: does NOT tear down mesh on exit because mesh_nodes (the caller)
+ * is still running and needs the RX task alive. mesh_nodes calls
+ * mesh_end() itself on its own exit. */
 void feat_mesh_page_to(uint32_t dest)
 {
     if (dest == 0 || dest == mesh_own_node_id()) return;
@@ -99,13 +102,15 @@ void feat_mesh_page(void)
     }
 
     char id_buf[12];
-    if (!input_line("Dest node !xxxxxxxx:", id_buf, sizeof(id_buf))) return;
+    if (!input_line("Dest node !xxxxxxxx:", id_buf, sizeof(id_buf))) { mesh_end(); return; }
     const char *s = id_buf;
     if (*s == '!') s++;
     uint32_t dest = (uint32_t)strtoul(s, nullptr, 16);
     if (dest == 0) {
         ui_toast("bad id", T_BAD, 1000);
+        mesh_end();
         return;
     }
     page_to(dest);
+    mesh_end();
 }

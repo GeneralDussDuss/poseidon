@@ -120,8 +120,11 @@ void feat_mesh_chat(void)
         }
     }
 
-    /* Don't call mesh_end() — other mesh features may want to keep it up.
-     * The radio_switch(RADIO_NONE) in the caller would tear it down if
-     * they switched domains, but we intentionally leave mesh running so
-     * background RX continues populating the node roster. */
+    /* Stop the RX task before returning — any other LoRa feature the user
+     * opens next will call lora_begin() which calls lora_end() which
+     * deletes the SX1262. If our RX task is still running it'll
+     * dereference that freed object and InstrFetchProhibited on the stale
+     * vtable. Losing the roster between feature entries is the right
+     * trade vs a hard panic. */
+    mesh_end();
 }

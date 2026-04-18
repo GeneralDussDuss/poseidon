@@ -71,4 +71,8 @@ void feat_mesh_position(void)
             }
         }
     }
+    /* Tear down before the user opens another LoRa feature. The position
+     * reporting toggle state is preserved in a static flag in meshtastic_node
+     * so re-entering any mesh feature resumes where we left off. */
+    mesh_end();
 }

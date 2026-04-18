@@ -114,4 +114,9 @@ void feat_mesh_nodes(void)
             while (input_poll() == PK_NONE) delay(20);
         }
     }
+    /* Stop RX task before returning — any other LoRa feature the user
+     * opens next calls lora_begin() which frees the SX1262. If our RX
+     * task is still running it would dereference a stale vtable and
+     * panic with InstrFetchProhibited. */
+    mesh_end();
 }
