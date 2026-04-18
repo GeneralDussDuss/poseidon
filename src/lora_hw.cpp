@@ -11,7 +11,6 @@
 #include <M5Unified.h>
 #include <SD.h>
 #include <SPI.h>
-#include <Wire.h>
 
 #define LORA_NSS   5
 #define LORA_RST   3
@@ -65,28 +64,26 @@ const char *lora_band_name(lora_band_t b)
  *   0x05 Output register (bit N: 1=high, 0=low)
  * GPIO 0 is the antenna switch enable on the CAP-LoRa1262 hat.
  */
-#define PI4IOE_ADDR   0x43
+#define PI4IOE_ADDR    0x43
 #define PI4IOE_REG_DIR 0x01
 #define PI4IOE_REG_OUT 0x05
 
+/* Use M5.In_I2C — the Cardputer's internal I2C already configured by
+ * M5.begin(). Raw Wire isn't bound to the right SDA/SCL on this board. */
 static bool pi4ioe_write(uint8_t reg, uint8_t val)
 {
-    Wire.beginTransmission(PI4IOE_ADDR);
-    Wire.write(reg);
-    Wire.write(val);
-    return Wire.endTransmission() == 0;
+    return M5.In_I2C.writeRegister8(PI4IOE_ADDR, reg, val, 400000);
 }
 
 static bool pi4ioe_present(void)
 {
-    Wire.beginTransmission(PI4IOE_ADDR);
-    return Wire.endTransmission() == 0;
+    return M5.In_I2C.scanID(PI4IOE_ADDR);
 }
 
 static void lora_rf_switch(bool on)
 {
     if (!pi4ioe_present()) {
-        Serial.println("[lora] PI4IOE antenna switch not present at 0x43");
+        Serial.println("[lora] PI4IOE antenna switch not present at 0x43 (I2C scan)");
         return;
     }
     /* Bit 0 = GPIO 0 = antenna switch. Configure as output first. */
