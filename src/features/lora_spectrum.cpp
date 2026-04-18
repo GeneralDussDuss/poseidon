@@ -170,12 +170,16 @@ static void run_bars(SX1262 &radio, const lora_range_t &range)
 
         d.setTextColor(T_FG, T_BG);
         d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%ddBm", hist[(hp + GW - 1) % GW]);
-        ui_draw_footer("ESC=back  R=reset peaks");
+        ui_draw_footer("`=back  R=reset peaks");
 
-        uint16_t k = input_poll();
-        if (k == PK_ESC) return;
-        if (k == 'r' || k == 'R') memset(peak, -130, sizeof(peak));
-        delay(15);
+        /* Tight poll so a quick tap on backtick/ESC always catches. */
+        uint32_t t0 = millis();
+        while (millis() - t0 < 30) {
+            uint16_t k = input_poll();
+            if (k == PK_ESC) return;
+            if (k == 'r' || k == 'R') { memset(peak, -130, sizeof(peak)); break; }
+            delay(4);
+        }
     }
 }
 
@@ -220,13 +224,16 @@ static void run_waterfall(SX1262 &radio, const lora_range_t &range)
         ui_text(4, BODY_Y + 2, T_ACCENT2, "LoRa WATERFALL %.3f", range.center);
         d.setTextColor(T_FG, T_BG);
         d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%ddBm", r);
-        ui_draw_footer("ESC=back");
+        ui_draw_footer("`=back");
 
         draw_packet_overlay(GX + 2, GY + GH + 5);
 
-        uint16_t k = input_poll();
-        if (k == PK_ESC) { free(ring); return; }
-        delay(30);
+        uint32_t t0 = millis();
+        while (millis() - t0 < 50) {
+            uint16_t k = input_poll();
+            if (k == PK_ESC) { free(ring); return; }
+            delay(4);
+        }
     }
 }
 
