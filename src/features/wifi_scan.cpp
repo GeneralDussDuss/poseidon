@@ -17,6 +17,8 @@
 #include "radio.h"
 #include "wifi_types.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
+#include <esp_heap_caps.h>
 
 #define MAX_APS 64
 
@@ -49,16 +51,29 @@ static void scan_task(void *)
 {
     s_scan_done = false;
     s_scan_running = true;
-    Serial.printf("[wifi_scan] mode=%d starting\n", (int)WiFi.getMode());
-    /* Ensure STA mode before scan — some prior features (Meshtastic,
-     * deauth, LoRa) may have left WiFi in WIFI_OFF. scanNetworks silently
-     * returns 0 if the STA interface isn't up. */
-    if (WiFi.getMode() != WIFI_STA && WiFi.getMode() != WIFI_AP_STA) {
-        WiFi.mode(WIFI_STA);
-        delay(50);
+    size_t heap_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    Serial.printf("[wifi_scan] heap_free=%u mode=%d\n",
+                  (unsigned)heap_free, (int)WiFi.getMode());
+
+    /* WiFi init needs ~50KB. If prior feature left the heap fragmented,
+     * retry after a settle delay (idle task cleans up deleted task
+     * stacks + internal buffers). */
+    wifi_mode_t m = WiFi.getMode();
+    if (m != WIFI_STA && m != WIFI_AP_STA) {
+        for (int attempt = 0; attempt < 4; attempt++) {
+            if (WiFi.mode(WIFI_STA)) break;
+            Serial.printf("[wifi_scan] WiFi.mode attempt %d failed, heap=%u\n",
+                          attempt, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+            /* Force a clean deinit before retry — lets prior-feature state
+             * release. */
+            esp_wifi_stop();
+            esp_wifi_deinit();
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
     }
     int n = WiFi.scanNetworks(false, true, false, 120);  /* blocking — we're in a task */
-    Serial.printf("[wifi_scan] scanNetworks -> %d\n", n);
+    Serial.printf("[wifi_scan] scanNetworks -> %d (heap=%u)\n",
+                  n, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     s_ap_count = 0;
     if (n > 0) {
         for (int i = 0; i < n && s_ap_count < MAX_APS; ++i) {

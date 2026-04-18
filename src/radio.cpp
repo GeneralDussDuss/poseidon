@@ -67,7 +67,14 @@ bool radio_switch(radio_domain_t target)
     switch (target) {
     case RADIO_WIFI:
         WiFi.mode(WIFI_STA);
-        WiFi.disconnect(true, true);
+        /* Prior code called WiFi.disconnect(true, true) here which disables
+         * STA via enableSTA(false) — meaning subsequent scanNetworks has
+         * to re-init the WiFi driver. On a freshly-booted device with
+         * plenty of heap this was silent, but after a few features use
+         * memory, esp_wifi_init fails with ENOMEM. Use (false, true) so
+         * STA stays up and credentials are erased without cycling the
+         * whole driver. */
+        WiFi.disconnect(false, true);
         break;
     case RADIO_BLE:
         NimBLEDevice::init("POSEIDON");
