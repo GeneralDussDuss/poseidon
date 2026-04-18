@@ -277,7 +277,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <canvas id="heroCanvas"></canvas>
   <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; FRESH DEAUTH PATCH</div>
+    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; LORA + DEAUTH STABLE</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
     <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 80+ features across <span class="hl">six radio bands</span>. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. All from your pocket.</p>
@@ -411,45 +411,46 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
         </div>
       </div>
     </div>
-    <div class="rm-item current reveal-left">
+    <div class="rm-item shipped reveal-left">
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.2.0</span>
           <span class="rm-date">2026-04-17</span>
-          <span class="rm-tag current">Current</span>
+          <span class="rm-tag shipped">Shipped</span>
         </div>
-        <div class="rm-title">Deauth correctness — every frame actually lands</div>
+        <div class="rm-title">Deauth correctness + LoRa stability</div>
         <div class="rm-body">
-          Testers flagged deauth was weaker than peer tools. Root cause: <code>addr1</code>
-          was self-addressed to the AP's BSSID in the main targeted path. Plus
-          secondary filtering: static seq=0, no disassoc pair, no unicast follow-up,
-          no PMF warning.
+          Two back-to-back audits landed simultaneously — deauth wasn't kicking clients, LoRa was hard-rebooting the device. Both classes of bug found, fixed, reviewed, shipped.
           <ul>
-            <li>Shared frame builder — correct 802.11-2016 Sequence Control encoding</li>
-            <li>Deauth + disassoc pair, per-frame seq increment from random seed</li>
-            <li>In-attack client sniffer → alternating broadcast + unicast rounds</li>
-            <li>PMF / WPA3 / WPA2-Enterprise warning before firing</li>
-            <li>TX error counter surfaces driver-level drops in the UI</li>
-            <li>Triton inherits the entire correctness stack</li>
+            <li>Deauth: <code>addr1</code> bug fixed across 4 sites + Triton, shared frame builder with correct 802.11-2016 Sequence Control encoding</li>
+            <li>Deauth + disassoc pair with per-frame seq increment, client sniffer feeding alternating broadcast/unicast rounds</li>
+            <li>PMF / WPA3 / WPA2-Enterprise warning + driver-level TX drop counter</li>
+            <li>LoRa bandwidth unit fixed (kHz directly, not divided by 1000)</li>
+            <li>PI4IOE antenna switch driven directly via <code>M5.In_I2C</code>, bypassing a broken M5 expander API that was LoadProhibited-panic'ing the device</li>
+            <li>Null-radio boot-loop eliminated — <code>lora_radio()</code> returns a dummy instead of calling <code>esp_restart()</code></li>
+            <li>LoRa spectrum analyzer rewritten — no more 210-retune sweep per frame, real packet capture with RSSI/SNR/size overlay</li>
           </ul>
         </div>
       </div>
     </div>
-    <div class="rm-item planned reveal-left">
+    <div class="rm-item current reveal-left">
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.3.0</span>
-          <span class="rm-date">Q3 2026</span>
-          <span class="rm-tag planned">Planned</span>
+          <span class="rm-date">In Progress</span>
+          <span class="rm-tag current">Current</span>
         </div>
-        <div class="rm-title">Platform patch + concurrency hardening</div>
+        <div class="rm-title">Meshtastic node + platform fork</div>
         <div class="rm-body">
+          POSEIDON becomes a full Meshtastic participant — send, receive, page specific nodes, show up on the mesh.
           <ul>
-            <li>Platform fork with patched esp_wifi blob — full frame-injection parity with Marauder / Ghost ESP</li>
-            <li>Unified FreeRTOS task lifecycle (stored TaskHandles, proper join)</li>
-            <li>WiFi promisc-callback races fixed in PMKID + wardrive paths</li>
-            <li>Mesh-task stop synchronization rewrite</li>
-            <li>RMT cleanup on sub-GHz record ESC paths</li>
+            <li>Hand-rolled minimal protobuf for MeshPacket / Data / User / Position</li>
+            <li>AES-CTR via mbedtls with default LongFast channel PSK</li>
+            <li>Broadcast text messages + direct-to-node messaging (paging)</li>
+            <li>Live node roster with long/short names, SNR, hops, last-seen</li>
+            <li>Optional position reporting — POSEIDON appears as a pin on other people's Meshtastic apps when GPS has fix</li>
+            <li>ESP32 Arduino core fork with patched <code>libnet80211.a</code> / <code>libpp.a</code> for full Marauder / Ghost ESP deauth parity on-air</li>
+            <li>CAD-based channel busy-check before LoRa TX</li>
           </ul>
         </div>
       </div>
@@ -458,16 +459,40 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.4.0</span>
+          <span class="rm-date">Q3 2026</span>
+          <span class="rm-tag planned">Planned</span>
+        </div>
+        <div class="rm-title">ESP32-C5 full integration</div>
+        <div class="rm-body">
+          <ul>
+            <li>C5 OTA auto-flash from Cardputer SD over ESP-NOW</li>
+            <li>5 GHz client hunting + targeted per-STA deauth (not just per-AP)</li>
+            <li>5 GHz PMKID + handshake capture with EAPOL relay over ESP-NOW</li>
+            <li>802.15.4 Zigbee full packet capture + Wireshark PCAP export</li>
+            <li>Thread network discovery + device enumeration</li>
+            <li>Multi-C5 coordination — deploy several satellites, control all from one Cardputer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="rm-item planned reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.5.0</span>
           <span class="rm-date">Q4 2026</span>
           <span class="rm-tag planned">Planned</span>
         </div>
-        <div class="rm-title">Post-exploit orchestration + tri-band</div>
+        <div class="rm-title">MIMIR drop-box live</div>
         <div class="rm-body">
+          The MIMIR client module exists in POSEIDON today. v0.5 makes the BPI-M4 Zero server side real.
           <ul>
-            <li>Bjorn-style action DAG — auto-exploit newly cracked networks via MIMIR</li>
-            <li>WiFi 6E support via MT7921 USB hat passthrough</li>
-            <li>FENRIR RL policy head wired into MIMIR's exploit orchestrator</li>
-            <li>Full POSEIDON ⇄ MIMIR ⇄ DUSSIGOTCHI mesh for three-device coverage</li>
+            <li><code>hcxdumptool</code> wrapper for real scan events (replacing placeholders)</li>
+            <li>On-device WPA2 cracker (dual-core PBKDF2-SHA1)</li>
+            <li>Bjorn-style action DAG — auto-exploit cracked networks</li>
+            <li>FENRIR RL policy head selecting exploit strategy</li>
+            <li>Armbian H618 one-flash image</li>
+            <li>Pull captured pcap / .22000 back to Cardputer SD over USB-CDC</li>
+            <li>GPS-tagged attack logging with WiGLE integration</li>
           </ul>
         </div>
       </div>

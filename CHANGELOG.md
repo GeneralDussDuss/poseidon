@@ -6,6 +6,59 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-17
+
+### Fixed — LoRa spectrum rewrite + freeze + ESC (2026-04-17)
+
+The LoRa analyzer was freezing on a blank screen when a frequency was
+selected, and ESC wasn't backing users out of bar/waterfall modes.
+
+Root cause of the freeze: `run_bars` and `run_waterfall` were retuning
+the SX1262 210+ times per frame (one per pixel column) via a full
+standby → setFrequency → startReceive → RSSI dance. Any single retune
+hanging on a BUSY wait froze the whole feature. Plus, the SX1262's RSSI
+is wideband at the tuned frequency — you can't actually get per-bin
+spectrum from a single reading, so the sweep was misleading anyway.
+
+**Rewrite:**
+- Tune once at band center, stay in continuous RX (no sweep per frame)
+- Sample ambient RSSI per frame — non-blocking, ~1 ms
+- X-axis reinterpreted as time instead of frequency (honest about what
+  the signal actually shows)
+- New packet-capture pipeline: `poll_packet()` pulls real LoRa frames
+  as they arrive and buffers them in a 6-deep history ring (RSSI, SNR,
+  size, age) — every view now shows detected packets as an overlay
+- All three modes retained with clearer semantics:
+  - **Bar Meter** — RSSI bars over time with peak hold + packet overlay
+  - **Waterfall** — scrolling RSSI heatmap with packet overlay
+  - **Oscilloscope** — single-frequency waveform, trimmable with +/-
+- TAB cycles band and retunes once instead of sweep-per-frame
+- Tight input polling (every 4 ms) in bars and waterfall so ESC/backtick
+  catches quick taps — the slow-render + delay(15) pattern was dropping
+  key presses below ~10 Hz
+
+### Fixed — LoRa PI4IOE antenna switch + boot loop (2026-04-17)
+
+LoRa feature was panic'ing the whole device with a `Guru Meditation
+Error: LoadProhibited` on Core 1. Panic traced to `M5.getIOExpander(0)`
+returning a reference to an unregistered slot, which then LoadProhibited
+as soon as a method was called on it. Nothing in POSEIDON ever registers
+an IOExpander with M5Unified.
+
+The esp_restart() fallback in `lora_radio()` then put the device into
+a hard boot loop cycling every few hundred ms — `rst:0x3 RTC_SW_SYS_RST`
+forever, device unusable.
+
+**Fix:**
+- Replaced `M5.getIOExpander(0)` with direct I2C writes to the
+  PI4IOE5V6408 at address 0x43 via `M5.In_I2C` — register 0x01 for
+  direction, 0x05 for output, with a presence probe so missing hats
+  log a warning instead of hanging
+- `lora_radio()` now returns a dummy `SX1262` instance (disconnected
+  pins, all RadioLib calls no-op or return error) instead of calling
+  `esp_restart()` on null. Any code path that reaches for the radio
+  before `lora_begin()` now fails gracefully with a log warning
+
 ### Fixed — WiFi deauth correctness (2026-04-17)
 
 Testers reported POSEIDON's deauth was noticeably weaker than Flipper Marauder,

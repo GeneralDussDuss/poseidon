@@ -20,8 +20,11 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![features](https://img.shields.io/badge/features-80+-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.0-cyan?style=flat-square)
 
 [**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
+
+**v0.2.0 just shipped** — WiFi deauth correctness (addr1 + disassoc pair + seq + client sniffer + PMF warn + drops counter), LoRa crash fixes (bandwidth unit, antenna switch via M5.In_I2C, boot-loop guard), and a completely rewritten LoRa spectrum analyzer with real packet capture. See [CHANGELOG](CHANGELOG.md).
 
 </div>
 
@@ -188,7 +191,20 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 
 ## Roadmap
 
-### v0.3 — ESP32-C5 Full Integration
+### v0.3 — Meshtastic Node + Platform Fork
+
+POSEIDON becomes a full Meshtastic participant (not just a listener) — can send, receive, page specific nodes. Plus the esp_wifi platform fork so spoofed-addr2 frames fully land on-air.
+
+- [ ] Hand-rolled minimal protobuf for MeshPacket / Data / User / Position
+- [ ] AES-CTR via mbedtls with default LongFast channel PSK
+- [ ] Send broadcast text messages to the mesh
+- [ ] Send direct messages (page specific node by ID)
+- [ ] Live node roster with long/short names, SNR, hops, last-seen
+- [ ] Optional position reporting — POSEIDON appears as a pin on Meshtastic apps when GPS has fix
+- [ ] ESP32 Arduino core fork with patched `libnet80211.a` / `libpp.a` so spoofed-addr2 mgmt frames bypass the TX-FIFO sanity check (Marauder / Ghost ESP parity)
+- [ ] CAD-based channel busy-check before LoRa TX (be a polite mesh citizen)
+
+### v0.4 — ESP32-C5 Full Integration
 The C5 companion node already does basic 5 GHz scan + deauth over ESP-NOW. v0.3 makes it a first-class citizen.
 
 - [ ] C5 auto-flash from Cardputer SD (OTA over ESP-NOW)
@@ -201,7 +217,7 @@ The C5 companion node already does basic 5 GHz scan + deauth over ESP-NOW. v0.3 
 - [ ] C5 NeoPixel status: color-coded by activity (scan/attack/idle/capture)
 - [ ] C5 power management — deep sleep between commands, wake on ESP-NOW
 
-### v0.4 — MIMIR Drop-Box (BPI-M4 Zero)
+### v0.5 — MIMIR Drop-Box (BPI-M4 Zero)
 The MIMIR client module exists. v0.4 makes the server side real.
 
 - [ ] MIMIR daemon: `hcxdumptool` wrapper for real scan events (replacing placeholders)
@@ -215,7 +231,7 @@ The MIMIR client module exists. v0.4 makes the server side real.
 - [ ] GPS-tagged attack logging with WiGLE integration
 - [ ] Pocket-mode auto-start on cable connect
 
-### v0.5 — nRF52840 Integration
+### v0.6 — nRF52840 Integration
 The nRF52840 is the real BLE chip — full BLE 5.0 with long range, coded PHY, and direction finding. Adding it as a USB-connected sniffer module.
 
 - [ ] nRF52840 dongle as BLE sniffer (USB-CDC bridge from Cardputer)
@@ -228,7 +244,7 @@ The nRF52840 is the real BLE chip — full BLE 5.0 with long range, coded PHY, a
 - [ ] nRF52840 firmware flasher from Cardputer SD
 - [ ] Combined attack: nRF24 MouseJack + nRF52 BLE MITM simultaneously
 
-### v0.6 — On-Device Intelligence
+### v0.7 — On-Device Intelligence
 - [ ] On-device WPA2 cracker (handshake → PBKDF2-SHA1, dual-core ESP32-S3)
 - [ ] SSH shell via `libssh_esp32` (interactive remote terminal)
 - [ ] LDAP domain dump (hand-rolled BER/DER LDAP client)
