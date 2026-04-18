@@ -88,122 +88,148 @@ static void chord(const int *freqs, int n, int dur_ms)
     }
 }
 
-/* ========== UI cues — subtle ========== */
+/* Sweep helper — rapid frequency glide from f0 to f1 over dur_ms.
+ * This is the core Tron/cyberpunk sound texture. */
+static void sweep(int f0, int f1, int dur_ms)
+{
+    if (!audio_on()) return;
+    int steps = dur_ms / 3;
+    if (steps < 4) steps = 4;
+    int step_ms = dur_ms / steps;
+    for (int i = 0; i <= steps; i++) {
+        int f = f0 + ((f1 - f0) * i) / steps;
+        M5Cardputer.Speaker.tone(f, step_ms + 2);
+        delay(step_ms);
+    }
+}
+
+/* ========== UI cues — digital / Tron ========== */
 
 void sfx_click(void)
 {
-    note(1800, 4);  /* crisp 4ms tick */
+    /* Ultra-short 2-tone digital blip. Two stacked high freqs = data-tick feel. */
+    note(3600, 2);
+    note(4800, 2);
 }
 
 void sfx_select(void)
 {
-    note(2400, 12);
-    delay(8);
-    note(3200, 12);
+    /* Short descending activation glide — the Tron "acknowledge". */
+    sweep(3800, 2400, 45);
 }
 
 void sfx_back(void)
 {
-    note(1800, 12);
-    delay(6);
-    note(1200, 16);
+    /* Quick sweep-down-then-tail — decisive disengagement. */
+    sweep(2800, 1400, 35);
+    delay(4);
+    note(900, 15);
 }
 
 void sfx_error(void)
 {
-    note(500, 40);
-    delay(10);
-    note(300, 60);
+    /* Broken-modem: low buzz + harsh noise burst. */
+    note(220, 35); delay(5);
+    note(180, 45); delay(5);
+    sweep(400, 140, 60);
 }
 
 void sfx_toast(void)
 {
-    note(2600, 18);
+    /* Soft digital chirp — subtle info cue. */
+    sweep(2400, 3200, 22);
 }
 
-/* ========== attack cues — distinctive ========== */
+/* ========== attack cues — cyberpunk ========== */
 
 void sfx_scan_start(void)
 {
-    /* Ascending sweep — "stalking" feel */
-    note(800, 20); delay(15);
-    note(1200, 20); delay(15);
-    note(1800, 25);
+    /* Data-link initializing: dual-sweep up then lock. */
+    sweep(400, 2800, 90);
+    delay(10);
+    note(3600, 20);
+    note(2800, 20);
 }
 
 void sfx_scan_hit(void)
 {
-    /* Bright little ping */
-    note(3000, 14);
-    delay(8);
-    note(3800, 18);
+    /* Target acquired — bright ping with sweep-up tail. */
+    note(3800, 10);
+    sweep(3800, 5200, 35);
 }
 
 void sfx_deauth_burst(void)
 {
-    /* Aggressive low-mid pulse — quick, hits hard */
-    note(2200, 20);
-    delay(4);
-    note(1600, 30);
+    /* Aggressive rising zap + industrial hit. Hard, mean. */
+    sweep(200, 2400, 60);
+    delay(3);
+    note(1200, 40);
+    delay(3);
+    note(600, 30);
 }
 
 void sfx_capture(void)
 {
-    /* Triumphant 3-note ascending — handshake / PMKID grabbed */
-    const int notes[3] = { 1600, 2400, 3600 };
-    for (int i = 0; i < 3; i++) {
-        note(notes[i], 70);
-        delay(55);
-    }
+    /* Bright glitch-into-chord — data acquired. */
+    const int freqs[4] = { 3200, 1800, 4200, 2600 };
+    for (int i = 0; i < 4; i++) { note(freqs[i], 18); delay(10); }
+    delay(8);
+    const int chord_notes[3] = { 2400, 3200, 4000 };
+    chord(chord_notes, 3, 120);
 }
 
 void sfx_cracked(void)
 {
-    /* Bigger capture — 4-note major arpeggio */
-    const int notes[4] = { 1500, 1900, 2250, 3000 };
-    for (int i = 0; i < 4; i++) {
-        note(notes[i], 60);
-        delay(45);
-    }
+    /* The win SFX: glitch-rise-to-chord finale. */
+    sweep(400, 2800, 120);
+    delay(10);
+    const int chord_notes[4] = { 1900, 2800, 3600, 4800 };
+    chord(chord_notes, 4, 180);
     delay(30);
-    note(3600, 110);
+    note(5200, 140);
 }
 
-/* ========== system cues ========== */
+/* ========== system cues — cinematic ========== */
 
 void sfx_boot(void)
 {
-    /* Deep wave + glitch shimmer + title bloom.
-     *   1. Two low rumbles (the deep)
-     *   2. Ascending glitch sweep
-     *   3. Bright chord (POSEIDON rising) */
-    note(180, 90);  delay(60);
-    note(240, 110); delay(80);
-    /* glitch sweep */
-    for (int f = 600; f <= 2400; f += 240) {
-        note(f, 12);
-        delay(10);
+    /* Power-on sequence — sub-bass heartbeat, modem handshake, chord bloom.
+     *   1. Two sub-bass pulses  — deep, "waking up"
+     *   2. Modem-handshake texture (rapid alternating pitches)
+     *   3. Rising sweep
+     *   4. POSEIDON chord */
+    note(120, 110); delay(90);
+    note(160, 130); delay(100);
+    /* modem-style handshake */
+    for (int i = 0; i < 6; i++) {
+        note(900 + (i * 180), 15);
+        delay(5);
+        note(2400 - (i * 140), 15);
+        delay(5);
     }
-    delay(40);
-    const int chord_notes[3] = { 2400, 3000, 3600 };
-    chord(chord_notes, 3, 180);
+    /* rising sweep */
+    sweep(300, 3200, 200);
+    delay(30);
+    /* final POSEIDON chord */
+    const int final_chord[4] = { 2000, 2800, 3400, 4200 };
+    chord(final_chord, 4, 220);
 }
 
 void sfx_alert(void)
 {
-    /* Two fast descending pulses — "something's wrong" */
-    note(2800, 40); delay(40);
-    note(2400, 40); delay(40);
-    note(2800, 40); delay(40);
-    note(2400, 60);
+    /* Siren-style alternating high/low — unmistakable warning. */
+    for (int i = 0; i < 3; i++) {
+        note(2800, 50); delay(20);
+        note(1400, 50); delay(20);
+    }
 }
 
 void sfx_glitch(void)
 {
-    /* Rapid frequency walk — hacker-movie vibe */
-    const int freqs[6] = { 1800, 700, 2600, 900, 3400, 1400 };
-    for (int i = 0; i < 6; i++) {
-        note(freqs[i], 18);
-        delay(10);
+    /* Full broken-signal texture — frequency noise. */
+    const int freqs[8] = { 3800, 600, 2200, 4400, 900, 3200, 500, 2800 };
+    for (int i = 0; i < 8; i++) {
+        note(freqs[i], 14);
+        delay(8);
     }
 }
