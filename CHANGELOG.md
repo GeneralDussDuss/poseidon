@@ -6,7 +6,31 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-04-17
+## [0.3.0] - 2026-04-17
+
+### Added — Meshtastic node (full participant)
+
+POSEIDON is now a full Meshtastic leaf node on the default LongFast public channel,
+not just a listener. Four new menu entries under LoRa:
+
+- **Mesh Chat** (`c`) — live feed of received text messages, type to broadcast
+- **Mesh Nodes** (`n`) — scrollable roster of seen nodes with short name, id, SNR,
+  RSSI, hops, last-seen, GPS pin indicator. ENTER opens page screen for that node
+- **Mesh Page** (`p`) — direct-message a specific node (paging)
+- **Mesh Pos** (`g`) — toggle periodic Position broadcast; POSEIDON appears as a
+  pin on other Meshtastic apps when GPS has a fix
+
+Wire-level compatibility (byte-exact vs firmware v2.7.23):
+- LoRa PHY: 906.875 MHz, SF11, BW250, CR4/5, preamble 16, sync 0x2B, CRC on
+- 16-byte packet header (to/from/id/flags/channel/next_hop/relay_node) LE
+- AES-CTR-128 with default LongFast PSK, counter block in bytes 12-15 of nonce
+- Hand-rolled protobuf codec for Data, User, Position (no nanopb dep)
+- Node ID derived from WiFi MAC matching `NodeDB::pickNewNodeNum`
+- Packet ID = 10-bit counter | 22-bit random, non-zero guarantee
+
+Leaf-only design:
+- We receive and send but do not forward other nodes' packets
+- No PKI (AES-CCM + Curve25519), MQTT, ACKs, telemetry, multi-channel
 
 ### Fixed — LoRa spectrum rewrite + freeze + ESC (2026-04-17)
 

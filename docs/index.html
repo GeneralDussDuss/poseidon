@@ -190,6 +190,29 @@ section{padding:7rem 2rem;max-width:1200px;margin:0 auto;position:relative}
 .theme-card:hover .theme-swatch::after{transform:translateX(100%)}
 .theme-card .name{font-family:var(--font-display);font-size:.75rem;color:#e2e8f0;letter-spacing:.1em}
 
+/* Testers */
+.testers-intro{color:#94a3b8;font-size:1.05rem;max-width:780px;margin-bottom:2rem}
+.testers-intro code{background:rgba(14,165,233,.1);padding:1px 6px;border-radius:4px;color:var(--ocean-vivid);font-family:var(--font-mono);font-size:.85em}
+.test-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;margin-bottom:2rem}
+.test-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.1);border-radius:14px;padding:1.5rem;position:relative;overflow:hidden}
+.test-card::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:var(--ocean-bright)}
+.test-card.p1::before{background:var(--coral);box-shadow:0 0 12px rgba(249,115,22,.4)}
+.test-card.p2::before{background:var(--ocean-vivid);box-shadow:0 0 12px rgba(56,189,248,.4)}
+.test-card.p3::before{background:var(--gold);box-shadow:0 0 12px rgba(251,191,36,.4)}
+.test-card.p4::before{background:var(--bio)}
+.test-prio{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.2em;color:var(--ocean-muted);text-transform:uppercase;margin-bottom:.4rem}
+.test-card h3{font-family:var(--font-display);font-size:.95rem;color:#f1f5f9;margin-bottom:.6rem;letter-spacing:.05em}
+.test-card p{font-size:.88rem;color:#a3b4cf;line-height:1.5;margin-bottom:.75rem}
+.test-steps{list-style:none;padding:0;font-size:.85rem;color:#cbd5e1}
+.test-steps li{padding:.2rem 0 .2rem 1.2rem;position:relative;line-height:1.4}
+.test-steps li::before{content:'▸';position:absolute;left:0;color:var(--ocean-bright);font-size:.7rem;top:.3rem}
+.test-note{margin-top:.75rem;padding:.6rem .75rem;background:rgba(251,191,36,.06);border-left:2px solid var(--gold);font-size:.82rem;color:#cbd5e1;border-radius:4px}
+.test-report{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.5rem;margin-top:1rem}
+.test-report h4{font-family:var(--font-display);font-size:.9rem;color:var(--ocean-vivid);margin-bottom:.75rem;letter-spacing:.05em}
+.test-report ul{list-style:none;padding:0;font-size:.88rem;color:#a3b4cf}
+.test-report li{padding:.25rem 0 .25rem 1.2rem;position:relative}
+.test-report li::before{content:'—';position:absolute;left:0;color:var(--ocean-muted)}
+
 /* Credits / shoutouts */
 .credits-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}
 .credit-card{display:flex;align-items:center;gap:.9rem;background:var(--bg-raised);border:1px solid rgba(14,165,233,.06);border-radius:10px;padding:.9rem 1rem;transition:all .3s;text-decoration:none}
@@ -267,6 +290,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <li><a href="#features">Arsenal</a></li>
     <li><a href="#hardware">Hardware</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#testers">Testers</a></li>
     <li><a href="#credits">Credits</a></li>
     <li><a href="#download">Deploy</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
@@ -277,7 +301,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <canvas id="heroCanvas"></canvas>
   <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.2.0 &mdash; LORA + DEAUTH STABLE</div>
+    <div class="hero-badge"><span class="dot"></span> v0.3.0 &mdash; MESHTASTIC NODE LIVE</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
     <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 80+ features across <span class="hl">six radio bands</span>. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. All from your pocket.</p>
@@ -515,8 +539,85 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   </div>
 </section>
 
+<section id="testers">
+  <div class="section-label reveal">05 // FIELD TEAM</div>
+  <h2 class="section-title reveal">For testers</h2>
+  <p class="testers-intro reveal">
+    If you're helping stress-test POSEIDON, here's what just changed and what to
+    hit hardest. v0.3.0 is a bigger delta than v0.2.0 — Meshtastic node
+    participation is new, deauth got rewritten, LoRa stopped crashing.
+    Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
+  </p>
+
+  <div class="test-grid">
+    <div class="test-card p1 reveal">
+      <div class="test-prio">Priority 1 · High Signal</div>
+      <h3>Deauth actually lands now</h3>
+      <p>Primary path <code>addr1</code> was self-addressed to the AP's BSSID — no client ever saw a frame. Plus static seq=0, no disassoc pair, no unicast follow-up. All fixed.</p>
+      <ul class="test-steps">
+        <li>Pick a known WPA2 AP you own</li>
+        <li>Associate a phone / laptop</li>
+        <li>POSEIDON → WiFi → Deauth → pick target</li>
+        <li>Watch <code>drops:</code> and <code>sta:N</code> counters</li>
+        <li>Report: did the client disconnect within a few seconds?</li>
+      </ul>
+      <div class="test-note">WPA3 / WPA2-Enterprise use PMF and won't kick — that's a design limit, not a bug. UI now warns.</div>
+    </div>
+
+    <div class="test-card p2 reveal">
+      <div class="test-prio">Priority 2 · New Feature</div>
+      <h3>Meshtastic node participation</h3>
+      <p>POSEIDON is a full leaf node on the public LongFast channel now. Receive, send, page, optionally report position.</p>
+      <ul class="test-steps">
+        <li><b>RX:</b> open Mesh Nodes, wait 2 min in a mesh-covered area</li>
+        <li><b>TX broadcast:</b> Mesh Chat → T → type → Enter; verify another Meshtastic client sees it</li>
+        <li><b>Paging:</b> Mesh Nodes → Enter on a target → send DM</li>
+        <li><b>Position:</b> Mesh Pos → T → wait GPS fix → B (send now); check if we appear as a pin on other apps</li>
+      </ul>
+      <div class="test-note">Leaf-only — we don't forward. No CAD-before-TX yet, so we collide slightly more than a polite node.</div>
+    </div>
+
+    <div class="test-card p3 reveal">
+      <div class="test-prio">Priority 3 · Regression</div>
+      <h3>LoRa stability</h3>
+      <p>Pre-v0.3.0 every LoRa feature crashed on frequency select (bandwidth unit bug) or boot-looped the device (PI4IOE antenna switch LoadProhibited). Spectrum analyzer froze and backtick didn't back out.</p>
+      <ul class="test-steps">
+        <li>Enter every LoRa feature — Scan, Beacon, Mesh LF, Analyzer, 4 mesh features</li>
+        <li>Analyzer: all 3 modes render, backtick backs out instantly</li>
+        <li>TAB through bands — radio retunes without crash</li>
+        <li>Report: any Guru Meditation panic (grab <code>pio device monitor</code> log)</li>
+      </ul>
+    </div>
+
+    <div class="test-card p4 reveal">
+      <div class="test-prio">Priority 4 · Smoke Test</div>
+      <h3>Everything else still works</h3>
+      <p>Confirming v0.2.0 features haven't regressed: sub-GHz capture/replay/spectrum, BLE scan/spam, nRF24 MouseJack, WiFi scan/PMKID/wardrive, BadUSB, IR, GPS, themes, SD, TRIDENT PC bridge.</p>
+      <ul class="test-steps">
+        <li>File as a regression if something worked before and doesn't now</li>
+        <li>Include feature path + what specifically broke</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="test-report reveal">
+    <h4>Ideal bug report</h4>
+    <ul>
+      <li><b>Build</b>: v0.3.0 (confirm in boot splash)</li>
+      <li><b>Hardware</b>: Cardputer-Adv + which hat attached</li>
+      <li><b>Feature path</b>: e.g. <code>WiFi → Deauth → specific target</code></li>
+      <li><b>What happened</b> vs <b>what you expected</b></li>
+      <li><b>Reproducibility</b>: always / sometimes / once</li>
+      <li><b>Serial log</b> if possible (<code>pio device monitor --baud 115200</code>)</li>
+    </ul>
+    <p style="margin-top:1rem;font-size:.88rem;color:#cbd5e1">
+      File at <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank">github.com/GeneralDussDuss/poseidon/issues</a> with label <code>v0.3.0-tester</code>.
+    </p>
+  </div>
+</section>
+
 <section id="credits">
-  <div class="section-label reveal">05 // SHOULDERS OF GIANTS</div>
+  <div class="section-label reveal">06 // SHOULDERS OF GIANTS</div>
   <h2 class="section-title reveal">Built on open work</h2>
   <p class="section-desc reveal">POSEIDON stands on a mountain of open-source pentest, radio, and firmware work. Respect to the people who made the primitives we compose.</p>
 
@@ -615,10 +716,10 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
 </section>
 
 <section class="cta-section" id="download">
-  <div class="section-label reveal" style="justify-content:center">06 // DEPLOY</div>
+  <div class="section-label reveal" style="justify-content:center">07 // DEPLOY</div>
   <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
   <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO.</p>
-  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download v0.2.0</a>
+  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download v0.3.0</a>
   <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; 1.8 MB &bull; Flash at 0x0</div>
   <div class="cta-install reveal">
     <span class="comment"># build + flash from source</span><br>

@@ -24,7 +24,7 @@
 
 [**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
 
-**v0.2.0 just shipped** — WiFi deauth correctness (addr1 + disassoc pair + seq + client sniffer + PMF warn + drops counter), LoRa crash fixes (bandwidth unit, antenna switch via M5.In_I2C, boot-loop guard), and a completely rewritten LoRa spectrum analyzer with real packet capture. See [CHANGELOG](CHANGELOG.md).
+**v0.3.0 just shipped** — POSEIDON is now a full Meshtastic leaf node (send, receive, page, position) plus WiFi deauth correctness, LoRa crash fixes, and a rewritten spectrum analyzer with real packet capture. See [CHANGELOG](CHANGELOG.md) and [TESTERS.md](TESTERS.md) for what to stress-test.
 
 </div>
 
@@ -48,7 +48,7 @@ cd poseidon
 pio run -t upload
 
 # Or flash the pre-built binary
-esptool.py --chip esp32s3 write_flash 0x0 poseidon-v0.2.0-cardputer-adv.bin
+esptool.py --chip esp32s3 write_flash 0x0 poseidon-v0.3.0-cardputer-adv.bin
 ```
 
 ## Feature Matrix (80+)
