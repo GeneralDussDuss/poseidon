@@ -1,9 +1,20 @@
 /*
- * lora_spectrum.cpp — LoRa band spectrum analyzer.
+ * lora_spectrum.cpp — LoRa band activity monitor.
  *
- * Uses the SX1262's RSSI reading to sweep LoRa bands with the same
- * professional visualizations as the CC1101 analyzer: bar spectrum,
- * waterfall spectrogram, and oscilloscope waveform.
+ * SX1262 gives you wideband RSSI at the currently tuned frequency, not
+ * a per-bin spectrum. Trying to sweep by retuning every pixel column
+ * took ~210 × (standby + setFrequency + startReceive + RSSI) per frame
+ * and hung on BUSY timeouts — freezing the feature on a blank screen.
+ *
+ * Redesigned:
+ *   - Tune once at band center, stay in RX
+ *   - Sample ambient RSSI continuously, plot as a time-series
+ *   - Listen for actual LoRa packets (sync = preset sync) and surface
+ *     them as a detected-packet overlay with RSSI / SNR / size / hex
+ *   - Three view modes share the same data pipeline:
+ *       bars     — live RSSI bars with peak hold, time on X
+ *       waterfall — scrolling RSSI heatmap, time on X
+ *       scope    — RSSI waveform at a single frequency, adjustable
  */
 #include "../app.h"
 #include "../ui.h"
@@ -13,13 +24,20 @@
 #include "../theme.h"
 #include <RadioLib.h>
 
-struct lora_range_t { float start; float end; const char *name; };
+struct lora_range_t { float start; float end; float center; const char *name; };
 static const lora_range_t RANGES[] = {
-    { 430.0f, 440.0f, "430-440" },
-    { 860.0f, 870.0f, "860-870" },
-    { 900.0f, 930.0f, "900-930" },
+    { 430.0f, 440.0f, 433.92f, "433MHz"   },
+    { 860.0f, 870.0f, 868.10f, "868MHz"   },
+    { 900.0f, 930.0f, 915.00f, "915MHz"   },
 };
 #define RANGE_COUNT 3
+
+/* Last N captured packets shown as an overlay. */
+#define PKT_HIST 6
+struct pkt_t { float rssi; float snr; uint8_t len; uint32_t when; uint8_t preview[12]; };
+static pkt_t s_pkts[PKT_HIST];
+static int   s_pkt_head = 0;
+static int   s_pkt_count = 0;
 
 static uint16_t rssi_color(int rssi)
 {
@@ -33,57 +51,85 @@ static uint16_t rssi_color(int rssi)
     return d.color565(255, 255 - (p - 170) * 3, 0);
 }
 
-/* Read RSSI via the CC1101-style approach: reconfigure freq through
- * the low-level Module SPI, avoiding RadioLib's BUSY-polling methods
- * which timeout with RADIOLIB_NC on some lib versions. */
-static int lora_read_rssi_fast(SX1262 &radio, float freq)
+/* Non-blocking RSSI read. Radio must already be in RX. */
+static int read_rssi(SX1262 &radio)
 {
-    /* For sweep: use getRSSI in continuous RX mode. The SX1262 reports
-     * wideband RSSI regardless of tuned frequency when in RX. For a
-     * true per-frequency sweep we'd need to retune, but that triggers
-     * BUSY waits. Instead, use the single-frequency RSSI for scope mode
-     * and a simulated sweep based on current ambient for bar/waterfall. */
-    (void)freq;
     return (int)radio.getRSSI();
 }
 
-static int lora_read_rssi(SX1262 &radio, float freq)
+/* Check for and consume one received LoRa packet. Returns true if one was
+ * captured and pushed into the history ring. Non-blocking. */
+static bool poll_packet(SX1262 &radio)
 {
-    /* Sweep loop: the radio may already be in RX mode from the previous
-     * iteration. SX1262 requires standby before retuning or BUSY never
-     * deasserts and RadioLib eventually errors out mid-sweep. Always
-     * drop to standby first. */
-    radio.standby();
-    int st = radio.setFrequency(freq);
-    if (st != RADIOLIB_ERR_NONE) return -130;
-    st = radio.startReceive();
-    if (st != RADIOLIB_ERR_NONE) return -130;
-    delay(2);
-    int rssi = (int)radio.getRSSI();
-    return rssi;
+    size_t n = radio.getPacketLength();
+    if (n == 0) return false;
+
+    uint8_t buf[256];
+    if (n > sizeof(buf)) n = sizeof(buf);
+    int st = radio.readData(buf, n);
+    if (st != RADIOLIB_ERR_NONE) {
+        radio.startReceive();
+        return false;
+    }
+
+    pkt_t &p = s_pkts[s_pkt_head];
+    p.rssi = radio.getRSSI();
+    p.snr  = radio.getSNR();
+    p.len  = (uint8_t)n;
+    p.when = millis();
+    size_t cp = n < sizeof(p.preview) ? n : sizeof(p.preview);
+    memcpy(p.preview, buf, cp);
+    if (cp < sizeof(p.preview)) memset(p.preview + cp, 0, sizeof(p.preview) - cp);
+    s_pkt_head = (s_pkt_head + 1) % PKT_HIST;
+    if (s_pkt_count < PKT_HIST) s_pkt_count++;
+
+    radio.startReceive();
+    return true;
 }
 
-/* ---- Bar Spectrum ---- */
+static void draw_packet_overlay(int x, int y)
+{
+    auto &d = M5Cardputer.Display;
+    if (s_pkt_count == 0) {
+        d.setTextColor(T_DIM, T_BG);
+        d.setCursor(x, y); d.print("no packets yet");
+        return;
+    }
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(x, y); d.printf("RX %d", s_pkt_count);
+
+    for (int i = 0; i < s_pkt_count && i < 3; ++i) {
+        int idx = (s_pkt_head - 1 - i + PKT_HIST) % PKT_HIST;
+        const pkt_t &p = s_pkts[idx];
+        int ly = y + 10 + i * 9;
+        uint32_t age = (millis() - p.when) / 1000;
+        d.setTextColor(p.rssi > -90 ? T_GOOD : T_FG, T_BG);
+        d.setCursor(x, ly);
+        d.printf("%3.0fdB %+.1fSNR %db %lds",
+                 p.rssi, p.snr, p.len, (unsigned long)age);
+    }
+}
+
+/* ---- Bar mode: live RSSI bars, time on X (most recent right), packet overlay ---- */
 
 static void run_bars(SX1262 &radio, const lora_range_t &range)
 {
     auto &d = M5Cardputer.Display;
-    const int GX = 24, GY = BODY_Y + 14, GW = SCR_W - 30, GH = BODY_H - 30;
-    int bins = GW;
-    float step = (range.end - range.start) / bins;
-    int8_t rssi[232] = {0};
-    int8_t peak[232] = {0};
-    memset(peak, -130, sizeof(peak));
+    const int GX = 24, GY = BODY_Y + 14, GW = 140, GH = BODY_H - 34;
+    int8_t hist[140]; memset(hist, -130, sizeof(hist));
+    int8_t peak[140]; memset(peak, -130, sizeof(peak));
+    int hp = 0;
 
     ui_force_clear_body();
 
     while (true) {
-        for (int i = 0; i < bins; i++) {
-            rssi[i] = (int8_t)lora_read_rssi(radio, range.start + i * step);
-            if (rssi[i] > peak[i]) peak[i] = rssi[i];
-        }
-        for (int i = 0; i < bins; i++)
-            if (peak[i] > rssi[i] + 1) peak[i]--;
+        int r = read_rssi(radio);
+        hist[hp] = (int8_t)r;
+        if (r > peak[hp]) peak[hp] = r;
+        for (int i = 0; i < GW; i++) if (peak[i] > hist[i] + 1) peak[i]--;
+        hp = (hp + 1) % GW;
+
+        (void)poll_packet(radio);
 
         d.fillRect(GX, GY, GW, GH, 0x0000);
 
@@ -96,8 +142,9 @@ static void run_bars(SX1262 &radio, const lora_range_t &range)
             }
         }
 
-        for (int i = 0; i < bins; i++) {
-            int norm = rssi[i] + 130;
+        for (int i = 0; i < GW; i++) {
+            int src = (hp + i) % GW;
+            int norm = hist[src] + 130;
             if (norm < 0) norm = 0;
             int h = (norm * GH) / 80;
             if (h > 0) {
@@ -106,7 +153,7 @@ static void run_bars(SX1262 &radio, const lora_range_t &range)
                     d.drawPixel(GX + i, GY + GH - 1 - dy, rssi_color(fake));
                 }
             }
-            int pn = peak[i] + 130;
+            int pn = peak[src] + 130;
             if (pn > 0) {
                 int py = GY + GH - (pn * GH) / 80;
                 if (py >= GY) d.drawPixel(GX + i, py, T_FG);
@@ -114,113 +161,136 @@ static void run_bars(SX1262 &radio, const lora_range_t &range)
         }
 
         d.drawRect(GX - 1, GY - 1, GW + 2, GH + 2, T_DIM);
-        ui_text(4, BODY_Y + 2, T_ACCENT, "LoRa SPECTRUM %s MHz", range.name);
+        ui_text(4, BODY_Y + 2, T_ACCENT, "LoRa %.3fMHz", range.center);
         d.setTextColor(T_DIM, T_BG);
-        d.setCursor(GX, GY + GH + 3); d.printf("%.0f", range.start);
-        d.setCursor(GX + GW - 24, GY + GH + 3); d.printf("%.0f", range.end);
+        d.setCursor(GX, GY + GH + 3); d.print("-time");
+        d.setCursor(GX + GW - 14, GY + GH + 3); d.print("now");
 
-        int pi = 0, pv = -130;
-        for (int i = 0; i < bins; i++) if (rssi[i] > pv) { pv = rssi[i]; pi = i; }
+        draw_packet_overlay(GX + GW + 6, GY);
+
         d.setTextColor(T_FG, T_BG);
-        d.setCursor(GX + GW / 2 - 36, GY + GH + 3);
-        d.printf("pk:%.1f %ddB", range.start + pi * step, pv);
-        ui_draw_footer("ESC=back  R=reset");
+        d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%ddBm", hist[(hp + GW - 1) % GW]);
+        ui_draw_footer("ESC=back  R=reset peaks");
 
         uint16_t k = input_poll();
         if (k == PK_ESC) return;
         if (k == 'r' || k == 'R') memset(peak, -130, sizeof(peak));
+        delay(15);
     }
 }
 
-/* ---- Waterfall ---- */
+/* ---- Waterfall: scrolling RSSI heatmap, time on X ---- */
 
-#define WF_ROWS 40
-#define WF_BINS 210
+#define WF_ROWS 60
+#define WF_COLS 200
 
 static void run_waterfall(SX1262 &radio, const lora_range_t &range)
 {
     auto &d = M5Cardputer.Display;
-    const int GX = 24, GY = BODY_Y + 14, GW = WF_BINS, GH = WF_ROWS;
-    float step = (range.end - range.start) / GW;
+    const int GX = 4, GY = BODY_Y + 14, GW = WF_COLS, GH = WF_ROWS;
 
     uint16_t *ring = (uint16_t *)malloc(GH * GW * sizeof(uint16_t));
     if (!ring) { ui_toast("OOM", T_BAD, 1000); return; }
+    memset(ring, 0, GH * GW * sizeof(uint16_t));
     int head = 0, count = 0;
 
     ui_force_clear_body();
     d.drawRect(GX - 1, GY - 1, GW + 2, GH + 2, T_DIM);
 
     while (true) {
-        uint16_t *row = &ring[head * GW];
-        for (int i = 0; i < GW; i++) {
-            row[i] = rssi_color(lora_read_rssi(radio, range.start + i * step));
-        }
-        head = (head + 1) % GH;
-        if (count < GH) count++;
+        int r = read_rssi(radio);
+        (void)poll_packet(radio);
 
-        for (int r = 0; r < count; r++) {
-            int ri = (head - count + r + GH) % GH;
-            d.pushImage(GX, GY + r, GW, 1, &ring[ri * GW]);
+        /* Shift column: push newest on the right. Store one column per
+         * sample, read back as row-major via transpose lookup. */
+        uint16_t col[WF_ROWS];
+        col[0] = rssi_color(r);
+        /* Vary color slightly over rows so the waterfall looks textured. */
+        for (int rr = 1; rr < GH; rr++) col[rr] = rssi_color(r - rr / 3);
+
+        int ci = head;
+        for (int rr = 0; rr < GH; rr++) ring[rr * GW + ci] = col[rr];
+        head = (head + 1) % GW;
+        if (count < GW) count++;
+
+        for (int rr = 0; rr < GH; rr++) {
+            d.pushImage(GX, GY + rr, GW, 1, &ring[rr * GW]);
         }
 
-        ui_text(4, BODY_Y + 2, T_ACCENT2, "LoRa WATERFALL %s", range.name);
-        d.setTextColor(T_DIM, T_BG);
-        d.setCursor(GX, GY + GH + 3); d.printf("%.0f", range.start);
-        d.setCursor(GX + GW - 24, GY + GH + 3); d.printf("%.0f", range.end);
+        ui_text(4, BODY_Y + 2, T_ACCENT2, "LoRa WATERFALL %.3f", range.center);
+        d.setTextColor(T_FG, T_BG);
+        d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%ddBm", r);
         ui_draw_footer("ESC=back");
+
+        draw_packet_overlay(GX + 2, GY + GH + 5);
 
         uint16_t k = input_poll();
         if (k == PK_ESC) { free(ring); return; }
+        delay(30);
     }
 }
 
-/* ---- Oscilloscope ---- */
+/* ---- Scope mode: RSSI waveform at a single frequency (adjustable) ---- */
 
 static void run_scope(SX1262 &radio, float freq)
 {
     auto &d = M5Cardputer.Display;
-    const int GX = 24, GY = BODY_Y + 18, GW = SCR_W - 30, GH = BODY_H - 34;
-    int mid = GY + GH / 2;
+    const int GX = 24, GY = BODY_Y + 18, GW = SCR_W - 30, GH = BODY_H - 46;
+
+    /* Retune only once per frequency change. */
+    float cur_freq = -1;
+    int8_t hist[232]; memset(hist, -130, sizeof(hist));
+    int hp = 0;
 
     ui_force_clear_body();
 
     while (true) {
-        int8_t hist[232];
-        for (int i = 0; i < GW; i++) {
-            hist[i] = (int8_t)lora_read_rssi(radio, freq);
+        if (freq != cur_freq) {
+            radio.standby();
+            if (radio.setFrequency(freq) == RADIOLIB_ERR_NONE) {
+                radio.startReceive();
+                cur_freq = freq;
+            }
         }
+
+        int r = read_rssi(radio);
+        hist[hp] = (int8_t)r;
+        hp = (hp + 1) % GW;
+
+        (void)poll_packet(radio);
 
         d.fillRect(GX, GY, GW, GH, 0x0000);
         d.drawRect(GX - 1, GY - 1, GW + 2, GH + 2, T_DIM);
 
-        for (int db = -100; db <= -60; db += 20) {
-            int y = mid - ((db + 100) * (GH / 2)) / 40;
+        for (int db = -120; db <= -60; db += 20) {
+            int y = GY + GH - ((db + 130) * GH) / 80;
             if (y >= GY && y <= GY + GH) {
                 for (int x = GX; x < GX + GW; x += 6) d.drawPixel(x, y, 0x2104);
                 d.setTextColor(T_DIM, T_BG);
                 d.setCursor(1, y - 3); d.printf("%d", db);
             }
         }
-        for (int x = GX; x < GX + GW; x += 3) d.drawPixel(x, mid, 0x3186);
 
         for (int i = 1; i < GW; i++) {
-            int n1 = hist[i - 1] + 130, n2 = hist[i] + 130;
+            int s1 = (hp + i - 1) % GW, s2 = (hp + i) % GW;
+            int n1 = hist[s1] + 130, n2 = hist[s2] + 130;
             if (n1 < 0) n1 = 0; if (n2 < 0) n2 = 0;
             int y1 = GY + GH - (n1 * GH) / 80;
             int y2 = GY + GH - (n2 * GH) / 80;
-            d.drawLine(GX + i - 1, y1, GX + i, y2, rssi_color(hist[i]));
-            if (y2 < GY + GH)
-                d.drawFastVLine(GX + i, y2, GY + GH - y2, rssi_color(hist[i] - 20));
+            d.drawLine(GX + i - 1, y1, GX + i, y2, rssi_color(hist[s2]));
         }
 
-        ui_text(4, BODY_Y + 2, T_ACCENT, "LoRa SCOPE %.3f MHz", freq);
-        int cur = hist[GW / 2];
+        ui_text(4, BODY_Y + 2, T_ACCENT, "LoRa SCOPE %.3fMHz", freq);
+        int cur = hist[(hp + GW - 1) % GW];
         d.setTextColor(cur > -80 ? T_GOOD : T_DIM, T_BG);
-        d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%d dBm", cur);
+        d.setCursor(SCR_W - 54, BODY_Y + 2); d.printf("%ddBm", cur);
+
+        draw_packet_overlay(GX, GY + GH + 5);
+
         ui_draw_footer("+-=freq  ESC=back");
 
         uint32_t t = millis();
-        while (millis() - t < 60) {
+        while (millis() - t < 40) {
             uint16_t k = input_poll();
             if (k == PK_ESC) return;
             if (k == '+' || k == '=') freq += 0.1f;
@@ -243,14 +313,20 @@ void feat_lora_spectrum(void)
         return;
     }
 
+    /* Arm RX so poll_packet / read_rssi have live data. */
+    lora_radio().startReceive();
+
     auto &d = M5Cardputer.Display;
     int mode = 0, range = 2;
-    const char *modes[] = { "Bar Spectrum", "Waterfall", "Oscilloscope" };
+    const char *modes[] = { "Bar Meter", "Waterfall", "Oscilloscope" };
     const char *descs[] = {
-        "Gradient bars + peak hold + dBm grid",
-        "Scrolling color heatmap spectrogram",
-        "Live RSSI waveform with filled area"
+        "RSSI bars over time + packet capture",
+        "Scrolling RSSI heatmap + packet capture",
+        "Live waveform at one freq + capture"
     };
+
+    /* Clear history on entry so each session starts fresh. */
+    s_pkt_count = 0; s_pkt_head = 0;
 
     while (true) {
         ui_force_clear_body();
@@ -273,7 +349,7 @@ void feat_lora_spectrum(void)
 
         d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 90);
-        d.printf("band: %s MHz  (TAB)", RANGES[range].name);
+        d.printf("band: %s (TAB)", RANGES[range].name);
         ui_draw_footer(";/.=mode  TAB=band  ENTER=go  ESC=quit");
 
         uint16_t k = input_poll();
@@ -281,12 +357,23 @@ void feat_lora_spectrum(void)
         if (k == PK_ESC) break;
         if (k == ';' || k == PK_UP)   mode = (mode + 2) % 3;
         if (k == '.' || k == PK_DOWN) mode = (mode + 1) % 3;
-        if (k == '\t') range = (range + 1) % RANGE_COUNT;
+        if (k == '\t') {
+            range = (range + 1) % RANGE_COUNT;
+            /* Retune to the new center and stay in RX. */
+            auto &radio = lora_radio();
+            radio.standby();
+            radio.setFrequency(RANGES[range].center);
+            radio.startReceive();
+        }
         if (k == PK_ENTER) {
             auto &radio = lora_radio();
-            if (mode == 0) run_bars(radio, RANGES[range]);
-            else if (mode == 1) run_waterfall(radio, RANGES[range]);
-            else run_scope(radio, RANGES[range].start + (RANGES[range].end - RANGES[range].start) / 2);
+            /* Ensure tuned to band center for bars / waterfall. */
+            radio.standby();
+            radio.setFrequency(RANGES[range].center);
+            radio.startReceive();
+            if (mode == 0)       run_bars(radio, RANGES[range]);
+            else if (mode == 1)  run_waterfall(radio, RANGES[range]);
+            else                 run_scope(radio, RANGES[range].center);
         }
     }
 
