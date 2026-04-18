@@ -26,3 +26,6 @@ platformio.ini.migration
 
 # pioarduino auto-generated manifest
 src/idf_component.yml
+
+# Staged release artifacts (binary + release-notes draft) — attach to GitHub release instead of committing
+_release/
