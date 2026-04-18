@@ -18,9 +18,9 @@
 ![target](https://img.shields.io/badge/target-Cardputer--Adv-red?style=flat-square)
 ![platform](https://img.shields.io/badge/framework-Arduino%2FPlatformIO-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![features](https://img.shields.io/badge/features-80+-magenta?style=flat-square)
+![features](https://img.shields.io/badge/features-90+-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
-![version](https://img.shields.io/badge/version-0.2.0-cyan?style=flat-square)
+![version](https://img.shields.io/badge/version-0.3.0-cyan?style=flat-square)
 
 [**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
 
@@ -32,7 +32,7 @@
 
 ## What is this?
 
-POSEIDON is a pentesting firmware for the M5Stack Cardputer-Adv (ESP32-S3). 80+ features across WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, network attacks, and more. In the same family as Flipper Zero, Bruce, Evil-M5Project, and ESP32Marauder — but built around a **real keyboard** with letter mnemonics, typed parameters, and 6 swappable visual themes.
+POSEIDON is a pentesting firmware for the M5Stack Cardputer-Adv (ESP32-S3). 90+ features across WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, network attacks, and more. In the same family as Flipper Zero, Bruce, Evil-M5Project, and ESP32Marauder — but built around a **real keyboard** with letter mnemonics, typed parameters, and 6 swappable visual themes.
 
 Supports three hardware hats (one at a time):
 - **M5Stack CAP-LoRa1262** — LoRa (SX1262) + GNSS (GPS)
@@ -51,7 +51,7 @@ pio run -t upload
 esptool.py --chip esp32s3 write_flash 0x0 poseidon-v0.3.0-cardputer-adv.bin
 ```
 
-## Feature Matrix (80+)
+## Feature Matrix (90+)
 
 ### WiFi (17)
 Scan · Clients (all-channel + per-AP) · Deauth · Deauth All · Deauth Detector · AP Clone · Evil Portal (4 templates) · Karma · Beacon Spam · Probe Sniff · PMKID + 4-Way Handshake Capture · 2.4 GHz Spectrum · GPS Wardrive (WiGLE CSV) · Connect · **CIW Zeroclick** (157 SSID payloads: cmd injection, Log4Shell, XSS, buffer overflow)
@@ -65,8 +65,8 @@ Scan/Copy (ISR capture + protocol decoder: Princeton, CAME, NICE, Linear) · Rec
 ### 2.4 GHz — nRF24L01+ (6)
 **Promiscuous ESB Sniffer** (Travis Goodspeed trick, CRC16-validated) · **MouseJack** (Logitech/Microsoft fingerprint + HID injection) · **BLE Spam** (ADV_IND via nRF24, CRC24 + whitening) · Spectrum Analyzer (WiFi/BLE/Zigbee markers) · **CW Carrier + Data Flood Jammer** (7 presets) · Hot/Cold Finder
 
-### LoRa + GNSS — SX1262 (4)
-LoRa Scan (passive RX, multi-band) · Beacon TX · Meshtastic LongFast Listener · **Live GPS Fix** (baud auto-detect, background NMEA)
+### LoRa + GNSS — SX1262 (8)
+LoRa Scan (passive RX, multi-band) · Beacon TX · Meshtastic LongFast Listener · LoRa Analyzer (bar meter + waterfall + scope with live packet capture) · **Meshtastic Chat** (send + receive text) · **Meshtastic Nodes** (live roster) · **Meshtastic Page** (direct-message a node) · **Meshtastic Position** (show up as pin on other apps) · **Live GPS Fix** (baud auto-detect, background NMEA)
 
 ### Network Attacks (18)
 Port Scan · Ping · DNS · Connect · **Responder** (LLMNR/NBT-NS → NTLM) · SSDP/UPnP Scanner · LAN Recon (ARP + port + banner + vendor) · **UART Shell** (serial terminal, auto-baud) · **Reverse TCP Tunnel** · **Telnet Honeypot** · **WiFi Dead Drop** (anonymous message board) · **Printer Detection + Raw Print** · **SSDP Poisoner** · **DHCP Starvation** · **Rogue DHCP** (STA + AP) · **Network Hijacking** (chained MitM) · **WPAD Abuse** (credential capture) · **Autodiscover Abuse** (Exchange NTLM hash capture)
@@ -154,7 +154,7 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 |  | POSEIDON | Flipper Zero | Evil-M5 | Marauder | Bruce |
 |---|---|---|---|---|---|
 | Keyboard | native QWERTY | D-pad | native QWERTY | none | varies |
-| Features | 80+ | 50+ | 87 | 30+ | 40+ |
+| Features | 90+ | 50+ | 87 | 30+ | 40+ |
 | Sub-GHz | CC1101 | CC1101 | CC1101 | none | CC1101 |
 | 2.4 GHz RF | nRF24 | none | none | none | nRF24 |
 | LoRa | SX1262 | none | none | none | SX1262 |
