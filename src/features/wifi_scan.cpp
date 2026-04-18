@@ -49,7 +49,16 @@ static void scan_task(void *)
 {
     s_scan_done = false;
     s_scan_running = true;
+    Serial.printf("[wifi_scan] mode=%d starting\n", (int)WiFi.getMode());
+    /* Ensure STA mode before scan — some prior features (Meshtastic,
+     * deauth, LoRa) may have left WiFi in WIFI_OFF. scanNetworks silently
+     * returns 0 if the STA interface isn't up. */
+    if (WiFi.getMode() != WIFI_STA && WiFi.getMode() != WIFI_AP_STA) {
+        WiFi.mode(WIFI_STA);
+        delay(50);
+    }
     int n = WiFi.scanNetworks(false, true, false, 120);  /* blocking — we're in a task */
+    Serial.printf("[wifi_scan] scanNetworks -> %d\n", n);
     s_ap_count = 0;
     if (n > 0) {
         for (int i = 0; i < n && s_ap_count < MAX_APS; ++i) {
@@ -211,7 +220,13 @@ void feat_wifi_scan(void)
         /* Radar sweep in top-right while scanning. */
         if (s_scan_running) ui_radar(SCR_W - 16, BODY_Y + 8, 7, 0x07FF);
 
-        if (s_scan_done) { s_have_results = true; s_scan_done = false; }
+        if (s_scan_done) {
+            /* Only cache a scan result if it actually found something —
+             * otherwise re-entries would be stuck on cached zeros forever
+             * without the user knowing to press R. */
+            if (s_ap_count > 0) s_have_results = true;
+            s_scan_done = false;
+        }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) { s_saved_cursor = cursor; break; }
