@@ -4,295 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>POSEIDON — Commander of the Deep</title>
-<meta name="description" content="90+ feature keyboard-first pentesting firmware for M5Stack Cardputer-Adv. WiFi / BLE / sub-GHz / LoRa / nRF24 / IR / BadUSB.">
+<meta name="description" content="96+ feature keyboard-first pentesting firmware for M5Stack Cardputer-Adv. WiFi / BLE / sub-GHz / LoRa / nRF24 / IR / BadUSB / RJ45.">
 <meta property="og:title" content="POSEIDON">
-<meta property="og:description" content="Commander of the Deep — 90+ pocket pentest tools across 6 radio bands.">
+<meta property="og:description" content="Commander of the Deep — 96+ pocket pentest tools across 6 radio bands plus wired.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-@property --angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg-void:#000;--bg-surface:#060810;--bg-raised:#0a1220;--bg-card:#0d1628;--bg-deep:#030611;
-  --ocean-abyssal:#041e33;--ocean-dim:#0c4a6e;--ocean-muted:#075985;--ocean-core:#0369a1;
-  --ocean-bright:#0ea5e9;--ocean-vivid:#38bdf8;--ocean-hot:#7dd3fc;--ocean-white:#e0f2fe;
-  --coral:#f97316;--bio:#22d3ee;--gold:#fbbf24;--sea-foam:#d1fae5;
-  --glow-subtle:0 0 4px rgba(14,165,233,.3);
-  --glow-medium:0 0 12px rgba(14,165,233,.4),0 0 4px rgba(14,165,233,.6);
-  --glow-intense:0 0 20px rgba(14,165,233,.5),0 0 8px rgba(14,165,233,.7),0 0 40px rgba(14,165,233,.2);
-  --glow-neon:0 0 4px #0ea5e9,0 0 12px rgba(14,165,233,.6),0 0 30px rgba(14,165,233,.3),0 0 60px rgba(14,165,233,.15);
-  --glow-coral:0 0 12px rgba(249,115,22,.4),0 0 30px rgba(249,115,22,.15);
-  --font-display:'Orbitron',sans-serif;--font-body:'Rajdhani',sans-serif;--font-mono:'JetBrains Mono',monospace;
-  --ease-smooth:cubic-bezier(.4,0,.2,1);--ease-bounce:cubic-bezier(.34,1.56,.64,1);--ease-spring:cubic-bezier(.175,.885,.32,1.275);
-}
-html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
-body{background:var(--bg-void);color:#e2e8f0;font-family:var(--font-body);font-weight:400;line-height:1.6;overflow-x:hidden;cursor:default}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:
-  radial-gradient(ellipse at top,rgba(14,165,233,.08),transparent 60%),
-  radial-gradient(ellipse at bottom,rgba(7,89,133,.06),transparent 60%);}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.025;z-index:1;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")}
-a{color:var(--ocean-bright);text-decoration:none;transition:color .2s,text-shadow .2s}
-a:hover{color:var(--ocean-vivid);text-shadow:0 0 8px rgba(56,189,248,.5)}
-::selection{background:rgba(14,165,233,.3);color:#fff}
-
-/* Boot overlay */
-#bootOverlay{position:fixed;inset:0;background:var(--bg-void);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .8s .3s,visibility 0s 1.1s;font-family:var(--font-mono);font-size:.85rem;color:var(--ocean-vivid)}
-#bootOverlay.hidden{opacity:0;visibility:hidden}
-#bootOverlay .boot-logo{font-family:var(--font-display);font-size:3rem;font-weight:900;letter-spacing:.2em;color:var(--ocean-vivid);margin-bottom:2rem;text-shadow:var(--glow-medium);opacity:0;animation:bootLogoIn 1.2s .1s var(--ease-smooth) forwards}
-#bootOverlay .boot-trident{font-size:2.5rem;color:var(--ocean-bright);margin-bottom:1rem;opacity:0;animation:bootTridentIn 1s var(--ease-spring) forwards}
-#bootOverlay .boot-lines{min-height:120px;text-align:left;min-width:280px}
-#bootOverlay .boot-line{opacity:0;animation:bootLineIn .4s forwards}
-#bootOverlay .boot-line:nth-child(1){animation-delay:.8s}
-#bootOverlay .boot-line:nth-child(2){animation-delay:1.0s}
-#bootOverlay .boot-line:nth-child(3){animation-delay:1.2s}
-#bootOverlay .boot-line:nth-child(4){animation-delay:1.4s}
-#bootOverlay .boot-line .ok{color:#22c55e}
-#bootOverlay .boot-line .dim{color:#64748b}
-@keyframes bootLogoIn{0%{opacity:0;letter-spacing:.5em;filter:blur(8px)}100%{opacity:1;letter-spacing:.2em;filter:blur(0)}}
-@keyframes bootTridentIn{0%{opacity:0;transform:scale(.5) rotate(-20deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
-@keyframes bootLineIn{to{opacity:1}}
-
-/* Scroll progress */
-#scrollProgress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--ocean-core),var(--ocean-vivid),var(--bio));box-shadow:var(--glow-medium);z-index:1001;transition:width .1s;width:0}
-
-/* HUD (top-right floating status) */
-#hud{position:fixed;top:1rem;right:1rem;z-index:999;font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-bright);background:rgba(6,8,16,.7);backdrop-filter:blur(10px);border:1px solid rgba(14,165,233,.15);border-radius:6px;padding:.4rem .7rem;letter-spacing:.05em;display:none;opacity:0;transition:opacity .4s}
-#hud.visible{display:block;opacity:1}
-#hud .hud-row{display:flex;gap:.5rem;align-items:center}
-#hud .hud-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 4px #22c55e;animation:pulse 1.5s infinite}
-@media(max-width:900px){#hud{display:none !important}}
-
-/* Nav */
-nav{position:fixed;top:0;width:100%;z-index:1000;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;transition:all .3s var(--ease-smooth)}
-nav.scrolled{background:rgba(0,0,0,.85);backdrop-filter:blur(20px) saturate(1.2);border-bottom:1px solid rgba(14,165,233,.1)}
-.nav-logo{font-family:var(--font-display);font-size:.9rem;font-weight:700;letter-spacing:.15em;display:flex;align-items:center;gap:.75rem;color:var(--ocean-vivid)}
-.nav-logo .icon{width:32px;height:32px;border:1.5px solid var(--ocean-bright);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:900;box-shadow:var(--glow-subtle);transition:all .3s;position:relative;overflow:hidden}
-.nav-logo .icon::after{content:'';position:absolute;inset:0;background:conic-gradient(from var(--angle),transparent,rgba(14,165,233,.4),transparent);animation:spin 3s linear infinite;opacity:0}
-.nav-logo:hover .icon::after{opacity:1}
-@keyframes spin{to{--angle:360deg}}
-.nav-logo:hover .icon{box-shadow:var(--glow-medium);border-color:var(--ocean-vivid)}
-.nav-links{display:flex;gap:2rem;list-style:none}
-.nav-links a{font-family:var(--font-body);font-weight:500;font-size:.95rem;color:#94a3b8;transition:color .2s;position:relative}
-.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1px;background:var(--ocean-bright);transition:width .3s}
-.nav-links a:hover{color:var(--ocean-bright)}
-.nav-links a:hover::after{width:100%}
-
-/* Hero */
-#hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;padding:2rem;overflow:hidden}
-#heroCanvas{position:absolute;inset:0;z-index:0}
-#causticLayer{position:absolute;inset:0;z-index:0;opacity:.4;mix-blend-mode:screen;pointer-events:none}
-.hero-content{position:relative;z-index:2}
-.hero-badge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3);padding:.4rem 1rem;border-radius:100px;margin-bottom:1.5rem;background:rgba(14,165,233,.05);backdrop-filter:blur(8px)}
-.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--ocean-bright);box-shadow:var(--glow-subtle);animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
-.hero-title{font-family:var(--font-display);font-size:clamp(2.8rem,8vw,6rem);font-weight:900;letter-spacing:.08em;line-height:1;margin-bottom:1rem;background:linear-gradient(135deg,var(--ocean-vivid),var(--ocean-hot),#fff,var(--bio));background-size:200% 200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:titleGradient 8s ease infinite;filter:drop-shadow(0 0 30px rgba(14,165,233,.3))}
-@keyframes titleGradient{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-.hero-epithet{font-family:var(--font-display);font-size:clamp(.8rem,1.3vw,1rem);letter-spacing:.5em;color:var(--ocean-muted);margin-bottom:1.5rem;text-transform:uppercase}
-.hero-sub{font-size:clamp(1rem,2vw,1.35rem);color:#cbd5e1;max-width:620px;margin:0 auto 2rem;font-weight:300;line-height:1.5}
-.hero-sub .hl{color:var(--ocean-bright);font-weight:500}
-.hero-prompt{display:inline-flex;align-items:center;gap:.75rem;font-family:var(--font-mono);font-size:.85rem;padding:.7rem 1.2rem;background:rgba(6,8,16,.75);border:1px solid rgba(14,165,233,.25);border-radius:6px;margin-bottom:2rem;backdrop-filter:blur(10px);max-width:92vw;overflow:hidden;text-align:left}
-.hero-prompt .prompt-dollar{color:var(--coral)}
-.hero-prompt .prompt-cmd{color:var(--ocean-hot)}
-.hero-prompt .prompt-arg{color:#cbd5e1}
-.hero-prompt .prompt-flag{color:var(--gold)}
-.hero-prompt .prompt-cursor{display:inline-block;width:8px;height:1em;background:var(--ocean-hot);animation:blink 1s infinite;vertical-align:middle;margin-left:2px}
-@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.btn{font-family:var(--font-body);font-weight:600;font-size:1rem;padding:.8rem 2rem;border-radius:8px;border:none;cursor:pointer;transition:all .3s var(--ease-bounce);display:inline-flex;align-items:center;gap:.5rem;position:relative;overflow:hidden;letter-spacing:.02em}
-.btn-primary{background:linear-gradient(135deg,var(--ocean-core),var(--ocean-bright));color:#fff;box-shadow:var(--glow-medium)}
-.btn-primary::before{content:'';position:absolute;inset:-2px;background:linear-gradient(135deg,var(--ocean-vivid),var(--bio));border-radius:8px;z-index:-1;opacity:0;transition:opacity .3s;filter:blur(8px)}
-.btn-primary:hover{transform:translateY(-2px) scale(1.03);box-shadow:var(--glow-intense)}
-.btn-primary:hover::before{opacity:1}
-.btn-secondary{background:transparent;color:var(--ocean-bright);border:1px solid rgba(14,165,233,.4)}
-.btn-secondary:hover{background:rgba(14,165,233,.1);border-color:var(--ocean-bright);transform:translateY(-2px)}
-.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3rem;flex-wrap:wrap}
-.hero-stat{text-align:center;min-width:90px}
-.hero-stat .num{font-family:var(--font-display);font-size:2.5rem;font-weight:900;color:var(--ocean-vivid);text-shadow:0 0 20px rgba(14,165,233,.4);line-height:1}
-.hero-stat .label{font-size:.78rem;color:#64748b;text-transform:uppercase;letter-spacing:.15em;margin-top:.25rem}
-.hero-scroll{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-muted);letter-spacing:.2em;writing-mode:vertical-rl;animation:scrollCue 2s infinite}
-@keyframes scrollCue{0%,100%{transform:translateX(-50%) translateY(0);opacity:.4}50%{transform:translateX(-50%) translateY(8px);opacity:1}}
-
-/* Section base */
-section{padding:7rem 2rem;max-width:1200px;margin:0 auto;position:relative}
-.section-label{font-family:var(--font-mono);font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ocean-bright);margin-bottom:1rem;display:flex;align-items:center;gap:1rem}
-.section-label::before{content:'';width:40px;height:1px;background:var(--ocean-bright);box-shadow:0 0 4px var(--ocean-bright)}
-.section-title{font-family:var(--font-display);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;letter-spacing:.04em;margin-bottom:1rem;color:#f1f5f9}
-.section-desc{color:#94a3b8;font-size:1.1rem;max-width:720px;margin-bottom:3rem}
-
-/* Wave divider (between sections) */
-.wave-divider{display:block;width:100%;height:60px;margin:-30px 0}
-
-/* Stats ticker */
-.ticker{overflow:hidden;border-top:1px solid rgba(14,165,233,.1);border-bottom:1px solid rgba(14,165,233,.1);background:rgba(6,8,16,.5);padding:.75rem 0;margin:0 -2rem}
-.ticker-track{display:flex;gap:4rem;animation:ticker 40s linear infinite;font-family:var(--font-mono);font-size:.85rem;color:var(--ocean-muted);white-space:nowrap}
-.ticker-track span{letter-spacing:.1em}
-.ticker-track .val{color:var(--ocean-vivid)}
-@keyframes ticker{to{transform:translateX(-50%)}}
-
-/* Feature grid */
-.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1.5rem}
-.feature-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:14px;padding:1.75rem 1.5rem;transition:all .4s var(--ease-smooth);position:relative;overflow:hidden;cursor:default}
-.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ocean-bright),transparent);opacity:0;transition:opacity .3s}
-.feature-card::after{content:'';position:absolute;inset:-1px;border-radius:14px;padding:1px;background:linear-gradient(135deg,rgba(14,165,233,.3),transparent,rgba(34,211,238,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none}
-.feature-card:hover{transform:translateY(-4px);border-color:transparent;box-shadow:0 20px 48px rgba(0,0,0,.5),0 0 40px rgba(14,165,233,.15)}
-.feature-card:hover::before,.feature-card:hover::after{opacity:1}
-.feature-card .fc-head{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
-.feature-card .fc-glyph{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(14,165,233,.3);border-radius:8px;background:rgba(14,165,233,.05);flex-shrink:0;transition:all .3s}
-.feature-card:hover .fc-glyph{box-shadow:0 0 12px rgba(14,165,233,.3);border-color:var(--ocean-bright);transform:rotate(5deg) scale(1.05)}
-.feature-card .fc-glyph svg{width:20px;height:20px;stroke:var(--ocean-vivid);fill:none;stroke-width:1.5}
-.feature-card h3{font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--ocean-vivid);letter-spacing:.05em;flex:1}
-.feature-card p{font-size:.92rem;color:#a3b4cf;line-height:1.55}
-.feature-card .count{font-family:var(--font-mono);font-size:.72rem;color:var(--ocean-muted);margin-top:.9rem;letter-spacing:.1em;display:flex;align-items:center;gap:.5rem}
-.feature-card .count::before{content:'';width:8px;height:8px;border:1px solid var(--ocean-muted);transform:rotate(45deg)}
-
-/* Hardware */
-.hw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.5rem}
-.hw-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:14px;padding:2rem;transition:all .3s;position:relative;overflow:hidden}
-.hw-card::before{content:'';position:absolute;top:0;right:0;width:80px;height:80px;background:radial-gradient(circle at top right,rgba(14,165,233,.15),transparent 70%);pointer-events:none}
-.hw-card:hover{border-color:rgba(14,165,233,.25);box-shadow:0 12px 32px rgba(0,0,0,.4)}
-.hw-card h3{font-family:var(--font-display);font-size:1rem;color:var(--ocean-vivid);margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;letter-spacing:.05em}
-.hw-card h3 .chip{font-family:var(--font-mono);font-size:.65rem;color:var(--coral);border:1px solid rgba(249,115,22,.3);padding:2px 6px;border-radius:4px;font-weight:400}
-.hw-card table{width:100%;font-size:.86rem}
-.hw-card td{padding:.4rem 0;color:#a3b4cf;border-bottom:1px solid rgba(255,255,255,.03)}
-.hw-card td:first-child{color:#cbd5e1;font-weight:500;width:38%;font-size:.8rem;letter-spacing:.03em}
-
-/* Roadmap */
-.roadmap{position:relative;padding-left:2.5rem}
-.roadmap::before{content:'';position:absolute;left:.9rem;top:.5rem;bottom:.5rem;width:2px;background:linear-gradient(180deg,var(--ocean-vivid),var(--ocean-core),var(--ocean-muted),transparent);border-radius:2px}
-.rm-item{position:relative;margin-bottom:2.5rem}
-.rm-item::before{content:'';position:absolute;left:-1.6rem;top:1rem;width:14px;height:14px;border-radius:50%;background:var(--bg-void);border:2px solid var(--ocean-bright);box-shadow:0 0 8px var(--ocean-bright)}
-.rm-item.shipped::before{background:var(--ocean-bright)}
-.rm-item.current::before{animation:rmPulse 1.8s infinite}
-.rm-item.planned::before{border-color:var(--ocean-muted);box-shadow:none}
-@keyframes rmPulse{0%,100%{box-shadow:0 0 0 0 rgba(14,165,233,.6),0 0 8px var(--ocean-bright)}50%{box-shadow:0 0 0 8px rgba(14,165,233,0),0 0 8px var(--ocean-bright)}}
-.rm-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.25rem 1.5rem;transition:all .3s}
-.rm-card:hover{border-color:rgba(14,165,233,.2);transform:translateX(4px)}
-.rm-head{display:flex;align-items:baseline;gap:.75rem;margin-bottom:.4rem;flex-wrap:wrap}
-.rm-ver{font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--ocean-vivid);letter-spacing:.05em}
-.rm-date{font-family:var(--font-mono);font-size:.72rem;color:var(--ocean-muted);letter-spacing:.1em}
-.rm-tag{font-family:var(--font-mono);font-size:.65rem;padding:2px 8px;border-radius:100px;letter-spacing:.1em;text-transform:uppercase}
-.rm-tag.shipped{background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
-.rm-tag.current{background:rgba(14,165,233,.1);color:var(--ocean-bright);border:1px solid rgba(14,165,233,.3)}
-.rm-tag.planned{background:rgba(148,163,184,.06);color:#94a3b8;border:1px solid rgba(148,163,184,.2)}
-.rm-title{font-family:var(--font-display);font-size:1rem;color:#e2e8f0;margin-bottom:.5rem;letter-spacing:.03em}
-.rm-body{color:#94a3b8;font-size:.92rem;line-height:1.5}
-.rm-body ul{list-style:none;padding:0;margin-top:.5rem}
-.rm-body li{padding:.25rem 0;padding-left:1.2rem;position:relative;color:#a3b4cf;font-size:.88rem}
-.rm-body li::before{content:'▸';position:absolute;left:0;color:var(--ocean-bright);font-size:.7rem;top:.45rem}
-
-/* Theme cards */
-.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem}
-.theme-card{background:var(--bg-raised);border-radius:10px;padding:1rem;text-align:center;border:1px solid rgba(255,255,255,.05);transition:all .3s var(--ease-smooth);position:relative;overflow:hidden}
-.theme-card:hover{border-color:rgba(14,165,233,.3);transform:translateY(-3px) scale(1.02)}
-.theme-swatch{width:100%;height:44px;border-radius:6px;margin-bottom:.75rem;position:relative;overflow:hidden}
-.theme-swatch::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.2) 50%,transparent 60%);transform:translateX(-100%);transition:transform .6s}
-.theme-card:hover .theme-swatch::after{transform:translateX(100%)}
-.theme-card .name{font-family:var(--font-display);font-size:.75rem;color:#e2e8f0;letter-spacing:.1em}
-
-/* Testers */
-.testers-intro{color:#94a3b8;font-size:1.05rem;max-width:780px;margin-bottom:2rem}
-.testers-intro code{background:rgba(14,165,233,.1);padding:1px 6px;border-radius:4px;color:var(--ocean-vivid);font-family:var(--font-mono);font-size:.85em}
-.test-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;margin-bottom:2rem}
-.test-card{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.1);border-radius:14px;padding:1.5rem;position:relative;overflow:hidden}
-.test-card::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:var(--ocean-bright)}
-.test-card.p1::before{background:var(--coral);box-shadow:0 0 12px rgba(249,115,22,.4)}
-.test-card.p2::before{background:var(--ocean-vivid);box-shadow:0 0 12px rgba(56,189,248,.4)}
-.test-card.p3::before{background:var(--gold);box-shadow:0 0 12px rgba(251,191,36,.4)}
-.test-card.p4::before{background:var(--bio)}
-.test-prio{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.2em;color:var(--ocean-muted);text-transform:uppercase;margin-bottom:.4rem}
-.test-card h3{font-family:var(--font-display);font-size:.95rem;color:#f1f5f9;margin-bottom:.6rem;letter-spacing:.05em}
-.test-card p{font-size:.88rem;color:#a3b4cf;line-height:1.5;margin-bottom:.75rem}
-.test-steps{list-style:none;padding:0;font-size:.85rem;color:#cbd5e1}
-.test-steps li{padding:.2rem 0 .2rem 1.2rem;position:relative;line-height:1.4}
-.test-steps li::before{content:'▸';position:absolute;left:0;color:var(--ocean-bright);font-size:.7rem;top:.3rem}
-.test-note{margin-top:.75rem;padding:.6rem .75rem;background:rgba(251,191,36,.06);border-left:2px solid var(--gold);font-size:.82rem;color:#cbd5e1;border-radius:4px}
-.test-report{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(14,165,233,.08);border-radius:12px;padding:1.5rem;margin-top:1rem}
-.test-report h4{font-family:var(--font-display);font-size:.9rem;color:var(--ocean-vivid);margin-bottom:.75rem;letter-spacing:.05em}
-.test-report ul{list-style:none;padding:0;font-size:.88rem;color:#a3b4cf}
-.test-report li{padding:.25rem 0 .25rem 1.2rem;position:relative}
-.test-report li::before{content:'—';position:absolute;left:0;color:var(--ocean-muted)}
-
-/* Credits / shoutouts */
-.credits-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}
-.credit-card{display:flex;align-items:center;gap:.9rem;background:var(--bg-raised);border:1px solid rgba(14,165,233,.06);border-radius:10px;padding:.9rem 1rem;transition:all .3s;text-decoration:none}
-.credit-card:hover{border-color:rgba(14,165,233,.25);background:var(--bg-card);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
-.credit-card .avatar{width:40px;height:40px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--ocean-core),var(--ocean-muted));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:900;font-size:.9rem;color:#fff;overflow:hidden;border:1px solid rgba(14,165,233,.2)}
-.credit-card .avatar img{width:100%;height:100%;object-fit:cover;display:block}
-.credit-card .meta{flex:1;min-width:0}
-.credit-card .handle{font-family:var(--font-mono);font-size:.75rem;color:var(--ocean-bright);letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.credit-card .role{font-size:.78rem;color:#94a3b8;line-height:1.3;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.credit-card .arrow{color:var(--ocean-muted);opacity:.5;transition:all .2s;flex-shrink:0}
-.credit-card:hover .arrow{opacity:1;transform:translateX(2px);color:var(--ocean-bright)}
-
-/* Download CTA */
-.cta-section{text-align:center;padding:8rem 2rem;position:relative;max-width:900px;margin:0 auto}
-.cta-section::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:80%;height:1px;background:linear-gradient(90deg,transparent,var(--ocean-bright),transparent)}
-.cta-section .btn-primary{font-size:1.2rem;padding:1.1rem 3rem}
-.cta-version{font-family:var(--font-mono);font-size:.8rem;color:#64748b;margin-top:1rem;letter-spacing:.1em}
-.cta-install{margin-top:2rem;text-align:left;display:inline-block;background:rgba(6,8,16,.7);border:1px solid rgba(14,165,233,.15);border-radius:8px;padding:1rem 1.5rem;font-family:var(--font-mono);font-size:.85rem;color:#a3b4cf}
-.cta-install .prompt-dollar{color:var(--coral);margin-right:.5rem}
-.cta-install .comment{color:var(--ocean-muted)}
-
-/* Footer */
-footer{border-top:1px solid rgba(14,165,233,.08);padding:4rem 2rem 2rem;text-align:center;position:relative}
-footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:120px;height:3px;background:var(--ocean-vivid);box-shadow:var(--glow-medium);border-radius:100px}
-footer .foot-glyph{font-family:var(--font-display);font-size:2rem;color:var(--ocean-vivid);letter-spacing:.3em;margin-bottom:1rem}
-footer .suite-label{font-family:var(--font-mono);font-size:.7rem;color:var(--ocean-muted);letter-spacing:.2em;margin-bottom:1rem}
-footer .suite-links{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin-bottom:2rem}
-footer .suite-links a{font-family:var(--font-mono);font-size:.8rem;color:#64748b;letter-spacing:.1em;transition:color .2s}
-footer .suite-links a:hover{color:var(--ocean-bright)}
-footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-spacing:.1em}
-
-/* Scroll reveal */
-.reveal{opacity:0;transform:translateY(40px);transition:all .8s var(--ease-smooth)}
-.reveal.visible{opacity:1;transform:translateY(0)}
-.reveal-left{opacity:0;transform:translateX(-40px);transition:all .8s var(--ease-smooth)}
-.reveal-left.visible{opacity:1;transform:translateX(0)}
-
-/* Mobile */
-@media(max-width:768px){
-  .nav-links{display:none}
-  .hero-stats{gap:1.25rem;margin-top:2rem}
-  .hero-stat{min-width:80px}
-  .hero-stat .num{font-size:1.8rem}
-  .hero-btns{flex-direction:column;align-items:stretch;width:100%;max-width:320px}
-  .hero-prompt{font-size:.7rem}
-  section{padding:4rem 1.25rem}
-  .credits-grid{grid-template-columns:1fr}
-}
-</style>
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
-<!-- Boot sequence overlay -->
+<!-- Boot overlay -->
 <div id="bootOverlay">
-  <div class="boot-trident">⟠</div>
+  <div class="boot-trident">🔱</div>
   <div class="boot-logo">POSEIDON</div>
   <div class="boot-lines">
-    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> radio stack online</div>
-    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> CC1101 / nRF24 / SX1262 hats detected</div>
-    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> keyboard matrix calibrated</div>
-    <div class="boot-line"><span class="dim">[</span><span class="ok"> OK </span><span class="dim">]</span> commander of the deep is awake</div>
+    <div class="boot-line"><span class="dim">[BOOT]</span> detecting hardware <span class="ok">OK</span></div>
+    <div class="boot-line"><span class="dim">[RF]</span> six bands online <span class="ok">OK</span></div>
+    <div class="boot-line"><span class="dim">[NET]</span> lwIP bound <span class="ok">OK</span></div>
+    <div class="boot-line"><span class="dim">[UI]</span> handing control <span class="ok">OK</span></div>
   </div>
 </div>
 
 <div id="scrollProgress"></div>
-
-<!-- HUD -->
-<div id="hud">
-  <div class="hud-row"><span class="hud-dot"></span><span>SYS <span class="val">ONLINE</span></span></div>
-</div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>LIVE · v0.4 master</div></div>
 
 <nav id="mainNav">
-  <a href="#" class="nav-logo"><span class="icon">P</span> POSEIDON</a>
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
   <ul class="nav-links">
-    <li><a href="#features">Arsenal</a></li>
-    <li><a href="#hardware">Hardware</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#testers">Testers</a></li>
-    <li><a href="#credits">Credits</a></li>
-    <li><a href="#download">Deploy</a></li>
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
   </ul>
 </nav>
@@ -315,7 +59,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     </div>
     <div class="hero-btns">
       <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary">⬇ Flash Latest</a>
-      <a href="https://github.com/GeneralDussDuss/poseidon" class="btn btn-secondary">⎇ View Source</a>
+      <a href="arsenal.html" class="btn btn-secondary">⎇ See Arsenal</a>
     </div>
     <div class="hero-stats">
       <div class="hero-stat"><div class="num" data-count="96" data-suffix="+">96+</div><div class="label">Features</div></div>
@@ -327,7 +71,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="hero-scroll">SCROLL</div>
 </section>
 
-<!-- Stats ticker — the live signals POSEIDON emits -->
+<!-- Ticker -->
 <div class="ticker">
   <div class="ticker-track">
     <span>DEAUTH <span class="val">on-air</span></span>
@@ -352,446 +96,106 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <span>MESH <span class="val">paging</span></span>
     <span>SX1262 <span class="val">cad-clear</span></span>
     <span>CC1101 <span class="val">recorded</span></span>
-    <span>MOUSEJACK <span class="val">hid-injected</span></span>
-    <span>CHANNEL <span class="val">rl-hopped</span></span>
-    <span>C5 <span class="val">esp-now</span></span>
-    <span>W5500 <span class="val">lan-native</span></span>
   </div>
 </div>
 
-<!-- SaltyJack feature spotlight — v0.4 headline drop -->
-<section id="saltyjack" style="padding:clamp(3.5rem,7vw,6rem) 1.5rem;position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(14,165,233,0.04) 0%,rgba(6,10,22,1) 80%);">
-  <div style="max-width:1100px;margin:0 auto;">
-    <div class="section-label reveal" style="color:#f59e0b;">★ FEATURED DROP</div>
-    <h2 class="section-title reveal" style="font-size:clamp(2.2rem,5vw,3.8rem);">SaltyJack &mdash; the LAN arsenal</h2>
-    <p class="section-desc reveal" style="max-width:820px;">A direct port &amp; homage to <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener" style="color:var(--ocean-bright);text-decoration:underline;">@7h30th3r0n3's RaspyJack</a> and <a href="https://github.com/7h30th3r0n3/Evil-M5Project" target="_blank" rel="noopener" style="color:var(--ocean-bright);text-decoration:underline;">Evil-M5Project</a>, reforged for POSEIDON. Press <code style="background:rgba(14,165,233,0.1);padding:.15rem .45rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);">j</code> from the root menu &rarr; custom pirate-themed submenu renderer with list / grid / carousel view toggles, 16&times;16 RGB565 sprite pack, pixel-doubled for scale, and a 240&times;135 boot splash baked right into flash.</p>
+<!-- FEATURED DROP — v0.4 SaltyJack with big homage to @7h30th3r0n3 -->
+<section id="saltyjack" style="padding:clamp(4rem,8vw,7rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(245,158,11,0.09) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(14,165,233,0.04) 0%,rgba(6,10,22,1) 85%);border-top:1px solid rgba(245,158,11,0.15);border-bottom:1px solid rgba(245,158,11,0.15);">
+  <div style="max-width:1150px;margin:0 auto;">
+    <div class="section-label reveal" style="color:#f59e0b;letter-spacing:.18em;">★ FEATURED DROP · v0.4</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.4rem,5.5vw,4.2rem);background:linear-gradient(135deg,#f59e0b 0%,#fbbf24 40%,var(--ocean-bright) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">SaltyJack — the LAN arsenal</h2>
+    <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">Press <code style="background:rgba(245,158,11,0.15);padding:.2rem .5rem;border-radius:5px;color:#fbbf24;font-family:var(--font-mono);font-weight:700;">j</code> from the root menu. Full wired/wireless LAN attack suite with a pirate UX — DHCP starvation, rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB), WPAD PAC harvest, on-device NTLMv2 cracker. No PC tether. No Pi server. Pocket-sized.</p>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-top:2rem;">
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 4h16v3H4z M5 8v11h14V8 M8 12h3v3H8z M13 12h3v3h-3z"/></svg></span><h3>DHCP Starvation</h3></div><p>Floods the target network's DHCP server with random-MAC Discover/Request cycles until the pool exhausts. Live counters for discover/offer/request/ACK/NAK. Auto-detects pool exhaustion on NAK ≥ 20.</p><div class="count">PHASE 1</div></div>
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z M12 3v18 M3 8l9 5 9-5"/></svg></span><h3>Rogue DHCP (STA + AP)</h3></div><p>Races the real server with our own Offer/Ack (STA mode) or serves DHCP itself for clients on our SoftAP (AP mode). Gateway + DNS poisoning for chained MitM.</p><div class="count">PHASE 2</div></div>
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z M2 12h20 M12 2a15 15 0 010 20 M12 2a15 15 0 000 20"/></svg></span><h3>Responder</h3></div><p>LLMNR + NBT-NS name-poisoning plus SMB1 NTLMv2 Type-2 builder. Captured NTLMv2 hashes log straight to SD in hashcat mode-5600 format. Feed to the on-device cracker.</p><div class="count">PHASE 2</div></div>
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M7 14h4"/></svg></span><h3>WPAD NTLM harvest</h3></div><p>Serves a PAC file on port 80 + HTTP 407 Proxy-Authenticate challenge. Windows clients auto-fetch WPAD, auto-auth with current domain creds — hash captured, logged, crack-ready.</p><div class="count">PHASE 2</div></div>
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2v20 M2 12h20 M6 6l12 12 M18 6L6 18"/></svg></span><h3>On-device NTLMv2 cracker</h3></div><p>Pure-C HMAC-MD5 wordlist runner. Reads hashcat-mode-5600 lines from SD, tries each password. No PC needed. Seeds a starter wordlist on first run.</p><div class="count">PHASE 2</div></div>
-      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2C9 2 7 4 7 7v3H5v12h14V10h-2V7c0-3-2-5-5-5z M9 10V7c0-2 1-3 3-3s3 1 3 3v3"/></svg></span><h3>Custom UX</h3></div><p>Own renderer — 3 view modes (list/grid/carousel), RaspyJack-faithful per-tool info pages, idle screensaver, and a pirate 7-sprite icon pack in 16&times;16 RGB565 baked from PNG via <code style="background:rgba(245,158,11,0.1);padding:.1rem .3rem;border-radius:3px;color:#f59e0b;font-family:var(--font-mono);font-size:.85rem;">tools/sprite_sheet_to_icons.py</code>.</p><div class="count">UX</div></div>
-    </div>
-
-    <p class="section-desc reveal" style="max-width:820px;margin-top:2rem;font-style:italic;opacity:.85;">Every file in <code style="background:rgba(14,165,233,0.1);padding:.1rem .35rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);font-size:.9rem;">src/features/saltyjack/</code> carries a prominent attribution header to <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="color:var(--ocean-bright);">@7h30th3r0n3</a>. Go star the originals. Authorized testing only.</p>
-  </div>
-</section>
-
-<section id="features">
-  <div class="section-label reveal">01 // ARSENAL</div>
-  <h2 class="section-title reveal">Every Radio. Every Attack.</h2>
-  <p class="section-desc reveal">WiFi deauth to LoRa beacons. MouseJack to DHCP starvation. POSEIDON covers more attack surface than any other pocketable device — and it's keyboard-first so you actually fly through it.</p>
-
-  <div class="feature-grid">
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M2 12c2-4 7-6 10-6s8 2 10 6M5 16c2-3 5-4 7-4s5 1 7 4M8 20c1-2 3-2 4-2s3 0 4 2M12 22v.01"/></svg></span><h3>WiFi Offensive</h3></div><p>Scan, deauth with client sniffer + disassoc pair + seq counter, evil portal, karma, beacon spam, probe sniff, PMKID + 4-way handshake capture, wardrive + GPS, CIW zeroclick SSID injection.</p><div class="count">17 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M6 3h3l2 3 3-4 2 4 2-2v16h-12z M10 8v8 M13 8v8"/></svg></span><h3>Bluetooth Low Energy</h3></div><p>Classifying scan with OUI + Continuity + Fast Pair DBs. Spam (Apple/Samsung/Google/Windows). Bad-KB HID, tracker detect, GATT explorer, Sour Apple CVE-2023-42941, Find-My emulator, clone, flood.</p><div class="count">14 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg></span><h3>Sub-GHz (CC1101)</h3></div><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83 M8 12a4 4 0 018 0"/></svg></span><h3>2.4 GHz (nRF24L01+)</h3></div><p>Promiscuous ESB sniffer (Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 1-4.5 4 1 6L12 16l-5.5 3 1-6L3 9l6-1z"/></svg></span><h3>LoRa + GNSS (SX1262)</h3></div><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener. Live GPS fix with NMEA diagnostics + baud auto-detect.</p><div class="count">4 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M8 14h2 M12 14h2 M16 14h2"/></svg></span><h3>Network Attacks + SaltyJack</h3></div><p>Full LAN suite: port scan, ping, DNS, SSDP poisoner, honeypot, reverse TCP tunnel, UART shell, plus the <a href="#saltyjack" style="color:var(--ocean-bright);">SaltyJack</a> arsenal (DHCP starve, rogue DHCP, Responder, WPAD NTLM, on-device cracker).</p><div class="count">18 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z M10 7h4 M7 10v4 M14 17h3 M17 14v-4"/></svg></span><h3>MIMIR Drop-Box</h3></div><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link — pure opsec.</p><div class="count">1 MODULE</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 5h18v12H3z M3 19h18 M9 9l6 3-6 3z"/></svg></span><h3>TRIDENT PC Bridge</h3></div><p>Mirror the Cardputer screen to your desktop at 10+ fps. Send keystrokes remotely. Screenshot capture + MP4 record. PyQt6 companion app, USB-CDC only.</p><div class="count">1 MODULE</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 00-5 5v3a5 5 0 0010 0V7a5 5 0 00-5-5z M8 22c0-2 2-3 4-3s4 1 4 3 M9 14h6 M9 11h.01 M15 11h.01"/></svg></span><h3>Triton Gotchi</h3></div><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Now inherits the full deauth correctness stack.</p><div class="count">1 CREATURE</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1 M12 8a4 4 0 014 4 M12 16a4 4 0 01-4-4"/></svg></span><h3>Signal Finder</h3></div><p>Hot/cold proximity tracker for both sub-GHz (CC1101 RSSI) and 2.4 GHz (nRF24 RPD). Auto-calibrating gradient meter. Find hidden cameras, rogue transmitters, wireless devices.</p><div class="count">2 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h18 M12 3v18 M6 6l12 12 M18 6L6 18"/></svg></span><h3>C5 Remote Nodes</h3></div><p>ESP32-C5 companion for 5 GHz WiFi + 802.15.4 Zigbee/Thread. Dual-band scan, remote deauth, Zigbee sniff — all over ESP-NOW mesh. WS2812 status LED.</p><div class="count">4 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 8h8v2H8z M8 12h8v2H8z M8 16h4v2H8z"/></svg></span><h3>Tools + BadUSB + IR</h3></div><p>USB-HID payload runner. TV-B-Gone. Samsung remote. Flashlight, stopwatch, calculator, morse, MAC randomizer, SD format, file browser. 6-palette theme engine.</p><div class="count">12 TOOLS</div></div>
-  </div>
-</section>
-
-<section id="hardware">
-  <div class="section-label reveal">02 // HARDWARE</div>
-  <h2 class="section-title reveal">Four Hats. Every Frequency. Now with Wired.</h2>
-  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports swappable hats — pick the one the mission needs.</p>
-
-  <div class="hw-grid">
-    <div class="hw-card reveal">
-      <h3>Cardputer-Adv <span class="chip">BASE</span></h3>
-      <table>
-        <tr><td>MCU</td><td>ESP32-S3 @ 240 MHz</td></tr>
-        <tr><td>Display</td><td>1.14" ST7789 240×135</td></tr>
-        <tr><td>Keyboard</td><td>TCA8418 I²C QWERTY</td></tr>
-        <tr><td>Radio</td><td>WiFi 4 + BLE 5.0</td></tr>
-        <tr><td>USB</td><td>Native USB-C (HID + CDC)</td></tr>
-        <tr><td>Storage</td><td>microSD + 8MB flash</td></tr>
-      </table>
-    </div>
-    <div class="hw-card reveal">
-      <h3>CAP-LoRa1262 <span class="chip">HAT</span></h3>
-      <table>
-        <tr><td>LoRa</td><td>SX1262 (868/915 MHz)</td></tr>
-        <tr><td>GNSS</td><td>ATGM336H GPS</td></tr>
-        <tr><td>Antenna</td><td>RP-SMA external</td></tr>
-        <tr><td>Use</td><td>Wardrive, LoRa scan, Meshtastic</td></tr>
-      </table>
-    </div>
-    <div class="hw-card reveal">
-      <h3>Hydra RF Cap 424 <span class="chip">HAT</span></h3>
-      <table>
-        <tr><td>Sub-GHz</td><td>CC1101 (300–928 MHz)</td></tr>
-        <tr><td>2.4 GHz</td><td>nRF24L01+</td></tr>
-        <tr><td>Vendor</td><td>PINGEQUA</td></tr>
-        <tr><td>Use</td><td>Signal capture/replay, MouseJack, BLE spam</td></tr>
-      </table>
-    </div>
-    <div class="hw-card reveal">
-      <h3>ESP32-C5 Node <span class="chip">SATELLITE</span></h3>
-      <table>
-        <tr><td>WiFi</td><td>5 GHz + 2.4 GHz dual-band</td></tr>
-        <tr><td>802.15.4</td><td>Zigbee / Thread</td></tr>
-        <tr><td>Link</td><td>ESP-NOW mesh to Cardputer</td></tr>
-        <tr><td>Use</td><td>5G scan/deauth, Zigbee sniff</td></tr>
-      </table>
-    </div>
-    <div class="hw-card reveal" style="border-color:rgba(245,158,11,.45);">
-      <h3>W5500 SPI&thinsp;⇄&thinsp;Ethernet <span class="chip" style="background:rgba(245,158,11,.2);color:#f59e0b;border-color:rgba(245,158,11,.4);">NEW · RJ45</span></h3>
-      <table>
-        <tr><td>PHY</td><td>WIZnet W5500 10/100 full-duplex</td></tr>
-        <tr><td>Bus</td><td>SPI (shared FSPI w/ SD)</td></tr>
-        <tr><td>Stack</td><td>lwIP via Arduino Ethernet — transport-agnostic <code>netif</code></td></tr>
-        <tr><td>Unlocks</td><td>Full RaspyJack parity on Cardputer — drop the cable and the <a href="#saltyjack" style="color:var(--ocean-bright);">SaltyJack</a> suite (DHCP starve, rogue DHCP, Responder, WPAD, NTLM harvest) runs over wired instead of WiFi STA</td></tr>
-        <tr><td>Why</td><td>Wired gets you past every PMF / WPA3 / corporate 802.1X defense that kills the wireless path — plug in, own the broadcast domain</td></tr>
-      </table>
-    </div>
-  </div>
-</section>
-
-<section id="roadmap">
-  <div class="section-label reveal">03 // TRAJECTORY</div>
-  <h2 class="section-title reveal">Roadmap</h2>
-  <p class="section-desc reveal">Where we've been and where we're diving next. Timeline reflects real pushes, not fantasy.</p>
-
-  <div class="roadmap">
-    <div class="rm-item shipped reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.1.0</span>
-          <span class="rm-date">2026-04-14</span>
-          <span class="rm-tag shipped">Shipped</span>
-        </div>
-        <div class="rm-title">First tagged release — the foundation</div>
-        <div class="rm-body">
-          Every radio band brought online. Full menu shell with slide transitions.
-          Hokusai splash. 90+ features across WiFi, BLE, sub-GHz, LoRa, nRF24, IR,
-          net attacks, BadUSB, theme engine, Triton gotchi, C5 companion, TRIDENT
-          PC bridge, MIMIR remote.
+    <!-- ===== Big Homage Panel for @7h30th3r0n3 ===== -->
+    <div class="reveal" style="margin-top:2.5rem;padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(245,158,11,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(245,158,11,0.08) 0%,rgba(14,165,233,0.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(245,158,11,0.25) 0%,transparent 70%);pointer-events:none;"></div>
+      <div style="display:flex;gap:clamp(1.2rem,3vw,2.2rem);align-items:flex-start;flex-wrap:wrap;position:relative;">
+        <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="flex:0 0 auto;text-decoration:none;">
+          <div style="width:104px;height:104px;border-radius:50%;background:#000;border:2px solid rgba(245,158,11,0.5);overflow:hidden;box-shadow:0 10px 40px -10px rgba(245,158,11,0.4);display:flex;align-items:center;justify-content:center;color:#fbbf24;font-family:var(--font-display);font-size:2rem;font-weight:700;">
+            <img src="https://github.com/7h30th3r0n3.png?size=200" alt="@7h30th3r0n3" style="width:100%;height:100%;display:block;object-fit:cover;" onerror="this.style.display='none';this.parentNode.textContent='7h';">
+          </div>
+        </a>
+        <div style="flex:1 1 320px;">
+          <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:#f59e0b;margin-bottom:.5rem;">★ BIG HOMAGE · SALTYJACK'S ORIGINAL ARCHITECT</div>
+          <h3 style="font-family:var(--font-display);font-size:clamp(1.5rem,2.6vw,2rem);margin:0 0 .4rem;color:#fbbf24;letter-spacing:.02em;">@7h30th3r0n3</h3>
+          <p style="font-size:1rem;line-height:1.55;color:#e2e8f0;margin:0 0 1rem;">SaltyJack is a <b style="color:#fbbf24;">direct port, not inspiration</b>. Every attack module — DHCP starve, rogue DHCP, Responder, WPAD, NTLMv2 cracker — is a reforge of the work 7h30th3r0n3 shipped first on the Pi (<b style="color:#fbbf24;">RaspyJack</b>) and on Cardputer (<b style="color:#fbbf24;">Evil-M5Project / Evil-Cardputer</b>). We reorganized the code into POSEIDON's style, added a pirate sprite pack, built a custom renderer. The attacks themselves — protocol framing, timing, pool-exhaustion detection, hashcat 5600 output path — that's all 7h30th3r0n3. Go star both repos. Seriously.</p>
+          <div style="display:flex;gap:.65rem;flex-wrap:wrap;">
+            <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;border-color:rgba(245,158,11,0.55);color:#fbbf24;">★ RaspyJack</a>
+            <a href="https://github.com/7h30th3r0n3/Evil-M5Project" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;border-color:rgba(245,158,11,0.55);color:#fbbf24;">★ Evil-M5Project</a>
+            <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;">Profile →</a>
+          </div>
         </div>
       </div>
     </div>
-    <div class="rm-item shipped reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.2.0</span>
-          <span class="rm-date">2026-04-17</span>
-          <span class="rm-tag shipped">Shipped</span>
-        </div>
-        <div class="rm-title">Deauth correctness + LoRa stability</div>
-        <div class="rm-body">
-          Two back-to-back audits landed simultaneously — deauth wasn't kicking clients, LoRa was hard-rebooting the device. Both classes of bug found, fixed, reviewed, shipped.
-          <ul>
-            <li>Deauth: <code>addr1</code> bug fixed across 4 sites + Triton, shared frame builder with correct 802.11-2016 Sequence Control encoding</li>
-            <li>Deauth + disassoc pair with per-frame seq increment, client sniffer feeding alternating broadcast/unicast rounds</li>
-            <li>PMF / WPA3 / WPA2-Enterprise warning + driver-level TX drop counter</li>
-            <li>LoRa bandwidth unit fixed (kHz directly, not divided by 1000)</li>
-            <li>PI4IOE antenna switch driven directly via <code>M5.In_I2C</code>, bypassing a broken M5 expander API that was LoadProhibited-panic'ing the device</li>
-            <li>Null-radio boot-loop eliminated — <code>lora_radio()</code> returns a dummy instead of calling <code>esp_restart()</code></li>
-            <li>LoRa spectrum analyzer rewritten — no more 210-retune sweep per frame, real packet capture with RSSI/SNR/size overlay</li>
-          </ul>
-        </div>
-      </div>
+
+    <h3 class="reveal" style="margin-top:3rem;font-family:var(--font-display);font-size:1.75rem;color:#fbbf24;letter-spacing:.04em;">What's inside</h3>
+    <p class="reveal" style="max-width:720px;color:#94a3b8;font-size:.95rem;margin:.4rem 0 1.5rem;">Six modules behind one menu key. Phase 1 shipped in v0.3; phase 2 lands with v0.4.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;">
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 4h16v3H4z M5 8v11h14V8 M8 12h3v3H8z M13 12h3v3h-3z"/></svg></span><h3>DHCP Starvation</h3></div><p>Floods the network's DHCP server with random-MAC Discover/Request cycles until the pool exhausts. Live counters. Auto-detects exhaustion on NAK ≥ 20.</p><div class="count">PHASE 1</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z M12 3v18 M3 8l9 5 9-5"/></svg></span><h3>Rogue DHCP (STA + AP)</h3></div><p>Races the real server with our own Offer/Ack (STA mode) or <em>is</em> the DHCP server for clients on our SoftAP (AP mode). Gateway + DNS poisoning for chained MitM.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z M2 12h20 M12 2a15 15 0 010 20 M12 2a15 15 0 000 20"/></svg></span><h3>Responder</h3></div><p>LLMNR + NBT-NS name-poisoning plus SMB1 NTLMv2 Type-2 builder. Captured hashes logged to SD in hashcat mode-5600 format. Feed directly to the on-device cracker.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M7 14h4"/></svg></span><h3>WPAD NTLM harvest</h3></div><p>Serves PAC file on port 80 + HTTP 407 Proxy-Authenticate challenge. Windows clients auto-fetch WPAD, auto-auth with current domain creds.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2v20 M2 12h20 M6 6l12 12 M18 6L6 18"/></svg></span><h3>On-device NTLMv2 cracker</h3></div><p>Pure-C HMAC-MD5 wordlist runner. Reads hashcat-5600 lines from SD, tries each password. No PC needed. Seeds a starter wordlist on first run.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2C9 2 7 4 7 7v3H5v12h14V10h-2V7c0-3-2-5-5-5z M9 10V7c0-2 1-3 3-3s3 1 3 3v3"/></svg></span><h3>Custom UX</h3></div><p>Own renderer — list / grid / carousel views, RaspyJack-faithful info pages, screensaver, 7-sprite pirate icon pack baked from PNG via <code style="background:rgba(245,158,11,0.1);padding:.1rem .3rem;border-radius:3px;color:#f59e0b;font-family:var(--font-mono);font-size:.85rem;">tools/sprite_sheet_to_icons.py</code>.</p><div class="count">UX</div></div>
     </div>
-    <div class="rm-item reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.3.0</span>
-          <span class="rm-date">Shipped</span>
-          <span class="rm-tag">Released</span>
-        </div>
-        <div class="rm-title">Meshtastic node + deauth correctness</div>
-        <div class="rm-body">
-          POSEIDON becomes a full Meshtastic participant — send, receive, page, show up on the mesh.
-          <ul>
-            <li>Hand-rolled minimal protobuf for MeshPacket / Data / User / Position</li>
-            <li>AES-CTR-128 with default LongFast PSK (nonce counter at bytes 12-15 — byte-exact vs fw v2.7.23)</li>
-            <li>Broadcast text + direct-to-node (paging) + position reporting</li>
-            <li>Live node roster with long/short names, SNR, hops, last-seen, GPS pin</li>
-            <li>Deauth correctness pass — addr1 fix, disassoc pair, seq counter, PMF guard, live client sniffer</li>
-            <li>LoRa rewrite — spectrum analyzer with real packet capture, LoadProhibited fix, freq-select crash fix</li>
-            <li>Tron-style cyberpunk SFX engine with NVS-persisted volume</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="rm-item current reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.4.0</span>
-          <span class="rm-date">Master · awaiting on-hardware verify</span>
-          <span class="rm-tag current">Current</span>
-        </div>
-        <div class="rm-title">The arsenal release — SaltyJack (RaspyJack port) + deauth parity + TRIDENT fixes</div>
-        <div class="rm-body">
-          The release that makes deauth frames <em>actually land on-air</em>, delivers a full <b>RaspyJack</b> LAN arsenal on the Cardputer, and lands a month of TRIDENT hardening.
-          <ul>
-            <li><b>SaltyJack = RaspyJack port.</b> Direct port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack + Evil-M5Project arsenal — DHCP Starve, Rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB NTLMv2), WPAD PAC harvest, on-device NTLMv2 cracker. Custom pirate UX, 16×16 sprite pack, full-screen boot splash — every file carries attribution. Press <code>j</code>.</li>
-            <li><b>Platform fork for real deauth.</b> Migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Arduino 3.3.8 / IDF 5.5.4) + patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses. Lifts the IDF subtype-filter blocking deauth/disassoc TX.</li>
-            <li><b>TRIDENT companion app polish.</b> PyQt6 desktop viewer + key-forwarding bridge over USB-CDC — v0.4 hardens the protocol (atomic header+binary send, robust disconnect state, arrow-key translation fix so menus actually scroll from the PC). See the <a href="https://github.com/GeneralDussDuss/trident" target="_blank" rel="noopener">TRIDENT repo</a>.</li>
-            <li><b>W5500 SPI Ethernet hat (new).</b> Wired RJ45 unlocks full RaspyJack parity — SaltyJack attacks run over lwIP's transport-agnostic <code>netif</code>, bypassing WiFi STA (and PMF / WPA3 / 802.1X) entirely.</li>
-            <li>IDF 5.x API drift fixes outside the deauth path (ESP-NOW recv cb, <code>esp_mac.h</code>). No library bumps — NimBLE 1.4.1, RadioLib 7.4.0, M5 stack all compile clean on Core 3.3.8.</li>
-            <li>Build now runs on WSL2 / native Linux — pioarduino's installer trips on Git Bash MSys markers.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="rm-item planned reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.5.0</span>
-          <span class="rm-date">Q3 2026</span>
-          <span class="rm-tag planned">Planned</span>
-        </div>
-        <div class="rm-title">ESP32-C5 full integration</div>
-        <div class="rm-body">
-          <ul>
-            <li>C5 OTA auto-flash from Cardputer SD over ESP-NOW</li>
-            <li>5 GHz client hunting + targeted per-STA deauth (not just per-AP)</li>
-            <li>5 GHz PMKID + handshake capture with EAPOL relay over ESP-NOW</li>
-            <li>802.15.4 Zigbee full packet capture + Wireshark PCAP export</li>
-            <li>Thread network discovery + device enumeration</li>
-            <li>Multi-C5 coordination — deploy satellites, control all from one Cardputer</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="rm-item planned reveal-left">
-      <div class="rm-card">
-        <div class="rm-head">
-          <span class="rm-ver">v0.6.0</span>
-          <span class="rm-date">Q4 2026</span>
-          <span class="rm-tag planned">Planned</span>
-        </div>
-        <div class="rm-title">MIMIR drop-box live</div>
-        <div class="rm-body">
-          The MIMIR client module exists in POSEIDON today. v0.5 makes the BPI-M4 Zero server side real.
-          <ul>
-            <li><code>hcxdumptool</code> wrapper for real scan events (replacing placeholders)</li>
-            <li>On-device WPA2 cracker (dual-core PBKDF2-SHA1)</li>
-            <li>Bjorn-style action DAG — auto-exploit cracked networks</li>
-            <li>FENRIR RL policy head selecting exploit strategy</li>
-            <li>Armbian H618 one-flash image</li>
-            <li>Pull captured pcap / .22000 back to Cardputer SD over USB-CDC</li>
-            <li>GPS-tagged attack logging with WiGLE integration</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+
+    <p class="reveal" style="max-width:820px;margin:2.5rem 0 0;font-style:italic;opacity:.85;text-align:center;color:#cbd5e1;">Every file in <code style="background:rgba(14,165,233,0.12);padding:.12rem .4rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);font-size:.9rem;">src/features/saltyjack/</code> opens with an attribution header crediting <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="color:#fbbf24;">@7h30th3r0n3</a>. Authorized testing only — hunt your own LAN.</p>
   </div>
 </section>
 
-<section id="themes">
-  <div class="section-label reveal">04 // AESTHETICS</div>
-  <h2 class="section-title reveal">Six Visual Palettes</h2>
-  <p class="section-desc reveal">Swap the entire UI vibe from System ▸ Theme. Every screen follows the active palette.</p>
+<!-- Explore the rest of the site — teaser cards linking to subpages -->
+<section id="explore">
+  <div class="section-label reveal">00 // NAVIGATE</div>
+  <h2 class="section-title reveal">Explore POSEIDON</h2>
+  <p class="section-desc reveal">Six sections, each its own page. Pick what you care about — there's a lot here.</p>
 
-  <div class="theme-grid">
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#7dd3fc 45%,#f97316)"></div><div class="name">POSEIDON</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#c026d3,#f0abfc 45%,#7c3aed)"></div><div class="name">PHANTOM</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#16a34a,#86efac 45%,#052e16)"></div><div class="name">MATRIX</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f59e0b,#fde68a 45%,#b45309)"></div><div class="name">AMBER</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f8fafc,#94a3b8 45%,#0f172a)"></div><div class="name">E-INK</div></div>
-    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#06b6d4,#67e8f9 45%,#155e75)"></div><div class="name">TRON</div></div>
-  </div>
-</section>
-
-<section id="testers">
-  <div class="section-label reveal">05 // FIELD TEAM</div>
-  <h2 class="section-title reveal">For testers</h2>
-  <p class="testers-intro reveal">
-    v0.4 is on master and needs eyes before the tag cuts. One question gates the release: <b style="color:#f59e0b;">do deauth frames actually land on-air?</b> Everything else is regression.
-    If you flash master and confirm it works, ping the repo. That's the signal. Full doc:
-    <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
-  </p>
-
-  <div class="test-grid">
-    <div class="test-card p1 reveal" style="border-color:rgba(245,158,11,.5);box-shadow:0 0 0 1px rgba(245,158,11,.1), 0 24px 60px -20px rgba(245,158,11,.25);">
-      <div class="test-prio" style="color:#f59e0b;">★ Priority 1 · RELEASE GATE</div>
-      <h3>Deauth frames on-air (platform-fork validation)</h3>
-      <p>The whole v0.4 migration exists to answer one question. Stock IDF 5.3 blob filtered MGMT subtypes <code>0xC</code> / <code>0xA</code> at the TX FIFO. Bruce's patched <code>libnet80211.a</code> lifts the filter. This test confirms that actually happened.</p>
-      <ul class="test-steps">
-        <li>Flash master, boot, confirm splash reads v0.4</li>
-        <li>Pick a non-PMF WPA2 AP you own; associate a phone / laptop to it</li>
-        <li>POSEIDON → WiFi → Scan → select target → press <code>D</code></li>
-        <li><b>Watch the counters:</b> <code>sent:</code> climbs hundreds/sec, <code>drops:</code> stays near zero</li>
-        <li>Target client drops WiFi within 2-5 seconds</li>
-      </ul>
-      <div class="test-note" style="border-left-color:#f59e0b;"><b>Success signal:</b> reply "deauth verified v0.4" on GitHub Issues. That's the tag-trigger.</div>
-    </div>
-
-    <div class="test-card p2 reveal">
-      <div class="test-prio">Priority 2 · SaltyJack LAN arsenal</div>
-      <h3>RaspyJack port end-to-end</h3>
-      <p>Full homage port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack. Six new attack modules behind the <code>j</code> menu key. Run against networks you own.</p>
-      <ul class="test-steps">
-        <li><b>DHCP Starve:</b> join target WiFi → run → watch pool exhaust (NAK ≥ 20)</li>
-        <li><b>Rogue DHCP:</b> STA mode races real server; AP mode <em>is</em> the server</li>
-        <li><b>Responder:</b> poison LLMNR/NBT-NS, capture NTLMv2 hashes to SD</li>
-        <li><b>WPAD:</b> serve PAC + HTTP 407 challenge; confirm Windows clients auto-auth</li>
-        <li><b>NTLMv2 cracker:</b> feed captured hash + wordlist, verify it runs on-device</li>
-        <li>Report: which modules landed, any crashes, pcap/hash-file output paths</li>
-      </ul>
-      <div class="test-note">Every file in <code>src/features/saltyjack/</code> is authorized-testing-only. Don't hunt strangers.</div>
-    </div>
-
-    <div class="test-card p3 reveal">
-      <div class="test-prio">Priority 3 · TRIDENT companion</div>
-      <h3>PC bridge after protocol fixes</h3>
-      <p>TRIDENT mirrors the Cardputer screen to the PyQt6 desktop and forwards keystrokes over USB-CDC. v0.4 audit caught an arrow-key translation mismap + unexpected-disconnect state leak; both are now fixed — confirm.</p>
-      <ul class="test-steps">
-        <li>Clone <code>GeneralDussDuss/trident</code>, <code>pip install -e .</code>, launch <code>trident</code></li>
-        <li>Connect to COM port, confirm framebuffer streams at ~10 fps</li>
-        <li>Press arrow keys on your PC → menus scroll on Cardputer (regression: they didn't before)</li>
-        <li>Unplug USB mid-stream → button should flip back to "Connect" within 2s</li>
-        <li>Replug + reconnect works without app restart</li>
-      </ul>
-      <div class="test-note">Record-mode (imageio-ffmpeg) is optional; ignore if you didn't install the <code>[record]</code> extra.</div>
-    </div>
-
-    <div class="test-card p4 reveal">
-      <div class="test-prio">Priority 4 · Regression sweep</div>
-      <h3>Everything v0.3 shipped — still works?</h3>
-      <p>v0.4 migrated the entire platform. Library versions stayed, code stayed — but some corners might've drifted. Touch every menu leaf at least once.</p>
-      <ul class="test-steps">
-        <li><b>Radios:</b> WiFi scan, BLE scan, LoRa scan, CC1101 scan, nRF24 scan — all enumerate</li>
-        <li><b>Capture:</b> Sub-GHz record+replay, PMKID, 4-way handshake (.22000 format)</li>
-        <li><b>Meshtastic:</b> Chat, Nodes, Page, Pos — receive real traffic if within range</li>
-        <li><b>Peripherals:</b> SD browse, BadUSB, IR TV-B-Gone, GPS fix, theme + SFX toggle</li>
-        <li>File any regression with feature path, serial log, reproducibility count</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="test-report reveal">
-    <h4>Ideal bug report</h4>
-    <ul>
-      <li><b>Build</b>: v0.4 / commit SHA (confirm in boot splash)</li>
-      <li><b>Hardware</b>: Cardputer-Adv + which hat attached</li>
-      <li><b>Feature path</b>: e.g. <code>WiFi → Deauth → specific target</code></li>
-      <li><b>What happened</b> vs <b>what you expected</b></li>
-      <li><b>Reproducibility</b>: always / sometimes / once</li>
-      <li><b>Serial log</b> if possible (<code>pio device monitor --baud 115200</code>)</li>
-    </ul>
-    <p style="margin-top:1rem;font-size:.88rem;color:#cbd5e1">
-      File at <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank">github.com/GeneralDussDuss/poseidon/issues</a> with label <code>v0.4-tester</code>.
-    </p>
-  </div>
-</section>
-
-<section id="credits">
-  <div class="section-label reveal">06 // SHOULDERS OF GIANTS</div>
-  <h2 class="section-title reveal">Built on open work</h2>
-  <p class="section-desc reveal">POSEIDON stands on a mountain of open-source pentest, radio, and firmware work. Respect to the people who made the primitives we compose.</p>
-
-  <div class="credits-grid">
-    <a class="credit-card reveal" href="https://github.com/m5stack/M5Cardputer" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/m5stack.png?size=80" alt="m5stack" onerror="this.style.display='none';this.parentNode.textContent='M5'"></div>
-      <div class="meta"><div class="handle">@m5stack</div><div class="role">Cardputer-Adv hardware + driver library</div></div>
-      <div class="arrow">↗</div>
+  <div class="teaser-grid">
+    <a class="teaser reveal" href="arsenal.html">
+      <div class="t-num">01 · ARSENAL</div>
+      <h3>Every Radio. Every Attack.</h3>
+      <p>96+ tools across WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, and network. The full feature grid with per-domain counts.</p>
+      <div class="t-arrow">Browse arsenal →</div>
     </a>
-    <a class="credit-card reveal" href="https://github.com/espressif/arduino-esp32" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/espressif.png?size=80" alt="espressif" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
-      <div class="meta"><div class="handle">@espressif</div><div class="role">ESP32-S3 silicon + Arduino core</div></div>
-      <div class="arrow">↗</div>
+    <a class="teaser reveal" href="hardware.html">
+      <div class="t-num">02 · HARDWARE</div>
+      <h3>Four Hats. Every Frequency.</h3>
+      <p>Base Cardputer-Adv plus LoRa, Hydra RF, ESP32-C5, and the new W5500 SPI-to-Ethernet — RaspyJack parity over wired.</p>
+      <div class="t-arrow">Inspect hats →</div>
     </a>
-    <a class="credit-card reveal" href="https://github.com/lovyan03/LovyanGFX" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/lovyan03.png?size=80" alt="lovyan03" onerror="this.style.display='none';this.parentNode.textContent='LG'"></div>
-      <div class="meta"><div class="handle">@lovyan03</div><div class="role">LovyanGFX — the display backbone</div></div>
-      <div class="arrow">↗</div>
+    <a class="teaser reveal" href="roadmap.html">
+      <div class="t-num">03 · ROADMAP</div>
+      <h3>Where we've been. Where we're going.</h3>
+      <p>v0.1 foundations → v0.4 SaltyJack + platform fork → v0.5 C5 full integration → v0.6 MIMIR drop-box.</p>
+      <div class="t-arrow">See the timeline →</div>
     </a>
-    <a class="credit-card reveal" href="https://github.com/h2zero/NimBLE-Arduino" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/h2zero.png?size=80" alt="h2zero" onerror="this.style.display='none';this.parentNode.textContent='H2'"></div>
-      <div class="meta"><div class="handle">@h2zero</div><div class="role">NimBLE-Arduino — lean BLE stack</div></div>
-      <div class="arrow">↗</div>
+    <a class="teaser reveal" href="testers.html">
+      <div class="t-num">04 · TESTERS</div>
+      <h3>Help us ship v0.4.</h3>
+      <p>One gating test (deauth on-air) plus SaltyJack, TRIDENT, and regression sweep. Flash master, report results.</p>
+      <div class="t-arrow">Join the field team →</div>
     </a>
-    <a class="credit-card reveal" href="https://github.com/jgromes/RadioLib" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/jgromes.png?size=80" alt="jgromes" onerror="this.style.display='none';this.parentNode.textContent='JG'"></div>
-      <div class="meta"><div class="handle">@jgromes</div><div class="role">RadioLib — SX1262 LoRa driver</div></div>
-      <div class="arrow">↗</div>
+    <a class="teaser reveal" href="credits.html">
+      <div class="t-num">05 · CREDITS</div>
+      <h3>Shoulders of Giants.</h3>
+      <p>The open-source pentest, radio, and firmware work POSEIDON is built on. Go star every one of them.</p>
+      <div class="t-arrow">Read the wall →</div>
     </a>
-    <a class="credit-card reveal" href="https://github.com/LSatan/SmartRC-CC1101-Driver-Lib" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/LSatan.png?size=80" alt="LSatan" onerror="this.style.display='none';this.parentNode.textContent='LS'"></div>
-      <div class="meta"><div class="handle">@LSatan</div><div class="role">SmartRC-CC1101 — sub-GHz driver</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/sui77/rc-switch" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/sui77.png?size=80" alt="sui77" onerror="this.style.display='none';this.parentNode.textContent='S7'"></div>
-      <div class="meta"><div class="handle">@sui77</div><div class="role">rc-switch — 433 MHz protocol decoder</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/nRF24/RF24" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/nRF24.png?size=80" alt="nRF24" onerror="this.style.display='none';this.parentNode.textContent='N24'"></div>
-      <div class="meta"><div class="handle">@nRF24</div><div class="role">RF24 — 2.4 GHz ESB driver</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/justcallmekoko/ESP32Marauder" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/justcallmekoko.png?size=80" alt="justcallmekoko" onerror="this.style.display='none';this.parentNode.textContent='JK'"></div>
-      <div class="meta"><div class="handle">@justcallmekoko</div><div class="role">ESP32Marauder — deauth pattern reference</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/Spooks4576/Ghost_ESP" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/Spooks4576.png?size=80" alt="Spooks4576" onerror="this.style.display='none';this.parentNode.textContent='S4'"></div>
-      <div class="meta"><div class="handle">@Spooks4576</div><div class="role">Ghost ESP — disassoc-pair inspiration</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/pr3y.png?size=80" alt="pr3y" onerror="this.style.display='none';this.parentNode.textContent='PR'"></div>
-      <div class="meta"><div class="handle">@pr3y</div><div class="role">Bruce — sibling M5 pentest firmware</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/evilsocket/pwnagotchi" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/evilsocket.png?size=80" alt="evilsocket" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
-      <div class="meta"><div class="handle">@evilsocket</div><div class="role">Pwnagotchi — Triton's spiritual parent</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/aircrack-ng/aircrack-ng" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/aircrack-ng.png?size=80" alt="aircrack-ng" onerror="this.style.display='none';this.parentNode.textContent='AC'"></div>
-      <div class="meta"><div class="handle">@aircrack-ng</div><div class="role">aircrack-ng — deauth canonical reference</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/ZerBea/hcxdumptool" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/ZerBea.png?size=80" alt="ZerBea" onerror="this.style.display='none';this.parentNode.textContent='ZB'"></div>
-      <div class="meta"><div class="handle">@ZerBea</div><div class="role">hcxdumptool / hcxtools — WPA capture format</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/hashcat/hashcat" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/hashcat.png?size=80" alt="hashcat" onerror="this.style.display='none';this.parentNode.textContent='HC'"></div>
-      <div class="meta"><div class="handle">@hashcat</div><div class="role">hashcat — 22000 output target format</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/marian-craciunescu/ESP32Ping" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/marian-craciunescu.png?size=80" alt="marian-craciunescu" onerror="this.style.display='none';this.parentNode.textContent='MC'"></div>
-      <div class="meta"><div class="handle">@marian-craciunescu</div><div class="role">ESP32Ping — network recon helper</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/travisgoodspeed" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/travisgoodspeed.png?size=80" alt="travisgoodspeed" onerror="this.style.display='none';this.parentNode.textContent='TG'"></div>
-      <div class="meta"><div class="handle">@travisgoodspeed</div><div class="role">Promisc nRF24 trick — MouseJack origin</div></div>
-      <div class="arrow">↗</div>
-    </a>
-    <a class="credit-card reveal" href="https://github.com/RetroRuin/ESP32-Sour-Apple" target="_blank" rel="noopener">
-      <div class="avatar"><img src="https://github.com/RetroRuin.png?size=80" alt="RetroRuin" onerror="this.style.display='none';this.parentNode.textContent='RR'"></div>
-      <div class="meta"><div class="handle">@RetroRuin</div><div class="role">Sour Apple — CVE-2023-42941 PoC</div></div>
-      <div class="arrow">↗</div>
+    <a class="teaser reveal" href="https://github.com/GeneralDussDuss/poseidon" target="_blank" rel="noopener">
+      <div class="t-num">06 · SOURCE</div>
+      <h3>The code itself.</h3>
+      <p>MIT-licensed, master-branch-releases, CHANGELOG + TESTERS.md kept current. Issues open for bugs, PRs welcome.</p>
+      <div class="t-arrow">Open on GitHub ↗</div>
     </a>
   </div>
 </section>
 
+<!-- CTA -->
 <section class="cta-section" id="download">
-  <div class="section-label reveal" style="justify-content:center">07 // DEPLOY</div>
+  <div class="section-label reveal" style="justify-content:center">★ · DEPLOY</div>
   <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
   <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO.</p>
   <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download Latest</a>
-  <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; 1.8 MB &bull; Flash at 0x0</div>
+  <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; ~2.1 MB &bull; Flash at 0x0</div>
   <div class="cta-install reveal">
     <span class="comment"># build + flash from source</span><br>
     <span class="prompt-dollar">▸</span>git clone github.com/GeneralDussDuss/poseidon<br>
@@ -814,168 +218,6 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
 </footer>
 
 <canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
-
-<script>
-// Boot sequence
-window.addEventListener('load',()=>{
-  setTimeout(()=>{
-    document.getElementById('bootOverlay').classList.add('hidden');
-    setTimeout(()=>document.getElementById('hud').classList.add('visible'),400);
-  },1900);
-});
-
-// Scroll progress
-const bar=document.getElementById('scrollProgress');
-window.addEventListener('scroll',()=>{
-  const pct=window.scrollY/(document.documentElement.scrollHeight-window.innerHeight)*100;
-  bar.style.width=pct+'%';
-  document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>50);
-},{passive:true});
-
-// Scroll reveal
-const obs=new IntersectionObserver((entries)=>{
-  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}});
-},{threshold:0.1});
-document.querySelectorAll('.reveal,.reveal-left').forEach(el=>obs.observe(el));
-
-// Stat number counters
-const counterObs=new IntersectionObserver((entries)=>{
-  entries.forEach(e=>{
-    if(!e.isIntersecting)return;
-    const el=e.target;
-    const target=parseInt(el.dataset.count,10);
-    const suffix=el.dataset.suffix||'';
-    const dur=1400;
-    const start=performance.now();
-    const tick=(t)=>{
-      const p=Math.min(1,(t-start)/dur);
-      const eased=1-Math.pow(1-p,3);
-      el.textContent=Math.round(target*eased)+(p>=1?suffix:'');
-      if(p<1)requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    counterObs.unobserve(el);
-  });
-},{threshold:0.6});
-document.querySelectorAll('[data-count]').forEach(el=>counterObs.observe(el));
-
-// Floating particles (ocean depth)
-const pc=document.getElementById('particles');
-const px=pc.getContext('2d');
-function resizeParticles(){pc.width=window.innerWidth;pc.height=window.innerHeight}
-resizeParticles();window.addEventListener('resize',resizeParticles);
-const pts=Array.from({length:50},()=>({
-  x:Math.random()*pc.width,y:Math.random()*pc.height,
-  vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,
-  r:Math.random()*2+.8,hue:Math.random()>.6?190:205
-}));
-function drawParticles(){
-  px.clearRect(0,0,pc.width,pc.height);
-  pts.forEach(p=>{
-    p.x+=p.vx+Math.sin(Date.now()*.001+p.y*.01)*.2;
-    p.y+=p.vy;
-    if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;
-    if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;
-    px.beginPath();px.arc(p.x,p.y,p.r,0,Math.PI*2);
-    px.fillStyle=`hsla(${p.hue},80%,60%,.45)`;px.fill();
-    px.beginPath();px.arc(p.x,p.y,p.r*3,0,Math.PI*2);
-    px.fillStyle=`hsla(${p.hue},80%,60%,.06)`;px.fill();
-  });
-  requestAnimationFrame(drawParticles);
-}
-drawParticles();
-
-// Hero constellation
-const hc=document.getElementById('heroCanvas');
-const hx=hc.getContext('2d');
-function resizeHero(){hc.width=hc.parentElement.clientWidth;hc.height=hc.parentElement.clientHeight}
-resizeHero();window.addEventListener('resize',resizeHero);
-const nodes=Array.from({length:24},()=>({
-  x:Math.random()*1400,y:Math.random()*900,
-  vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35
-}));
-function drawHero(){
-  hx.clearRect(0,0,hc.width,hc.height);
-  const cx=hc.width/2,cy=hc.height/2;
-  nodes.forEach(n=>{
-    n.x+=n.vx;n.y+=n.vy;
-    if(n.x<0||n.x>hc.width)n.vx*=-1;
-    if(n.y<0||n.y>hc.height)n.vy*=-1;
-  });
-  for(let i=0;i<nodes.length;i++){
-    for(let j=i+1;j<nodes.length;j++){
-      const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<220){
-        hx.beginPath();hx.moveTo(nodes[i].x,nodes[i].y);hx.lineTo(nodes[j].x,nodes[j].y);
-        hx.strokeStyle=`rgba(14,165,233,${.2*(1-dist/220)})`;hx.lineWidth=.6;hx.stroke();
-      }
-    }
-  }
-  nodes.forEach(n=>{
-    hx.beginPath();hx.arc(n.x,n.y,2,0,Math.PI*2);
-    hx.fillStyle='rgba(14,165,233,.6)';hx.fill();
-    hx.beginPath();hx.arc(n.x,n.y,6,0,Math.PI*2);
-    hx.fillStyle='rgba(14,165,233,.08)';hx.fill();
-  });
-  const t=Date.now()*.001;
-  for(let w=0;w<2;w++){
-    const waveR=((t+w*1.3)%4)*180;
-    hx.beginPath();hx.arc(cx,cy,waveR,0,Math.PI*2);
-    hx.strokeStyle=`rgba(14,165,233,${.18*(1-waveR/720)})`;hx.lineWidth=1;hx.stroke();
-  }
-  requestAnimationFrame(drawHero);
-}
-drawHero();
-
-// Caustic water shader (2D approximation)
-const cc=document.getElementById('causticLayer');
-const cx2=cc.getContext('2d');
-function resizeCaustic(){cc.width=cc.parentElement.clientWidth;cc.height=cc.parentElement.clientHeight}
-resizeCaustic();window.addEventListener('resize',resizeCaustic);
-function drawCaustic(){
-  const t=Date.now()*.0006;
-  const w=cc.width,h=cc.height;
-  const img=cx2.createImageData(Math.floor(w/4),Math.floor(h/4));
-  const iw=img.width,ih=img.height;
-  for(let y=0;y<ih;y++){
-    for(let x=0;x<iw;x++){
-      const u=x/iw*6, v=y/ih*4;
-      const n=Math.sin(u+t)+Math.sin(v*1.3+t*1.2)+Math.sin((u+v)*.8+t*.7);
-      const c=Math.pow(Math.max(0,n+1)/4,3);
-      const i=(y*iw+x)*4;
-      img.data[i]=14*c;img.data[i+1]=165*c;img.data[i+2]=233*c;
-      img.data[i+3]=Math.min(255,c*140);
-    }
-  }
-  cx2.putImageData(img,0,0);
-  // Upscale the 1/4 image to full canvas for a painterly effect.
-  cx2.imageSmoothingEnabled=true;
-  cx2.globalCompositeOperation='copy';
-  cx2.drawImage(cc,0,0,iw,ih,0,0,w,h);
-  cx2.globalCompositeOperation='source-over';
-  requestAnimationFrame(drawCaustic);
-}
-drawCaustic();
-
-// Click ripple
-document.addEventListener('click',e=>{
-  const r=document.createElement('div');
-  r.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:0;height:0;border-radius:50%;background:radial-gradient(circle,rgba(14,165,233,.4),transparent);transform:translate(-50%,-50%);pointer-events:none;z-index:9999;animation:ripple .7s ease-out forwards`;
-  document.body.appendChild(r);setTimeout(()=>r.remove(),700);
-});
-const rippleStyle=document.createElement('style');
-rippleStyle.textContent='@keyframes ripple{to{width:280px;height:280px;opacity:0}}';
-document.head.appendChild(rippleStyle);
-
-// Subtle parallax on hero content
-const heroContent=document.querySelector('.hero-content');
-document.addEventListener('mousemove',e=>{
-  if(window.scrollY>400)return;
-  const cx=window.innerWidth/2,cy=window.innerHeight/2;
-  const dx=(e.clientX-cx)/cx*6,dy=(e.clientY-cy)/cy*6;
-  heroContent.style.transform=`translate(${dx}px,${dy}px)`;
-});
-</script>
+<script src="assets/site.js"></script>
 </body>
 </html>

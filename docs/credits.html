@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Credits — POSEIDON</title>
+<meta name="description" content="The open-source pentest, radio, and firmware work POSEIDON stands on. Respect to the people who made the primitives.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> credits.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>CREDITS · shoulders of giants</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html" class="active">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">05 // SHOULDERS OF GIANTS</div>
+  <h1>Built on open work</h1>
+  <p class="lede">POSEIDON stands on a mountain of open-source pentest, radio, and firmware work. Respect to the people who made the primitives we compose.</p>
+</header>
+
+<!-- SaltyJack origin spotlight — pinned at the top since it's the v0.4 headline credit -->
+<section style="padding-top:1rem;">
+  <div class="reveal" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(245,158,11,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(245,158,11,0.08) 0%,rgba(14,165,233,0.04) 100%);position:relative;overflow:hidden;margin-bottom:3rem;">
+    <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(245,158,11,0.25) 0%,transparent 70%);pointer-events:none;"></div>
+    <div style="display:flex;gap:clamp(1.2rem,3vw,2.2rem);align-items:flex-start;flex-wrap:wrap;position:relative;">
+      <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="flex:0 0 auto;text-decoration:none;">
+        <div style="width:104px;height:104px;border-radius:50%;background:#000;border:2px solid rgba(245,158,11,0.5);overflow:hidden;box-shadow:0 10px 40px -10px rgba(245,158,11,0.4);display:flex;align-items:center;justify-content:center;color:#fbbf24;font-family:var(--font-display);font-size:2rem;font-weight:700;">
+          <img src="https://github.com/7h30th3r0n3.png?size=200" alt="@7h30th3r0n3" style="width:100%;height:100%;display:block;object-fit:cover;" onerror="this.style.display='none';this.parentNode.textContent='7h';">
+        </div>
+      </a>
+      <div style="flex:1 1 320px;">
+        <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:#f59e0b;margin-bottom:.5rem;">★ BIG HOMAGE · SALTYJACK'S ORIGINAL ARCHITECT</div>
+        <h3 style="font-family:var(--font-display);font-size:clamp(1.5rem,2.6vw,2rem);margin:0 0 .4rem;color:#fbbf24;">@7h30th3r0n3</h3>
+        <p style="font-size:1rem;line-height:1.55;color:#e2e8f0;margin:0 0 1rem;">The entire SaltyJack module is a direct port of 7h30th3r0n3's work — <b style="color:#fbbf24;">RaspyJack</b> on Pi and <b style="color:#fbbf24;">Evil-M5Project / Evil-Cardputer</b>. DHCP starvation, rogue DHCP, Responder, WPAD, NTLMv2 cracker — every one is a reforge of code they shipped first. We reorganized + added our own renderer, but the attacks are theirs. Go star both repos.</p>
+        <div style="display:flex;gap:.65rem;flex-wrap:wrap;">
+          <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;border-color:rgba(245,158,11,0.55);color:#fbbf24;">★ RaspyJack</a>
+          <a href="https://github.com/7h30th3r0n3/Evil-M5Project" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;border-color:rgba(245,158,11,0.55);color:#fbbf24;">★ Evil-M5Project</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title reveal" style="margin-top:1rem;">The wall</h2>
+  <p class="section-desc reveal">Alphabetical-ish. Missing someone? PR your name in.</p>
+
+  <div class="credits-grid">
+    <a class="credit-card reveal" href="https://github.com/m5stack/M5Cardputer" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/m5stack.png?size=80" alt="m5stack" onerror="this.style.display='none';this.parentNode.textContent='M5'"></div>
+      <div class="meta"><div class="handle">@m5stack</div><div class="role">Cardputer-Adv hardware + driver library</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/espressif/arduino-esp32" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/espressif.png?size=80" alt="espressif" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
+      <div class="meta"><div class="handle">@espressif</div><div class="role">ESP32-S3 silicon + Arduino core</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/pioarduino/platform-espressif32" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/pioarduino.png?size=80" alt="pioarduino" onerror="this.style.display='none';this.parentNode.textContent='PA'"></div>
+      <div class="meta"><div class="handle">@pioarduino</div><div class="role">Platform fork that made the v0.4 package override possible</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/bmorcelli.png?size=80" alt="bmorcelli" onerror="this.style.display='none';this.parentNode.textContent='BM'"></div>
+      <div class="meta"><div class="handle">@bmorcelli</div><div class="role">Patched libnet80211.a — deauth parity on IDF 5.5</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/pr3y.png?size=80" alt="pr3y" onerror="this.style.display='none';this.parentNode.textContent='PR'"></div>
+      <div class="meta"><div class="handle">@pr3y</div><div class="role">Bruce — sibling M5 pentest firmware, deauth lib stack reference</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/lovyan03/LovyanGFX" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/lovyan03.png?size=80" alt="lovyan03" onerror="this.style.display='none';this.parentNode.textContent='LG'"></div>
+      <div class="meta"><div class="handle">@lovyan03</div><div class="role">LovyanGFX — the display backbone</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/h2zero/NimBLE-Arduino" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/h2zero.png?size=80" alt="h2zero" onerror="this.style.display='none';this.parentNode.textContent='H2'"></div>
+      <div class="meta"><div class="handle">@h2zero</div><div class="role">NimBLE-Arduino — lean BLE stack</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/jgromes/RadioLib" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/jgromes.png?size=80" alt="jgromes" onerror="this.style.display='none';this.parentNode.textContent='JG'"></div>
+      <div class="meta"><div class="handle">@jgromes</div><div class="role">RadioLib — SX1262 LoRa driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/LSatan/SmartRC-CC1101-Driver-Lib" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/LSatan.png?size=80" alt="LSatan" onerror="this.style.display='none';this.parentNode.textContent='LS'"></div>
+      <div class="meta"><div class="handle">@LSatan</div><div class="role">SmartRC-CC1101 — sub-GHz driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/sui77/rc-switch" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/sui77.png?size=80" alt="sui77" onerror="this.style.display='none';this.parentNode.textContent='S7'"></div>
+      <div class="meta"><div class="handle">@sui77</div><div class="role">rc-switch — 433 MHz protocol decoder</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/nRF24/RF24" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/nRF24.png?size=80" alt="nRF24" onerror="this.style.display='none';this.parentNode.textContent='N24'"></div>
+      <div class="meta"><div class="handle">@nRF24</div><div class="role">RF24 — 2.4 GHz ESB driver</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/justcallmekoko/ESP32Marauder" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/justcallmekoko.png?size=80" alt="justcallmekoko" onerror="this.style.display='none';this.parentNode.textContent='JK'"></div>
+      <div class="meta"><div class="handle">@justcallmekoko</div><div class="role">ESP32Marauder — silent-AP deauth TX pattern</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/Spooks4576/Ghost_ESP" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/Spooks4576.png?size=80" alt="Spooks4576" onerror="this.style.display='none';this.parentNode.textContent='S4'"></div>
+      <div class="meta"><div class="handle">@Spooks4576</div><div class="role">Ghost ESP — disassoc-pair inspiration</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/meshtastic/firmware" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/meshtastic.png?size=80" alt="meshtastic" onerror="this.style.display='none';this.parentNode.textContent='MT'"></div>
+      <div class="meta"><div class="handle">@meshtastic</div><div class="role">Wire protocol reference (v2.7.23 byte-exact)</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/evilsocket/pwnagotchi" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/evilsocket.png?size=80" alt="evilsocket" onerror="this.style.display='none';this.parentNode.textContent='ES'"></div>
+      <div class="meta"><div class="handle">@evilsocket</div><div class="role">Pwnagotchi — Triton's spiritual parent</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/aircrack-ng/aircrack-ng" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/aircrack-ng.png?size=80" alt="aircrack-ng" onerror="this.style.display='none';this.parentNode.textContent='AC'"></div>
+      <div class="meta"><div class="handle">@aircrack-ng</div><div class="role">aircrack-ng — deauth canonical reference</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/ZerBea/hcxdumptool" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/ZerBea.png?size=80" alt="ZerBea" onerror="this.style.display='none';this.parentNode.textContent='ZB'"></div>
+      <div class="meta"><div class="handle">@ZerBea</div><div class="role">hcxdumptool / hcxtools — WPA capture format</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/hashcat/hashcat" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/hashcat.png?size=80" alt="hashcat" onerror="this.style.display='none';this.parentNode.textContent='HC'"></div>
+      <div class="meta"><div class="handle">@hashcat</div><div class="role">hashcat — 22000 + 5600 output target formats</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/marian-craciunescu/ESP32Ping" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/marian-craciunescu.png?size=80" alt="marian-craciunescu" onerror="this.style.display='none';this.parentNode.textContent='MC'"></div>
+      <div class="meta"><div class="handle">@marian-craciunescu</div><div class="role">ESP32Ping — network recon helper</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/travisgoodspeed" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/travisgoodspeed.png?size=80" alt="travisgoodspeed" onerror="this.style.display='none';this.parentNode.textContent='TG'"></div>
+      <div class="meta"><div class="handle">@travisgoodspeed</div><div class="role">Promisc nRF24 trick — MouseJack origin</div></div>
+      <div class="arrow">↗</div>
+    </a>
+    <a class="credit-card reveal" href="https://github.com/RetroRuin/ESP32-Sour-Apple" target="_blank" rel="noopener">
+      <div class="avatar"><img src="https://github.com/RetroRuin.png?size=80" alt="RetroRuin" onerror="this.style.display='none';this.parentNode.textContent='RR'"></div>
+      <div class="meta"><div class="handle">@RetroRuin</div><div class="role">Sour Apple — CVE-2023-42941 PoC</div></div>
+      <div class="arrow">↗</div>
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>

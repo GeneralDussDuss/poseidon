@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arsenal — POSEIDON</title>
+<meta name="description" content="96+ features across WiFi / BLE / sub-GHz / 2.4 GHz / LoRa / IR / network — the full POSEIDON arsenal.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> arsenal.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>ARSENAL · 96+ tools</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html" class="active">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">01 // ARSENAL</div>
+  <h1>Every Radio. Every Attack.</h1>
+  <p class="lede">WiFi deauth to LoRa beacons. MouseJack to DHCP starvation. POSEIDON covers more attack surface than any other pocketable device — and it's keyboard-first so you actually fly through it.</p>
+</header>
+
+<section id="features" style="padding-top:1rem;">
+  <div class="feature-grid">
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M2 12c2-4 7-6 10-6s8 2 10 6M5 16c2-3 5-4 7-4s5 1 7 4M8 20c1-2 3-2 4-2s3 0 4 2M12 22v.01"/></svg></span><h3>WiFi Offensive</h3></div><p>Scan, deauth with client sniffer + disassoc pair + seq counter, evil portal, karma, beacon spam, probe sniff, PMKID + 4-way handshake capture, wardrive + GPS, CIW zeroclick SSID injection.</p><div class="count">17 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M6 3h3l2 3 3-4 2 4 2-2v16h-12z M10 8v8 M13 8v8"/></svg></span><h3>Bluetooth Low Energy</h3></div><p>Classifying scan with OUI + Continuity + Fast Pair DBs. Spam (Apple/Samsung/Google/Windows). Bad-KB HID, tracker detect, GATT explorer, Sour Apple CVE-2023-42941, Find-My emulator, clone, flood.</p><div class="count">14 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg></span><h3>Sub-GHz (CC1101)</h3></div><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83 M8 12a4 4 0 018 0"/></svg></span><h3>2.4 GHz (nRF24L01+)</h3></div><p>Promiscuous ESB sniffer (Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 1-4.5 4 1 6L12 16l-5.5 3 1-6L3 9l6-1z"/></svg></span><h3>LoRa + GNSS (SX1262)</h3></div><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener + full leaf node (chat/nodes/page/position). LoRa Analyzer with live packet capture. GPS fix with baud auto-detect.</p><div class="count">8 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head" style="color:#f59e0b;"><span class="fc-glyph" style="color:#f59e0b;border-color:rgba(245,158,11,.4);"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M8 14h2 M12 14h2 M16 14h2"/></svg></span><h3>Network Attacks + SaltyJack</h3></div><p>Full LAN suite: port scan, ping, DNS, SSDP poisoner, honeypot, reverse TCP tunnel, UART shell, plus the <a href="index.html#saltyjack" style="color:#fbbf24;">SaltyJack</a> arsenal (DHCP starve, rogue DHCP, Responder, WPAD NTLM, on-device cracker).</p><div class="count">18 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z M10 7h4 M7 10v4 M14 17h3 M17 14v-4"/></svg></span><h3>MIMIR Drop-Box</h3></div><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link — pure opsec.</p><div class="count">1 MODULE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 5h18v12H3z M3 19h18 M9 9l6 3-6 3z"/></svg></span><h3>TRIDENT PC Bridge</h3></div><p>Mirror the Cardputer screen to your desktop at 10+ fps. Send keystrokes remotely. Screenshot capture + MP4 record. PyQt6 companion app, USB-CDC only.</p><div class="count">1 MODULE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 00-5 5v3a5 5 0 0010 0V7a5 5 0 00-5-5z M8 22c0-2 2-3 4-3s4 1 4 3 M9 14h6 M9 11h.01 M15 11h.01"/></svg></span><h3>Triton Gotchi</h3></div><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Inherits the full deauth correctness stack.</p><div class="count">1 CREATURE</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1 M12 8a4 4 0 014 4 M12 16a4 4 0 01-4-4"/></svg></span><h3>Signal Finder</h3></div><p>Hot/cold proximity tracker for both sub-GHz (CC1101 RSSI) and 2.4 GHz (nRF24 RPD). Auto-calibrating gradient meter. Find hidden cameras, rogue transmitters, wireless devices.</p><div class="count">2 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h18 M12 3v18 M6 6l12 12 M18 6L6 18"/></svg></span><h3>C5 Remote Nodes</h3></div><p>ESP32-C5 companion for 5 GHz WiFi + 802.15.4 Zigbee/Thread. Dual-band scan, remote deauth, Zigbee sniff — all over ESP-NOW mesh. WS2812 status LED.</p><div class="count">4 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 8h8v2H8z M8 12h8v2H8z M8 16h4v2H8z"/></svg></span><h3>Tools + BadUSB + IR</h3></div><p>USB-HID payload runner. TV-B-Gone. Samsung remote. Flashlight, stopwatch, calculator, morse, MAC randomizer, SD format, file browser. 6-palette theme engine.</p><div class="count">12 TOOLS</div></div>
+  </div>
+</section>
+
+<!-- Themes (belongs under arsenal since it's a UX feature) -->
+<section id="themes">
+  <div class="section-label reveal">THEME ENGINE</div>
+  <h2 class="section-title reveal">Six Visual Palettes</h2>
+  <p class="section-desc reveal">POSEIDON ships with six swappable color schemes. Pick your mood.</p>
+
+  <div class="theme-grid">
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#7dd3fc 45%,#f97316)"></div><div class="name">POSEIDON</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#c026d3,#f0abfc 45%,#7c3aed)"></div><div class="name">PHANTOM</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#16a34a,#86efac 45%,#052e16)"></div><div class="name">MATRIX</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f59e0b,#fde68a 45%,#b45309)"></div><div class="name">AMBER</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#f8fafc,#94a3b8 45%,#0f172a)"></div><div class="name">E-INK</div></div>
+    <div class="theme-card reveal"><div class="theme-swatch" style="background:linear-gradient(135deg,#06b6d4,#67e8f9 45%,#155e75)"></div><div class="name">TRON</div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>

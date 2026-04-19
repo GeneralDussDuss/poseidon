@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Testers — POSEIDON</title>
+<meta name="description" content="v0.4 test priorities. Flash master, confirm deauth lands on-air, stress SaltyJack, TRIDENT, and the regression surface.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> testers.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>TESTERS · v0.4 gate</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="testers.html" class="active">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">04 // FIELD TEAM</div>
+  <h1>For testers</h1>
+  <p class="lede">v0.4 is on master and needs eyes before the tag cuts. One question gates the release: <b style="color:#f59e0b;">do deauth frames actually land on-air?</b> Everything else is regression. If you flash master and confirm it works, ping the repo. That's the signal. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.</p>
+</header>
+
+<section id="testers" style="padding-top:1rem;">
+  <div class="test-grid">
+    <div class="test-card p1 reveal" style="border-color:rgba(245,158,11,.5);box-shadow:0 0 0 1px rgba(245,158,11,.1), 0 24px 60px -20px rgba(245,158,11,.25);">
+      <div class="test-prio" style="color:#f59e0b;">★ Priority 1 · RELEASE GATE</div>
+      <h3>Deauth frames on-air (platform-fork validation)</h3>
+      <p>The whole v0.4 migration exists to answer one question. Stock IDF 5.3 blob filtered MGMT subtypes <code>0xC</code> / <code>0xA</code> at the TX FIFO. Bruce's patched <code>libnet80211.a</code> lifts the filter. This test confirms that actually happened.</p>
+      <ul class="test-steps">
+        <li>Flash master, boot, confirm splash reads v0.4</li>
+        <li>Pick a non-PMF WPA2 AP you own; associate a phone / laptop to it</li>
+        <li>POSEIDON → WiFi → Scan → select target → press <code>D</code></li>
+        <li><b>Watch the counters:</b> <code>sent:</code> climbs hundreds/sec, <code>drops:</code> stays near zero</li>
+        <li>Target client drops WiFi within 2-5 seconds</li>
+      </ul>
+      <div class="test-note" style="border-left-color:#f59e0b;"><b>Success signal:</b> reply "deauth verified v0.4" on GitHub Issues. That's the tag-trigger.</div>
+    </div>
+
+    <div class="test-card p2 reveal">
+      <div class="test-prio">Priority 2 · SaltyJack LAN arsenal</div>
+      <h3>RaspyJack port end-to-end</h3>
+      <p>Full homage port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack. Six new attack modules behind the <code>j</code> menu key. Run against networks you own.</p>
+      <ul class="test-steps">
+        <li><b>DHCP Starve:</b> join target WiFi → run → watch pool exhaust (NAK ≥ 20)</li>
+        <li><b>Rogue DHCP:</b> STA mode races real server; AP mode <em>is</em> the server</li>
+        <li><b>Responder:</b> poison LLMNR/NBT-NS, capture NTLMv2 hashes to SD</li>
+        <li><b>WPAD:</b> serve PAC + HTTP 407 challenge; confirm Windows clients auto-auth</li>
+        <li><b>NTLMv2 cracker:</b> feed captured hash + wordlist, verify it runs on-device</li>
+        <li>Report: which modules landed, any crashes, pcap/hash-file output paths</li>
+      </ul>
+      <div class="test-note">Every file in <code>src/features/saltyjack/</code> is authorized-testing-only. Don't hunt strangers.</div>
+    </div>
+
+    <div class="test-card p3 reveal">
+      <div class="test-prio">Priority 3 · TRIDENT companion</div>
+      <h3>PC bridge after protocol fixes</h3>
+      <p>TRIDENT mirrors the Cardputer screen to a PyQt6 desktop and forwards keystrokes over USB-CDC. v0.4 audit caught an arrow-key translation mismap + an unexpected-disconnect state leak; both are now fixed — confirm.</p>
+      <ul class="test-steps">
+        <li>Clone <code>GeneralDussDuss/trident</code>, <code>pip install -e .</code>, launch <code>trident</code></li>
+        <li>Connect to COM port, confirm framebuffer streams at ~10 fps</li>
+        <li>Press arrow keys on your PC → menus scroll on Cardputer (regression: they didn't before)</li>
+        <li>Unplug USB mid-stream → button should flip back to "Connect" within 2s</li>
+        <li>Replug + reconnect works without app restart</li>
+      </ul>
+      <div class="test-note">Record-mode (imageio-ffmpeg) is optional; ignore if you didn't install the <code>[record]</code> extra.</div>
+    </div>
+
+    <div class="test-card p4 reveal">
+      <div class="test-prio">Priority 4 · Regression sweep</div>
+      <h3>Everything v0.3 shipped — still works?</h3>
+      <p>v0.4 migrated the entire platform. Library versions stayed, code stayed — but some corners might've drifted. Touch every menu leaf at least once.</p>
+      <ul class="test-steps">
+        <li><b>Radios:</b> WiFi scan, BLE scan, LoRa scan, CC1101 scan, nRF24 scan — all enumerate</li>
+        <li><b>Capture:</b> Sub-GHz record+replay, PMKID, 4-way handshake (.22000 format)</li>
+        <li><b>Meshtastic:</b> Chat, Nodes, Page, Pos — receive real traffic if within range</li>
+        <li><b>Peripherals:</b> SD browse, BadUSB, IR TV-B-Gone, GPS fix, theme + SFX toggle</li>
+        <li>File any regression with feature path, serial log, reproducibility count</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="test-report reveal">
+    <h4>Ideal bug report</h4>
+    <ul>
+      <li><b>Build</b>: v0.4 / commit SHA (confirm in boot splash)</li>
+      <li><b>Hardware</b>: Cardputer-Adv + which hat attached</li>
+      <li><b>Feature path</b>: e.g. <code>WiFi → Deauth → specific target</code></li>
+      <li><b>What happened</b> vs <b>what you expected</b></li>
+      <li><b>Reproducibility</b>: always / sometimes / once</li>
+      <li><b>Serial log</b> if possible (<code>pio device monitor --baud 115200</code>)</li>
+    </ul>
+    <p style="margin-top:1rem;font-size:.88rem;color:#cbd5e1">
+      File at <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank">github.com/GeneralDussDuss/poseidon/issues</a> with label <code>v0.4-tester</code>.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hardware — POSEIDON</title>
+<meta name="description" content="M5Stack Cardputer-Adv + four hats: LoRa/GNSS, Hydra RF (CC1101+nRF24), ESP32-C5, W5500 SPI-to-Ethernet.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> hardware.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>HARDWARE · base + 4 hats</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html" class="active">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">02 // HARDWARE</div>
+  <h1>Four Hats. Every Frequency. Now with Wired.</h1>
+  <p class="lede">POSEIDON runs on the M5Stack Cardputer-Adv and supports swappable hats — one at a time. Pick the mission's tool. v0.4 adds a W5500 SPI-to-Ethernet hat that unlocks full RaspyJack parity over a wired cable.</p>
+</header>
+
+<section id="hardware" style="padding-top:1rem;">
+  <div class="hw-grid">
+    <div class="hw-card reveal">
+      <h3>Cardputer-Adv <span class="chip">BASE</span></h3>
+      <table>
+        <tr><td>MCU</td><td>ESP32-S3 @ 240 MHz</td></tr>
+        <tr><td>Display</td><td>1.14" ST7789 240×135</td></tr>
+        <tr><td>Keyboard</td><td>TCA8418 I²C QWERTY</td></tr>
+        <tr><td>Radio</td><td>WiFi 4 + BLE 5.0</td></tr>
+        <tr><td>USB</td><td>Native USB-C (HID + CDC)</td></tr>
+        <tr><td>Storage</td><td>microSD + 8MB flash</td></tr>
+        <tr><td>Audio</td><td>I²S speaker + PDM mic</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>CAP-LoRa1262 <span class="chip">HAT</span></h3>
+      <table>
+        <tr><td>LoRa</td><td>SX1262 (433/868/915 MHz)</td></tr>
+        <tr><td>GNSS</td><td>ATGM336H GPS (NMEA auto-baud)</td></tr>
+        <tr><td>Antenna</td><td>RP-SMA external</td></tr>
+        <tr><td>Bus</td><td>SPI (shared with SD)</td></tr>
+        <tr><td>Use</td><td>Wardrive, LoRa scan, Meshtastic leaf-node</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>Hydra RF Cap 424 <span class="chip">HAT</span></h3>
+      <table>
+        <tr><td>Sub-GHz</td><td>CC1101 (300–928 MHz)</td></tr>
+        <tr><td>2.4 GHz</td><td>nRF24L01+ (promisc ESB + HID)</td></tr>
+        <tr><td>Vendor</td><td>PINGEQUA</td></tr>
+        <tr><td>Bus</td><td>SPI (shared with SD)</td></tr>
+        <tr><td>Use</td><td>Signal capture/replay, MouseJack, BLE spam via nRF24</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>ESP32-C5 Node <span class="chip">SATELLITE</span></h3>
+      <table>
+        <tr><td>WiFi</td><td>5 GHz + 2.4 GHz dual-band</td></tr>
+        <tr><td>802.15.4</td><td>Zigbee / Thread</td></tr>
+        <tr><td>Link</td><td>ESP-NOW mesh to Cardputer</td></tr>
+        <tr><td>Form factor</td><td>Remote satellite (USB-powered)</td></tr>
+        <tr><td>Use</td><td>5G scan/deauth, Zigbee sniff, Thread enum</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal" style="border-color:rgba(245,158,11,.45);">
+      <h3>W5500 SPI&thinsp;⇄&thinsp;Ethernet <span class="chip" style="background:rgba(245,158,11,.2);color:#f59e0b;border-color:rgba(245,158,11,.4);">NEW · RJ45</span></h3>
+      <table>
+        <tr><td>PHY</td><td>WIZnet W5500 10/100 full-duplex</td></tr>
+        <tr><td>Bus</td><td>SPI (shared FSPI w/ SD)</td></tr>
+        <tr><td>Stack</td><td>lwIP via Arduino Ethernet — transport-agnostic <code>netif</code></td></tr>
+        <tr><td>Unlocks</td><td>Full RaspyJack parity on Cardputer — the <a href="index.html#saltyjack" style="color:var(--ocean-bright);">SaltyJack</a> suite (DHCP starve, rogue DHCP, Responder, WPAD, NTLM harvest) runs over wired lwIP instead of WiFi STA.</td></tr>
+        <tr><td>Why wired</td><td>Wired gets you past every PMF / WPA3 / corporate 802.1X defense that kills the wireless path. Plug in, own the broadcast domain.</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="pinout" style="padding-top:1rem;">
+  <div class="section-label reveal">HAT PIN SHARING</div>
+  <h2 class="section-title reveal">How the hats share GPIO</h2>
+  <p class="section-desc reveal">Only one hat at a time. The keyboard on I²C (TCA8418) frees GPIO 3–7 and 13/15 so hats can claim them without fighting the keyboard scan matrix.</p>
+
+  <div class="hw-card reveal" style="max-width:760px;">
+    <h3>GPIO map</h3>
+    <table>
+      <tr><td>G3</td><td>LoRa RST · held LOW at boot to keep SX1262 BUSY high-Z during M5GFX hat autodetect</td></tr>
+      <tr><td>G4</td><td>LoRa DIO1 · shared with nRF24 CE on Hydra hat</td></tr>
+      <tr><td>G5</td><td>LoRa NSS (SPI) · shared with CC1101 GDO0 on Hydra hat</td></tr>
+      <tr><td>G6</td><td>LoRa BUSY · shared with nRF24 CS on Hydra hat</td></tr>
+      <tr><td>G7</td><td>GPS RX (NMEA input) on LoRa hat</td></tr>
+      <tr><td>G13</td><td>GPS TX (LoRa hat) · shared with CC1101 CS on Hydra hat (gps_end() releases before CC1101 begin)</td></tr>
+      <tr><td>G14</td><td>SPI MOSI (shared across SD + every hat)</td></tr>
+      <tr><td>G39/G40</td><td>SPI MISO / SCK</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>

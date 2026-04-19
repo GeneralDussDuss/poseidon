@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roadmap — POSEIDON</title>
+<meta name="description" content="POSEIDON release history and what's coming. v0.1 foundations through v0.6 MIMIR drop-box.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> roadmap.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>ROADMAP · v0.4 current</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html" class="active">Roadmap</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">03 // ROADMAP</div>
+  <h1>Where we've been. Where we're going.</h1>
+  <p class="lede">Five tagged releases so far, two landed companions (TRIDENT + MIMIR control), one WIP megadrop (v0.4). Below is everything shipped and the next two releases planned.</p>
+</header>
+
+<section style="padding-top:1rem;">
+  <div class="roadmap">
+
+    <div class="rm-item shipped reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.1.0</span>
+          <span class="rm-date">2026-04-14</span>
+          <span class="rm-tag shipped">Shipped</span>
+        </div>
+        <div class="rm-title">First tagged release — the foundation</div>
+        <div class="rm-body">
+          Every radio band brought online. Full menu shell with slide transitions. Hokusai splash. 90+ features across WiFi, BLE, sub-GHz, LoRa, nRF24, IR, net attacks, BadUSB, theme engine, Triton gotchi, C5 companion, TRIDENT PC bridge, MIMIR remote.
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item shipped reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.2.0</span>
+          <span class="rm-date">2026-04-17</span>
+          <span class="rm-tag shipped">Shipped</span>
+        </div>
+        <div class="rm-title">Deauth correctness + LoRa stability</div>
+        <div class="rm-body">
+          Two back-to-back audits landed simultaneously — deauth wasn't kicking clients, LoRa was hard-rebooting the device. Both classes of bug found, fixed, reviewed, shipped.
+          <ul>
+            <li>Deauth: <code>addr1</code> bug fixed across 4 sites + Triton, shared frame builder with correct 802.11-2016 Sequence Control encoding</li>
+            <li>Deauth + disassoc pair with per-frame seq increment, client sniffer feeding alternating broadcast/unicast rounds</li>
+            <li>PMF / WPA3 / WPA2-Enterprise warning + driver-level TX drop counter</li>
+            <li>LoRa bandwidth unit fixed (kHz directly, not divided by 1000)</li>
+            <li>PI4IOE antenna switch driven directly via <code>M5.In_I2C</code>, bypassing a broken M5 expander API that was LoadProhibited-panic'ing the device</li>
+            <li>Null-radio boot-loop eliminated — <code>lora_radio()</code> returns a dummy instead of <code>esp_restart()</code></li>
+            <li>LoRa spectrum analyzer rewritten — no more 210-retune sweep per frame, real packet capture with RSSI/SNR/size overlay</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item shipped reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.3.0</span>
+          <span class="rm-date">Shipped</span>
+          <span class="rm-tag shipped">Released</span>
+        </div>
+        <div class="rm-title">Meshtastic node + SFX engine</div>
+        <div class="rm-body">
+          POSEIDON becomes a full Meshtastic participant — send, receive, page, show up on the mesh.
+          <ul>
+            <li>Hand-rolled minimal protobuf for MeshPacket / Data / User / Position</li>
+            <li>AES-CTR-128 with default LongFast PSK (nonce counter at bytes 12-15 — byte-exact vs fw v2.7.23)</li>
+            <li>Broadcast text + direct-to-node (paging) + position reporting</li>
+            <li>Live node roster with long/short names, SNR, hops, last-seen, GPS pin</li>
+            <li>Tron-style cyberpunk SFX engine with NVS-persisted volume (boot jingle, menu clicks, attack cues, warn/bad)</li>
+            <li>SaltyJack phase-1: DHCP Starvation shipped standalone</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item current reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.4.0</span>
+          <span class="rm-date">Master · awaiting on-hardware verify</span>
+          <span class="rm-tag current">Current</span>
+        </div>
+        <div class="rm-title">The arsenal release — SaltyJack (RaspyJack port) + deauth parity + TRIDENT fixes</div>
+        <div class="rm-body">
+          The release that makes deauth frames <em>actually land on-air</em>, delivers a full <b>RaspyJack</b> LAN arsenal on the Cardputer, and lands a month of TRIDENT hardening.
+          <ul>
+            <li><b>SaltyJack = RaspyJack port.</b> Direct port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack + Evil-M5Project arsenal — DHCP Starve, Rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB NTLMv2), WPAD PAC harvest, on-device NTLMv2 cracker. Custom pirate UX, 16×16 sprite pack, full-screen boot splash. Press <code>j</code>.</li>
+            <li><b>Platform fork for real deauth.</b> Migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Arduino 3.3.8 / IDF 5.5.4) + patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses. Lifts the IDF subtype-filter blocking deauth/disassoc TX.</li>
+            <li><b>TRIDENT companion app polish.</b> PyQt6 desktop viewer + key-forwarding bridge over USB-CDC — v0.4 hardens the protocol (atomic header+binary send, robust disconnect state, arrow-key translation fix so menus actually scroll from the PC). See the <a href="https://github.com/GeneralDussDuss/trident" target="_blank" rel="noopener">TRIDENT repo</a>.</li>
+            <li><b>W5500 SPI Ethernet hat (new).</b> Wired RJ45 unlocks full RaspyJack parity — SaltyJack runs over lwIP's transport-agnostic <code>netif</code>, bypassing WiFi STA (and PMF / WPA3 / 802.1X) entirely.</li>
+            <li>IDF 5.x API drift fixes outside the deauth path. NimBLE 1.4.1, RadioLib 7.4.0, M5 stack — no bumps needed.</li>
+            <li>Build now runs on WSL2 / native Linux — pioarduino's installer trips on Git Bash MSys markers.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item planned reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.5.0</span>
+          <span class="rm-date">Q3 2026</span>
+          <span class="rm-tag planned">Planned</span>
+        </div>
+        <div class="rm-title">ESP32-C5 full integration</div>
+        <div class="rm-body">
+          <ul>
+            <li>C5 OTA auto-flash from Cardputer SD over ESP-NOW</li>
+            <li>5 GHz client hunting + targeted per-STA deauth (not just per-AP)</li>
+            <li>5 GHz PMKID + handshake capture with EAPOL relay over ESP-NOW</li>
+            <li>802.15.4 Zigbee full packet capture + Wireshark PCAP export</li>
+            <li>Thread network discovery + device enumeration</li>
+            <li>Multi-C5 coordination — deploy satellites, control all from one Cardputer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item planned reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.6.0</span>
+          <span class="rm-date">Q4 2026</span>
+          <span class="rm-tag planned">Planned</span>
+        </div>
+        <div class="rm-title">MIMIR drop-box live</div>
+        <div class="rm-body">
+          The MIMIR client module exists in POSEIDON today. v0.6 makes the BPI-M4 Zero server side real.
+          <ul>
+            <li><code>hcxdumptool</code> wrapper for real scan events (replacing placeholders)</li>
+            <li>On-device WPA2 cracker (dual-core PBKDF2-SHA1)</li>
+            <li>Bjorn-style action DAG — auto-exploit cracked networks</li>
+            <li>FENRIR RL policy head selecting exploit strategy</li>
+            <li>Armbian H618 one-flash image</li>
+            <li>Pull captured pcap / .22000 back to Cardputer SD over USB-CDC</li>
+            <li>GPS-tagged attack logging with WiGLE integration</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>
