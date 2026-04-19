@@ -135,8 +135,19 @@ bool mesh_send_position(void);
 const mesh_node_t *mesh_nodes(int *count_out);
 
 /* Message log — newest-last ring of the last N received text messages.
- * `count_out` is how many are valid. Entries are mesh_message_t. */
+ * `count_out` is how many are valid. Entries are mesh_message_t.
+ *
+ * DEPRECATED for UI use: returns a raw pointer + index into an internal
+ * ring buffer, which is (a) not chronologically ordered after the ring
+ * wraps, and (b) unsafe against concurrent push_message() from the RX
+ * task without holding a mutex. Prefer mesh_snapshot_messages() below. */
 const mesh_message_t *mesh_messages(int *count_out);
+
+/* Copy the most-recent `max` messages into `out[]` under the ring's
+ * mutex. Writes oldest-first ordering so the UI can render top-to-
+ * bottom naturally. Returns number actually copied (≤ max, ≤ ring
+ * depth). Thread-safe against the RX task. */
+int mesh_snapshot_messages(mesh_message_t *out, int max);
 
 /* Drain pending "new message" notification flag — returns true if a new
  * message arrived since the last call. UI features poll this to know

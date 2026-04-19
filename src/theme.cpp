@@ -1,8 +1,13 @@
 /*
  * theme.cpp — built-in palettes.
+ *
+ * Active theme persists to NVS (namespace "pui", key "theme") so the
+ * user's pick survives reboots. theme_init() loads it; theme_set()
+ * writes on change. Keys kept ≤15 chars — Preferences NVS limit.
  */
 #include "theme.h"
 #include <M5Cardputer.h>
+#include <Preferences.h>
 
 static const poseidon_theme_t THEMES[] = {
     /* POSEIDON — cyan/magenta on black. The original. */
@@ -116,11 +121,31 @@ static const poseidon_theme_t THEMES[] = {
 };
 
 static theme_id_t s_current = THEME_POSEIDON;
+static bool       s_inited  = false;
+
+void theme_init(void)
+{
+    if (s_inited) return;
+    s_inited = true;
+    Preferences p;
+    if (p.begin("pui", true)) {   /* read-only */
+        uint8_t v = p.getUChar("theme", (uint8_t)THEME_POSEIDON);
+        p.end();
+        if (v >= THEME__COUNT) v = THEME_POSEIDON;
+        s_current = (theme_id_t)v;
+    }
+}
 
 void theme_set(theme_id_t id)
 {
     if (id >= THEME__COUNT) id = THEME_POSEIDON;
+    if (id == s_current) return;
     s_current = id;
+    Preferences p;
+    if (p.begin("pui", false)) {  /* read-write */
+        p.putUChar("theme", (uint8_t)id);
+        p.end();
+    }
 }
 
 theme_id_t theme_current_id(void) { return s_current; }

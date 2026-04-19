@@ -44,10 +44,15 @@ static uint16_t special_to_pk(const char *s)
     if (!strcmp(s, "bksp"))  return PK_BKSP;
     if (!strcmp(s, "tab"))   return PK_TAB;
     if (!strcmp(s, "space")) return PK_SPACE;
-    if (!strcmp(s, "up"))    return PK_UP;
-    if (!strcmp(s, "down"))  return PK_DOWN;
-    if (!strcmp(s, "left"))  return PK_LEFT;
-    if (!strcmp(s, "right")) return PK_RIGHT;
+    /* Translate to the raw-character codes the POSEIDON menu/input
+     * layer actually consumes — Cardputer hardware has no arrow keys
+     * and produces ';'/'.' for up/down. PK_UP/DOWN/LEFT/RIGHT exist
+     * as defs but nothing in menu.cpp matches them, so navigation
+     * from TRIDENT silently did nothing before this fix. */
+    if (!strcmp(s, "up"))    return ';';
+    if (!strcmp(s, "down"))  return '.';
+    if (!strcmp(s, "left"))  return ',';
+    if (!strcmp(s, "right")) return '/';
     if (!strcmp(s, "fn"))    return PK_FN;
     return 0;
 }

@@ -25,15 +25,15 @@ static void draw_chat(const char *input, int input_len, bool typing)
              mesh_own_short_name(), (unsigned int)mesh_own_node_id());
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
-    int count;
-    const mesh_message_t *msgs = mesh_messages(&count);
+    /* Snapshot the last 6 messages oldest-first under the ring's mutex —
+     * the raw mesh_messages() pointer is not chronological after the
+     * ring wraps and isn't mutex-safe against RX task writes. */
+    mesh_message_t snap[6];
+    int count = mesh_snapshot_messages(snap, 6);
 
-    int rows = 6;
-    int first = count - rows;
-    if (first < 0) first = 0;
     int y = BODY_Y + 16;
-    for (int i = first; i < count; i++) {
-        const mesh_message_t &m = msgs[i];
+    for (int i = 0; i < count; i++) {
+        const mesh_message_t &m = snap[i];
         uint32_t age = (millis() - m.when_ms) / 1000;
         d.setTextColor((m.to == mesh_own_node_id()) ? T_GOOD : T_ACCENT2, T_BG);
         d.setCursor(4, y);

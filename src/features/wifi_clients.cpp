@@ -194,6 +194,12 @@ void feat_wifi_clients(void)
         if (k == '.' || k == PK_DOWN) { if (cursor + 1 < s_count) cursor++; }
         if ((k == 'd' || k == 'D') && s_count > 0 && cursor < s_count) {
             deauth_client(s_clients[cursor].mac);
+            /* wifi_silent_ap_end() inside deauth_client tears WiFi down
+             * to STA + promisc=false. Re-arm so the client sniffer
+             * keeps populating the table after the deauth returns. */
+            esp_wifi_set_promiscuous(true);
+            esp_wifi_set_promiscuous_rx_cb(client_cb);
+            esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
             ui_toast("deauth sent", T_BAD, 600);
         }
     }

@@ -161,6 +161,12 @@ void lora_end(void)
     delete s_radio; s_radio = nullptr;
     delete s_mod;   s_mod   = nullptr;
     loraSpi.end();
+    /* Release BUSY / DIO1 back to high-Z so the next radio domain
+     * (or the Hydra hat's nRF24 which shares G4+G6) doesn't fight
+     * an output-driven pin. SPI-claimed NSS (G5) is left; the next
+     * begin() reclaims it. */
+    pinMode(LORA_BUSY, INPUT);
+    pinMode(LORA_DIO1, INPUT);
     s_up = false;
 }
 

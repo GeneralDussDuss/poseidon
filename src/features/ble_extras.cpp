@@ -239,7 +239,9 @@ void feat_ble_sniff(void)
 void feat_ble_beacon(void)
 {
     radio_switch(RADIO_BLE);
-    NimBLEDevice::init("POSEIDON");
+    /* radio_switch(RADIO_BLE) already calls NimBLEDevice::init("POSEIDON").
+     * A redundant second init here is a no-op on recent NimBLE builds but
+     * asserts on some — drop it. */
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
 
     uint8_t payload[30] = {

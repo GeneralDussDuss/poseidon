@@ -644,7 +644,7 @@ static void draw_menu(const menu_node_t *parent, int cursor)
         d.setTextColor(sel ? T_SEL_BD : T_ACCENT, line_bg);
         d.setCursor(6, y + 1);
         d.printf("[%c]", toupper(c->hotkey));
-        d.setTextColor(sel ? T_FG : T_FG, line_bg);
+        d.setTextColor(sel ? T_FG : T_DIM, line_bg);
         d.setCursor(30, y + 1);
         d.print(c->label);
         d.setTextColor(sel ? T_ACCENT2 : T_DIM, line_bg);
@@ -671,7 +671,7 @@ static void draw_menu(const menu_node_t *parent, int cursor)
             int visible = (n < rows) ? n : rows;
             int y = first_y + visible * row_h + 2;
             if (y < FOOTER_Y - 10) {
-                d.setTextColor(COL_DIM, COL_BG);
+                d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, y);
                 d.print("» ");
                 d.print(sel->hint);
@@ -690,13 +690,13 @@ static void show_info(const menu_node_t *item)
     d.printf("[%c] %s", toupper(item->hotkey), item->label);
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
 
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 18);
     d.printf("> %s", item->hint ? item->hint : "");
 
     /* Word-wrapped info paragraph, ~38 chars per line at 6px font. */
     if (item->info) {
-        d.setTextColor(COL_FG, COL_BG);
+        d.setTextColor(T_FG, T_BG);
         const char *p = item->info;
         int y = BODY_Y + 34;
         while (*p && y < FOOTER_Y - 8) {
@@ -717,7 +717,7 @@ static void show_info(const menu_node_t *item)
             if (*p == ' ') p++;
         }
     } else {
-        d.setTextColor(COL_DIM, COL_BG);
+        d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 34);
         d.print("(no detailed info)");
     }

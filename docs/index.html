@@ -143,6 +143,75 @@
   </div>
 </section>
 
+<!-- UPCOMING — highlights the next two releases' top features -->
+<section id="upcoming" style="padding:clamp(3.5rem,7vw,6rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(124,58,237,0.08) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(6,10,22,1) 0%,rgba(6,10,22,1) 100%);border-bottom:1px solid rgba(124,58,237,0.15);">
+  <div style="max-width:1150px;margin:0 auto;">
+    <div class="section-label reveal" style="color:#a78bfa;letter-spacing:.18em;">◆ COMING NEXT · v0.5 → v0.6</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.2rem,4.8vw,3.4rem);background:linear-gradient(135deg,#a78bfa 0%,#c4b5fd 40%,var(--ocean-bright) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">What's landing next</h2>
+    <p class="section-desc reveal" style="max-width:880px;">The two big drops queued behind v0.4. Full ESP32-C5 citizenship, nRF52 companion for Flipper-grade BLE, plus the long-list of features testers have been asking for. Not promises — stuff that's either planned, in-progress, or already prototype-ready.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-top:2rem;">
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z M12 4v16 M4 12h16 M6 6l12 12 M18 6L6 18"/></svg></span><h3 style="color:#c4b5fd;">ESP32-C5 full citizenship</h3></div>
+        <p>Dual-band 5 GHz + 2.4 GHz WiFi citizen on ESP-NOW mesh. Per-STA deauth (not just per-AP), 5 GHz PMKID + full 4-way handshake capture with EAPOL relay back to Cardputer, 802.15.4 Zigbee PCAP export, Thread network enumeration, multi-C5 coordination from one Cardputer.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · HEADLINE</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M6 3h3l2 3 3-4 2 4 2-2v16h-12z M9 10v6 M12 10v6 M15 10v6"/></svg></span><h3 style="color:#c4b5fd;">nRF52 companion — Flipper-grade BLE</h3></div>
+        <p>nRF52840 hat for BLE 5.0 long-range sniffing, LE Secure Connection attacks, full GATT relay, Bluetooth Mesh enumeration, and Flipper-compatible .ir / .sub relay. ESP-NOW link back to Cardputer — same satellite pattern as the C5 node.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · HEADLINE</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 8h8v2H8z M8 12h8v2H8z M8 16h4v2H8z"/></svg></span><h3 style="color:#c4b5fd;">On-device WPA2 cracker</h3></div>
+        <p>Dual-core PBKDF2-SHA1 runner that eats your captured <code>.22000</code> files straight from SD. Seeded wordlist, custom dictionary support, resume-from-last-line. No PC tether.</p>
+        <div class="count" style="color:#a78bfa;">v0.6 · MIMIR</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z M10 7h4 M7 10v4 M14 17h3 M17 14v-4"/></svg></span><h3 style="color:#c4b5fd;">MIMIR drop-box goes live</h3></div>
+        <p>BPI-M4 Zero server side gets real. hcxdumptool wrapper, Bjorn-style action DAG, FENRIR RL policy head picking exploit strategy. Pull captured <code>.pcap</code> + <code>.22000</code> back to Cardputer SD over USB-CDC. GPS-tagged attack logging with WiGLE.</p>
+        <div class="count" style="color:#a78bfa;">v0.6 · DROP-BOX</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83"/></svg></span><h3 style="color:#c4b5fd;">OTA from SD — one-button updates</h3></div>
+        <p>Drop a <code>.bin</code> on the SD card root, hit Update in the system menu, dual-partition swap + bootloader handoff. No USB required, no PC required, no losing the device to a brick if the download cuts.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · QoL</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M3 12h18 M12 3v18 M6 6l12 12 M18 6L6 18"/></svg></span><h3 style="color:#c4b5fd;">Thread / Matter enumeration</h3></div>
+        <p>Via the C5 satellite: passive Thread network discovery, node enumeration, commissioning-invite detection, Matter bridge fingerprinting. Output to SD as structured JSON.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · 802.15.4</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M4 10h16 M10 4v16 M14 10v10 M14 14h6"/></svg></span><h3 style="color:#c4b5fd;">TRIDENT v1.0 — record + replay</h3></div>
+        <p>Desktop companion graduates. Lossless MP4 capture of the Cardputer screen, keystroke replay for scripted demos, macOS/Linux installers, screenshot burst mode. No more PyQt6 prerelease vibes.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · COMPANION</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M12 2C8 2 6 4 6 7v4a6 6 0 0012 0V7c0-3-2-5-6-5z M9 22h6 M10 19h4"/></svg></span><h3 style="color:#c4b5fd;">FENRIR RL autonomous agent</h3></div>
+        <p>Reinforcement-learning policy head lives in MIMIR and across C5 satellites. Learns which attack sequences land against which target fingerprints, persists Q-table to SD, shares learning between deployed units over ESP-NOW.</p>
+        <div class="count" style="color:#a78bfa;">v0.6 · AI</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(124,58,237,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:#a78bfa;border-color:rgba(124,58,237,.4);"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg></span><h3 style="color:#c4b5fd;">CAD-before-TX on LoRa</h3></div>
+        <p>Channel Activity Detection gate in the Meshtastic transmit path. POSEIDON stops stepping on other nodes' transmissions — go from polite-ish to actually-polite mesh citizen.</p>
+        <div class="count" style="color:#a78bfa;">v0.5 · MESH</div>
+      </div>
+
+    </div>
+
+    <p class="reveal" style="max-width:820px;margin:2rem 0 0;font-style:italic;opacity:.8;text-align:center;color:#cbd5e1;">Full timeline on the <a href="roadmap.html" style="color:#a78bfa;">roadmap page</a>. Want to shape priorities? File a <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank" rel="noopener" style="color:#a78bfa;">GitHub issue</a>.</p>
+  </div>
+</section>
+
 <!-- Explore the rest of the site — teaser cards linking to subpages -->
 <section id="explore">
   <div class="section-label reveal">00 // NAVIGATE</div>

@@ -81,7 +81,12 @@ void feat_subghz_record(void)
     }
 
     s_raw = (int16_t *)malloc(RAW_MAX_PULSES * sizeof(int16_t));
-    if (!s_raw) { ui_toast("OOM", T_BAD, 1500); cc1101_end(); return; }
+    if (!s_raw) {
+        ui_toast("OOM", T_BAD, 1500);
+        cc1101_end();
+        radio_switch(RADIO_NONE);   /* drop s_active back so next feature re-arms cleanly */
+        return;
+    }
 
     /* Set widest RX bandwidth for maximum sensitivity. */
     ELECHOUSE_cc1101.setRxBW(270);  /* match Flipper OOK270 preset */

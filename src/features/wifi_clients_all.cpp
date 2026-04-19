@@ -106,11 +106,18 @@ static void hop_task(void *)
 
 static uint16_t s_hot_seq = 0;
 
+/* wifi_silent_ap_end() tears WiFi back to STA with promiscuous=false,
+ * so the callback dies after a deauth. Re-arm before returning. */
+static void restore_promisc(uint8_t ch)
+{
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_promiscuous_rx_cb(cb);
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+}
+
 static void unicast_deauth(const uint8_t *sta, const uint8_t *bssid, uint8_t ch, int bursts)
 {
     if (s_hot_seq == 0) s_hot_seq = (uint16_t)(esp_random() & 0x0FFF);
-    /* Block the hopper + spoof STA MAC to BSSID so frames pass the
-     * ESP-IDF blob sanity check. */
     bool prev_lock = s_locked;
     s_locked = true;
     wifi_silent_ap_begin(ch);
@@ -119,6 +126,7 @@ static void unicast_deauth(const uint8_t *sta, const uint8_t *bssid, uint8_t ch,
         delay(5);
     }
     wifi_silent_ap_end();
+    restore_promisc(ch);
     s_locked = prev_lock;
 }
 
@@ -133,6 +141,7 @@ static void broadcast_deauth(const uint8_t *bssid, uint8_t ch, int bursts)
         delay(5);
     }
     wifi_silent_ap_end();
+    restore_promisc(ch);
     s_locked = prev_lock;
 }
 

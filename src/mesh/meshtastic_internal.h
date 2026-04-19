@@ -53,11 +53,12 @@ bool mesh_pb_decode_position(const uint8_t *buf, size_t len, mesh_position_t *ou
 
 /* ==================== crypto ==================== */
 
-/* AES-CTR-128 encrypt/decrypt in place. Key is 16 bytes. Nonce is 16 bytes
- * structured as:
- *   bytes  0..7  packet_id (64-bit LE, upper 32 always 0)
+/* AES-CTR-128 encrypt/decrypt in place. Key is 16 bytes. The counter block
+ * layout is (per Meshtastic firmware v2.7.23 initNonce + setCounterSize(4)):
+ *   bytes  0..3  packet_id low  32 bits (LE)
+ *   bytes  4..7  packet_id high 32 bits (LE, zero for us — 32-bit IDs)
  *   bytes  8..11 from_node (32-bit LE)
- *   bytes 12..15 zero (extraNonce slot, only used by PKC)
+ *   bytes 12..15 AES-CTR block counter (starts 0, increments per 16-byte block)
  */
 void mesh_crypto_ctr(const uint8_t key[16],
                      uint32_t packet_id,

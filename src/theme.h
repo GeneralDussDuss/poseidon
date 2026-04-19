@@ -36,7 +36,8 @@ enum theme_id_t {
     THEME__COUNT
 };
 
-void theme_set(theme_id_t id);
+void theme_init(void);               /* load from NVS on boot */
+void theme_set(theme_id_t id);       /* apply + persist to NVS */
 theme_id_t theme_current_id(void);
 const poseidon_theme_t &theme(void);
 

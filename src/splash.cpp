@@ -58,9 +58,14 @@ void ui_splash(void)
     d.fillScreen(0x0000);
 
     /* Boot jingle kicks off alongside the fade-in — sub-bass rumble into
-     * glitch sweep into POSEIDON chord, runs in parallel with the
-     * visual animation below. */
-    sfx_boot();
+     * glitch sweep into POSEIDON chord. Run from a one-shot FreeRTOS task
+     * so it actually runs *in parallel* with the animation below. Direct
+     * sfx_boot() call was blocking ~1.1s before phase-1 ever started. */
+    xTaskCreate([](void *) {
+        extern void sfx_boot(void);
+        sfx_boot();
+        vTaskDelete(nullptr);
+    }, "splash_sfx", 2048, nullptr, 2, nullptr);
 
     /* ---- Phase 1: fade in with magenta scanline sweep ---- */
     for (int f = 0; f <= 25; ++f) {

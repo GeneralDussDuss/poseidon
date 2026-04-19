@@ -31,7 +31,12 @@ static void teardown_current(void)
 {
     switch (s_active) {
     case RADIO_WIFI:
-        WiFi.disconnect(true, true);
+        /* WiFi.disconnect(true,true) calls enableSTA(false) which itself
+         * tears down the driver — then esp_wifi_deinit() below runs on
+         * an already-deinited driver. Use (false,false) to just drop the
+         * association without touching driver state; the explicit stop +
+         * deinit chain handles actual shutdown in the right order. */
+        WiFi.disconnect(false, false);
         WiFi.mode(WIFI_OFF);
         esp_wifi_stop();
         esp_wifi_deinit();

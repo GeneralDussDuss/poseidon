@@ -83,6 +83,9 @@ void ui_text_w(int x, int y, int w, uint16_t fg, const char *fmt, ...)
 static void vgradient(int x, int y, int w, int h, uint16_t top, uint16_t bot)
 {
     auto &d = M5Cardputer.Display;
+    /* h<=1 would divide by zero below (guru meditation on Xtensa). */
+    if (h <= 0) return;
+    if (h == 1) { d.drawFastHLine(x, y, w, top); return; }
     /* Decompose to RGB565 components. */
     uint8_t tr = (top >> 11) & 0x1F, tg = (top >> 5) & 0x3F, tb = top & 0x1F;
     uint8_t br = (bot >> 11) & 0x1F, bg = (bot >> 5) & 0x3F, bb = bot & 0x1F;
@@ -257,10 +260,6 @@ void ui_notify_slide(const char *title, const char *sub,
     const int bx = 6;
     const int final_y = STATUS_H + 4;
 
-    /* Capture behind area once so we can restore. */
-    static uint16_t behind[SCR_W * 40];
-    d.readRect(0, STATUS_H, SCR_W, 40, behind);
-
     auto draw_banner = [&](int y) {
         d.fillRoundRect(bx, y, bw, bh, 4, 0x0000);
         d.drawRoundRect(bx, y, bw, bh, 4, color);
@@ -279,6 +278,19 @@ void ui_notify_slide(const char *title, const char *sub,
         }
     };
 
+    /* Capture behind area once so we can restore. Heap-alloc'd — a
+     * static 19.2KB buffer sat in BSS even when notifications weren't
+     * active, which contributed to WiFi.scanNetworks() ENOMEM on cold
+     * boot. On OOM we skip the animation (draw + hold, no slide). */
+    const size_t behind_sz = (size_t)SCR_W * 40;
+    uint16_t *behind = (uint16_t *)malloc(behind_sz * sizeof(uint16_t));
+    if (!behind) {
+        draw_banner(final_y);
+        delay(hold_ms);
+        return;
+    }
+    d.readRect(0, STATUS_H, SCR_W, 40, behind);
+
     /* Slide down. */
     for (int s = 1; s <= 8; ++s) {
         int y = -bh + (final_y + bh) * s / 8;
@@ -296,6 +308,7 @@ void ui_notify_slide(const char *title, const char *sub,
     }
     /* Restore. */
     d.pushImage(0, STATUS_H, SCR_W, 40, behind);
+    free(behind);
 }
 
 /* Ripple: expanding ring, 6 frames at 20ms = 120ms total. */

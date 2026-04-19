@@ -56,6 +56,11 @@ void nrf24_end(void)
         s_radio = nullptr;
     }
     s_up = false;
+
+    /* Release CE/CS back to high-Z so the pins don't fight the next
+     * hat (LoRa BUSY=G6 / DIO1=G4 overlap these on CAP-LoRa1262). */
+    pinMode(NRF24_CS, INPUT);
+    pinMode(NRF24_CE, INPUT);
 }
 
 bool  nrf24_is_up(void) { return s_up; }
@@ -63,8 +68,18 @@ bool  nrf24_is_up(void) { return s_up; }
 RF24 &nrf24_radio(void)
 {
     if (!s_radio) {
-        Serial.println("[nrf24] BUG: nrf24_radio() called when not initialized");
-        esp_restart();
+        /* Soft fallback: return a never-begin()'d dummy instead of
+         * esp_restart(). Callers are expected to check nrf24_is_up()
+         * first, but if a latent path misses the check we log and
+         * return a harmless-but-nonfunctional radio so the device
+         * stays responsive. Same pattern as lora_radio(). */
+        static RF24 dummy(NRF24_CE, NRF24_CS);
+        static uint32_t last_warn = 0;
+        if (millis() - last_warn > 2000) {
+            Serial.println("[nrf24] nrf24_radio() called without nrf24_begin() — returning dummy");
+            last_warn = millis();
+        }
+        return dummy;
     }
     return *s_radio;
 }

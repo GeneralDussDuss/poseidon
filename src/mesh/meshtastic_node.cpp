@@ -145,6 +145,26 @@ const mesh_message_t *mesh_messages(int *count_out)
     return s_msgs;
 }
 
+int mesh_snapshot_messages(mesh_message_t *out, int max)
+{
+    if (!out || max <= 0) return 0;
+    portENTER_CRITICAL(&s_msgs_mux);
+    if (!s_msgs) { portEXIT_CRITICAL(&s_msgs_mux); return 0; }
+    int n = s_msg_count < max ? s_msg_count : max;
+    /* Oldest index is (s_msg_head - s_msg_count) mod ring size. Walking
+     * forward `n` steps gives oldest → newest ordering. Once the ring
+     * wraps (s_msg_count == RING), s_msg_head is the oldest slot. */
+    int start = (s_msg_head - s_msg_count + MESH_MSG_RING) % MESH_MSG_RING;
+    if (s_msg_count < n) start = (s_msg_head - s_msg_count + MESH_MSG_RING) % MESH_MSG_RING;
+    /* If asked for fewer than we have, grab the newest n by advancing start. */
+    if (s_msg_count > n) start = (s_msg_head - n + MESH_MSG_RING) % MESH_MSG_RING;
+    for (int i = 0; i < n; ++i) {
+        out[i] = s_msgs[(start + i) % MESH_MSG_RING];
+    }
+    portEXIT_CRITICAL(&s_msgs_mux);
+    return n;
+}
+
 bool mesh_drain_new_message(void)
 {
     bool v;

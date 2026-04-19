@@ -15,6 +15,7 @@
  */
 #include "input.h"
 #include "app.h"
+#include "theme.h"
 #include "sfx.h"
 
 /* Last-seen debug state — shown by input_debug_draw(). */
@@ -84,16 +85,16 @@ bool input_line(const char *prompt, char *out_buf, size_t out_sz)
 
     auto &d = M5Cardputer.Display;
     int y0 = BODY_Y + 20;
-    d.fillRect(0, y0, SCR_W, 60, COL_BG);
-    d.setTextColor(COL_ACCENT, COL_BG);
+    d.fillRect(0, y0, SCR_W, 60, T_BG);
+    d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, y0);
     d.print(prompt);
-    d.drawFastHLine(4, y0 + 30, SCR_W - 8, COL_DIM);
+    d.drawFastHLine(4, y0 + 30, SCR_W - 8, T_DIM);
 
     auto redraw = [&]() {
-        d.fillRect(4, y0 + 14, SCR_W - 8, 14, COL_BG);
+        d.fillRect(4, y0 + 14, SCR_W - 8, 14, T_BG);
         d.setCursor(4, y0 + 14);
-        d.setTextColor(COL_FG, COL_BG);
+        d.setTextColor(T_FG, T_BG);
         d.print(out_buf);
         d.print('_');
     };

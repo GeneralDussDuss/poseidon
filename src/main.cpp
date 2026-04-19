@@ -9,6 +9,7 @@
 #include "sd_helper.h"
 #include "gps.h"
 #include "sfx.h"
+#include "theme.h"
 #include "version.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 
@@ -68,6 +69,10 @@ void setup()
 
     /* Load persisted sound settings + set speaker volume. */
     sfx_init();
+    /* Load persisted theme before UI draws anything — otherwise the
+     * splash + first menu render in POSEIDON's default instead of the
+     * user's last pick. */
+    theme_init();
 
     Serial.printf("[POSEIDON] boot heap free=%u KB\n",
                   (unsigned)(ESP.getFreeHeap() / 1024));
