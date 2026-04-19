@@ -15,7 +15,10 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_random.h>
-#include <esp_mac.h>     /* IDF 5.x: esp_read_mac + ESP_MAC_WIFI_STA moved here */
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION_MAJOR >= 5
+  #include <esp_mac.h>   /* esp_read_mac + ESP_MAC_WIFI_STA moved here in IDF 5.x */
+#endif
 #include <string.h>
 
 #define MESH_MAX_NODES     32

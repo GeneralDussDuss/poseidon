@@ -13,11 +13,11 @@
 #include "../sd_helper.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
-#include <driver/rmt.h>
+/* driver/rmt.h (legacy) removed — conflicts with IDF 5.5 driver_ng at
+ * boot (v0.4 platform migration). rmt_tx_raw() is a stub until the
+ * feature is migrated to the new rmt_tx.h API. */
 
 #define MAX_REPLAY_PULSES 4096
-#define RMT_TX_CHANNEL    RMT_CHANNEL_0
-#define RMT_TX_GPIO       CC1101_GDO0
 
 struct sub_file_t {
     float    freq_mhz;
@@ -60,31 +60,8 @@ static bool parse_sub_file(const char *path, sub_file_t *out)
 
 static void rmt_tx_raw(const int16_t *raw, int len)
 {
-    rmt_config_t cfg = RMT_DEFAULT_CONFIG_TX((gpio_num_t)RMT_TX_GPIO, RMT_TX_CHANNEL);
-    cfg.clk_div = 80;  /* 1 us */
-    cfg.tx_config.loop_en = false;
-    cfg.tx_config.carrier_en = false;
-    if (rmt_config(&cfg) != ESP_OK) return;
-    if (rmt_driver_install(RMT_TX_CHANNEL, 0, 0) != ESP_OK) return;
-
-    /* Convert pulse pairs into RMT items. */
-    int items_n = (len + 1) / 2;
-    rmt_item32_t *items = (rmt_item32_t *)calloc(items_n, sizeof(rmt_item32_t));
-    if (!items) { rmt_driver_uninstall(RMT_TX_CHANNEL); return; }
-
-    for (int i = 0; i < len; i += 2) {
-        int idx = i / 2;
-        items[idx].duration0 = abs(raw[i]);
-        items[idx].level0    = raw[i] > 0 ? 1 : 0;
-        if (i + 1 < len) {
-            items[idx].duration1 = abs(raw[i + 1]);
-            items[idx].level1    = raw[i + 1] > 0 ? 1 : 0;
-        }
-    }
-
-    rmt_write_items(RMT_TX_CHANNEL, items, items_n, true);
-    free(items);
-    rmt_driver_uninstall(RMT_TX_CHANNEL);
+    (void)raw; (void)len;
+    /* Disabled pending legacy-RMT → driver_ng migration (v0.4.x). */
 }
 
 /* Simple SD file picker for .sub files. */

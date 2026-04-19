@@ -13,12 +13,12 @@
 #include "../sd_helper.h"
 #include <SD.h>
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
-#include <driver/rmt.h>
+/* driver/rmt.h (legacy) removed — conflicts with IDF 5.5 driver_ng at
+ * boot. rmt_rx_init() is a stub returning false; the feature aborts
+ * cleanly and shows a toast. Migration to the new rmt_rx.h API pending. */
 
 #define RAW_MAX_PULSES 4096
-#define RMT_RX_CHANNEL RMT_CHANNEL_4  /* S3: channels 4-7 are RX */
-#define RMT_TX_CHANNEL RMT_CHANNEL_0  /* S3: channels 0-3 are TX */
-#define RMT_GPIO       CC1101_GDO0
+#define RMT_GPIO       17  /* CC1101_GDO0 placeholder for future migration */
 
 /* Full CC1101 frequency table covering all three bands. */
 static const float SCAN_FREQS[] = {
@@ -39,13 +39,9 @@ static volatile bool s_recording = false;
 
 static bool rmt_rx_init(void)
 {
-    rmt_config_t cfg = RMT_DEFAULT_CONFIG_RX((gpio_num_t)RMT_GPIO, RMT_RX_CHANNEL);
-    cfg.clk_div = 80;  /* 1 us resolution */
-    cfg.rx_config.idle_threshold = 20000;  /* 20ms idle = end of signal */
-    cfg.mem_block_num = 4;
-    if (rmt_config(&cfg) != ESP_OK) return false;
-    if (rmt_driver_install(RMT_RX_CHANNEL, 4096, 0) != ESP_OK) return false;
-    return true;
+    /* Legacy RMT driver removed for v0.4 platform migration — returns
+     * false so the feature exits cleanly with a user-visible toast. */
+    return false;
 }
 
 /* rmt_rx_capture inlined into the record loop with live waveform. */
@@ -169,67 +165,9 @@ void feat_subghz_record(void)
         }
 
         if (k == PK_ENTER && !recorded) {
-            if (!rmt_rx_init()) {
-                ui_toast("RMT init fail", T_BAD, 1500);
-            } else {
-                cc1101_set_rx();
-                RingbufHandle_t rb;
-                rmt_get_ringbuf_handle(RMT_RX_CHANNEL, &rb);
-                rmt_rx_start(RMT_RX_CHANNEL, true);
-
-                s_raw_len = 0;
-                uint32_t rec_start = millis();
-                int mid_y = BODY_Y + 55;
-                int wave_x = 4;
-                d.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
-                d.drawFastHLine(4, mid_y, SCR_W - 8, T_DIM);
-                d.setTextColor(T_BAD, T_BG);
-                d.setCursor(4, BODY_Y + 2); d.print("RECORDING");
-
-                while (s_raw_len < RAW_MAX_PULSES && millis() - rec_start < 20000) {
-                    size_t len = 0;
-                    rmt_item32_t *items = (rmt_item32_t *)xRingbufferReceive(rb, &len, pdMS_TO_TICKS(50));
-                    if (items) {
-                        int count = len / sizeof(rmt_item32_t);
-                        for (int i = 0; i < count && s_raw_len < RAW_MAX_PULSES; ++i) {
-                            if (items[i].duration0) {
-                                s_raw[s_raw_len++] = (int16_t)items[i].duration0;
-                                /* Draw live waveform */
-                                int w = items[i].duration0 / 80;
-                                if (w < 1) w = 1; if (w > 20) w = 20;
-                                d.fillRect(wave_x, mid_y - 12, w, 12, T_ACCENT);
-                                wave_x += w;
-                            }
-                            if (items[i].duration1 && s_raw_len < RAW_MAX_PULSES) {
-                                s_raw[s_raw_len++] = -(int16_t)items[i].duration1;
-                                int w = items[i].duration1 / 80;
-                                if (w < 1) w = 1; if (w > 20) w = 20;
-                                d.fillRect(wave_x, mid_y + 1, w, 12, T_ACCENT2);
-                                wave_x += w;
-                            }
-                            if (wave_x >= SCR_W - 4) {
-                                wave_x = 4;
-                                d.fillRect(4, mid_y - 12, SCR_W - 8, 25, T_BG);
-                                d.drawFastHLine(4, mid_y, SCR_W - 8, T_DIM);
-                            }
-                        }
-                        vRingbufferReturnItem(rb, items);
-                    }
-                    /* Update counter */
-                    uint32_t elapsed = (millis() - rec_start) / 1000;
-                    d.fillRect(80, BODY_Y + 2, 60, 10, T_BG);
-                    d.setTextColor(T_BAD, T_BG);
-                    d.setCursor(80, BODY_Y + 2);
-                    d.printf("%lus  %d", (unsigned long)elapsed, s_raw_len);
-
-                    uint16_t ik = input_poll();
-                    if (ik == PK_ESC) break;
-                }
-
-                rmt_rx_stop(RMT_RX_CHANNEL);
-                rmt_driver_uninstall(RMT_RX_CHANNEL);
-                recorded = (s_raw_len > 0);
-            }
+            /* Record path disabled pending legacy-RMT → driver_ng migration
+             * (v0.4.x). See top of file. Scan / replay menu still renders. */
+            ui_toast("record unavailable v0.4", T_WARN, 1500);
         }
         if (k == 'r' || k == 'R') { recorded = false; s_raw_len = 0; }
         if ((k == 's' || k == 'S') && recorded) {

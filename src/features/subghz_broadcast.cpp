@@ -18,7 +18,10 @@
 #include "../sd_helper.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
-#include <driver/rmt.h>
+/* driver/rmt.h (legacy API) removed — IDF 5.5 + Arduino 3.3.8 uses
+ * driver_ng via rmt_tx.h / rmt_rx.h and aborts at boot if both are
+ * linked. Migration to the new API is pending; rmt_tx() below is a
+ * no-op stub until then. */
 
 #define MAX_FILES 30
 #define MAX_PULSES 2048
@@ -124,30 +127,12 @@ static int parse_sub_raw(const char *path, int16_t *raw, int max_pulses)
 
 static void rmt_tx(const int16_t *raw, int len)
 {
-    rmt_config_t cfg = RMT_DEFAULT_CONFIG_TX((gpio_num_t)CC1101_GDO0, RMT_CHANNEL_0);
-    cfg.clk_div = 80;
-    cfg.tx_config.loop_en = false;
-    cfg.tx_config.carrier_en = false;
-    if (rmt_config(&cfg) != ESP_OK) return;
-    if (rmt_driver_install(RMT_CHANNEL_0, 0, 0) != ESP_OK) return;
-
-    int items_n = (len + 1) / 2;
-    rmt_item32_t *items = (rmt_item32_t *)calloc(items_n, sizeof(rmt_item32_t));
-    if (!items) { rmt_driver_uninstall(RMT_CHANNEL_0); return; }
-
-    for (int i = 0; i < len; i += 2) {
-        int idx = i / 2;
-        items[idx].duration0 = abs(raw[i]);
-        items[idx].level0    = raw[i] > 0 ? 1 : 0;
-        if (i + 1 < len) {
-            items[idx].duration1 = abs(raw[i + 1]);
-            items[idx].level1    = raw[i + 1] > 0 ? 1 : 0;
-        }
-    }
-
-    rmt_write_items(RMT_CHANNEL_0, items, items_n, true);
-    free(items);
-    rmt_driver_uninstall(RMT_CHANNEL_0);
+    (void)raw; (void)len;
+    /* TX temporarily disabled on the v0.4 platform migration — the
+     * legacy driver/rmt.h API conflicts with IDF 5.5's driver_ng and
+     * aborts the whole device at boot. Migration to the new rmt_tx.h
+     * API is pending for v0.4.x. The feature still renders its menu
+     * and signal list so the code path is exercised. */
 }
 
 static int pick_category(void)

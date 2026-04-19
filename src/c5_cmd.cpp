@@ -135,16 +135,26 @@ static void handle_resp_zb(const c5_msg_t *m)
     portEXIT_CRITICAL(&s_mux);
 }
 
-/* IDF 5.x+ ESP-NOW recv callback signature: const esp_now_recv_info_t*
- * replaced the raw mac pointer. Source MAC is recv_info->src_addr. */
+/* ESP-NOW recv callback signature differs by ESP-IDF major version.
+ *   IDF 4.x (stock espressif32@6.7.0): void(const uint8_t *mac, data, len)
+ *   IDF 5.x (pioarduino 55.x):         void(const esp_now_recv_info_t*, ...)
+ * Guard both so platformio.ini can swap between stable and migration
+ * without code churn. */
+#include <esp_idf_version.h>
+
+#if ESP_IDF_VERSION_MAJOR >= 5
 static void on_recv(const esp_now_recv_info_t *recv_info,
                     const uint8_t *data, int len)
 {
+    const uint8_t *mac = recv_info->src_addr;
+#else
+static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
+{
+#endif
     if (len < (int)sizeof(c5_msg_t)) return;
     const c5_msg_t *m = (const c5_msg_t *)data;
     if (m->magic != C5_MAGIC || m->version != C5_VERSION) return;
 
-    const uint8_t *mac = recv_info->src_addr;
     ensure_peer(mac);
     switch (m->type) {
     case C5_TYPE_HELLO:      handle_hello(mac, m); break;

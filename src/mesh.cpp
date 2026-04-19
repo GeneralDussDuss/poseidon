@@ -42,18 +42,26 @@ static int find_peer(const uint8_t *mac)
     return -1;
 }
 
-/* IDF 5.x+ ESP-NOW recv callback takes esp_now_recv_info_t* first; source
- * MAC is recv_info->src_addr. (Can now read RSSI from rx_ctrl if needed.) */
+/* ESP-NOW recv callback signature differs by ESP-IDF major version.
+ * Guarded so the stable (IDF 4.x) and migration (IDF 5.x) configs
+ * both build from the same source. */
+#include <esp_idf_version.h>
+
+#if ESP_IDF_VERSION_MAJOR >= 5
 static void on_recv(const esp_now_recv_info_t *recv_info,
                     const uint8_t *data, int len)
 {
+    const uint8_t *mac = recv_info->src_addr;
+#else
+static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
+{
+#endif
     s_rx++;
     if (len < (int)sizeof(hello_frame_t)) return;
     const hello_frame_t *h = (const hello_frame_t *)data;
     if (h->magic != MESH_MAGIC || h->version != MESH_VERSION) return;
     if (h->type != MESH_TYPE_HELLO) return;
 
-    const uint8_t *mac = recv_info->src_addr;
     int idx = find_peer(mac);
     if (idx < 0) {
         if (s_peer_count >= MESH_MAX_PEERS) return;
