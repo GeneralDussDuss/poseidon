@@ -84,7 +84,14 @@ void setup()
 
     ui_init();
 
+#ifdef POSEIDON_AUTO_DEAUTH_TEST
+    /* Skip splash entirely. Run the deauth TX self-test and log to serial
+     * so iteration doesn't need a human in the loop. */
+    extern void deauth_autotest_run(void);
+    deauth_autotest_run();
+#else
     ui_splash();  /* animates, then waits for a key press internally */
+#endif
 }
 
 void loop()

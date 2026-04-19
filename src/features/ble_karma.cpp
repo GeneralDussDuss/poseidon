@@ -48,8 +48,8 @@ static void random_mac(void)
     ble_hs_id_set_rnd(mac);
 }
 
-class karma_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
+class karma_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
         (void)d;
         /* Any advertisement or scan request counts as "somebody out
          * there probing" for our signal-loudness meter. */
@@ -65,12 +65,12 @@ void feat_ble_karma(void)
     s_karma_responses = 0;
 
     NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setAdvertisedDeviceCallbacks(&s_cb, true);
+    scan->setScanCallbacks(&s_cb, true);
     scan->setActiveScan(false);
     scan->setInterval(45);
     scan->setWindow(30);
     /* Short continuous scan so we can sense the air. */
-    scan->start(0, nullptr, false);
+    scan->start(0, false);
 
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
 
@@ -104,7 +104,7 @@ void feat_ble_karma(void)
             data.setName(name);
             data.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
             adv->setAdvertisementData(data);
-            adv->setAdvertisementType(BLE_GAP_CONN_MODE_UND);
+            adv->setConnectableMode(BLE_GAP_CONN_MODE_UND);
             adv->start();
             s_karma_responses++;
         }

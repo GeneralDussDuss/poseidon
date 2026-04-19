@@ -59,9 +59,9 @@ static void sa_task(void *)
         NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
 
         NimBLEAdvertisementData data;
-        data.addData(std::string((const char *)pkt, 17));
+        data.addData(pkt, 17);
         adv->setAdvertisementData(data);
-        adv->setAdvertisementType(BLE_GAP_CONN_MODE_NON);
+        adv->setConnectableMode(BLE_GAP_CONN_MODE_NON);
         adv->start();
         delay(30);
         adv->stop();

@@ -94,8 +94,8 @@ static void randomize_addr(void)
     for (int i = 0; i < 6; ++i) mac[i] = (uint8_t)esp_random();
     mac[0] |= 0xC0;  /* static random */
     NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
-    /* NimBLE-Arduino doesn't expose a clean set-random-addr, use HCI. */
-    NimBLEAddress fake(mac);
+    /* NimBLE 2.x requires explicit address type on the ctor. Type 1 = random. */
+    NimBLEAddress fake(mac, 1);
     (void)fake;  /* NimBLE auto-handles RPA / static random */
 }
 
@@ -128,10 +128,9 @@ static void spam_task(void *)
 
         /* Rebuild adv payload from raw bytes. */
         adv->stop();
-        std::string payload((const char *)raw, raw_len);
-        data.addData(payload);
+        data.addData(raw, raw_len);
         adv->setAdvertisementData(data);
-        adv->setAdvertisementType(BLE_GAP_CONN_MODE_NON);
+        adv->setConnectableMode(BLE_GAP_CONN_MODE_NON);
         randomize_addr();
         adv->start();
 

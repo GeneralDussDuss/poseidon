@@ -50,8 +50,8 @@ static const uint8_t HID_REPORT_MAP[] = {
 };
 
 struct hid_cb : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer *) override    { s_connected = true;  }
-    void onDisconnect(NimBLEServer *) override { s_connected = false; NimBLEDevice::startAdvertising(); }
+    void onConnect(NimBLEServer *, NimBLEConnInfo &) override    { s_connected = true;  }
+    void onDisconnect(NimBLEServer *, NimBLEConnInfo &, int) override { s_connected = false; NimBLEDevice::startAdvertising(); }
 };
 
 static hid_cb s_cb;
@@ -120,18 +120,20 @@ static void setup_hid(const char *name)
     NimBLEServer *srv = NimBLEDevice::createServer();
     srv->setCallbacks(&s_cb);
 
+    /* NimBLE 2.x renamed the HID accessors. */
     s_hid = new NimBLEHIDDevice(srv);
-    s_input = s_hid->inputReport(1);
-    s_hid->manufacturer()->setValue("POSEIDON");
-    s_hid->pnp(0x02, 0x05AC, 0x820A, 0x0210);
-    s_hid->hidInfo(0x00, 0x01);
-    s_hid->reportMap((uint8_t *)HID_REPORT_MAP, sizeof(HID_REPORT_MAP));
+    s_input = s_hid->getInputReport(1);
+    s_hid->setManufacturer("POSEIDON");
+    s_hid->setPnp(0x02, 0x05AC, 0x820A, 0x0210);
+    s_hid->setHidInfo(0x00, 0x01);
+    s_hid->setReportMap((uint8_t *)HID_REPORT_MAP, sizeof(HID_REPORT_MAP));
     s_hid->startServices();
 
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     adv->setAppearance(HID_KEYBOARD);
-    adv->addServiceUUID(s_hid->hidService()->getUUID());
-    adv->setScanResponse(true);
+    adv->addServiceUUID(s_hid->getHidService()->getUUID());
+    /* setScanResponse(bool) removed in 2.x — advertising now auto-includes
+     * scan response when needed. Skip. */
     adv->start();
 }
 

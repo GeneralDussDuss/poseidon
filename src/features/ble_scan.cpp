@@ -58,7 +58,7 @@ static void sanitize(const char *in, char *out, size_t out_sz)
 }
 
 /* Best-effort type classification using the full ble_db tables. */
-static void classify(NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
+static void classify(const NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
 {
     /* Raw manufacturer data for the db to parse. */
     std::string md;
@@ -70,7 +70,7 @@ static void classify(NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
      * pointer into that temporary. Using it after the full
      * expression is a dangling read and crashes randomly. */
     NimBLEAddress addr = d->getAddress();
-    const uint8_t *raw = addr.getNative();
+    const uint8_t *raw = addr.getBase()->val;
     uint8_t mac_be[6];
     for (int i = 0; i < 6; ++i) mac_be[i] = raw[5 - i];
 
@@ -110,12 +110,12 @@ static void classify(NimBLEAdvertisedDevice *d, char *out, size_t out_sz)
     snprintf(out, out_sz, "BLE");
 }
 
-class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
+class scan_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
         /* Dedup by address. */
         NimBLEAddress addr = d->getAddress();
         for (int i = 0; i < s_count; ++i) {
-            if (memcmp(s_devs[i].addr, addr.getNative(), 6) == 0) {
+            if (memcmp(s_devs[i].addr, addr.getBase()->val, 6) == 0) {
                 if (d->getRSSI() > s_devs[i].rssi)
                     s_devs[i].rssi = d->getRSSI();
                 return;
@@ -123,7 +123,7 @@ class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
         }
         if (s_count >= BLE_MAX_DEVS) return;
         ble_dev_t &x = s_devs[s_count++];
-        memcpy(x.addr, addr.getNative(), 6);
+        memcpy(x.addr, addr.getBase()->val, 6);
         x.rssi = d->getRSSI();
         x.is_public = (addr.getType() == BLE_ADDR_PUBLIC);
         x.name[0] = '\0';
@@ -208,7 +208,7 @@ static void start_scan(void)
 {
     NimBLEScan *scan = NimBLEDevice::getScan();
     /* s_cb is static-allocated; no alloc needed. */
-    scan->setAdvertisedDeviceCallbacks(s_cb, /*wantDuplicates=*/true);
+    scan->setScanCallbacks(s_cb, /*wantDuplicates=*/true);
     scan->setActiveScan(false);
     scan->setInterval(45);
     scan->setWindow(30);

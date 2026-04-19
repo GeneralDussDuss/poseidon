@@ -35,7 +35,7 @@ static volatile int8_t  s_lock_rssi = -100;
 static volatile uint32_t s_lock_last = 0;
 static volatile bool     s_locating = false;
 
-static const char *tracker_kind(NimBLEAdvertisedDevice *d)
+static const char *tracker_kind(const NimBLEAdvertisedDevice *d)
 {
     if (d->haveManufacturerData()) {
         std::string md = d->getManufacturerData();
@@ -55,9 +55,9 @@ static const char *tracker_kind(NimBLEAdvertisedDevice *d)
     return nullptr;
 }
 
-class finder_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
-        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
+class finder_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
+        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getBase()->val;
         if (s_locating) {
             if (memcmp(a, s_lock, 6) == 0) {
                 s_lock_rssi = d->getRSSI();
@@ -182,12 +182,12 @@ void feat_ble_finder(void)
     s_locating = false;
 
     NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setAdvertisedDeviceCallbacks(&s_cb_obj, true);
+    scan->setScanCallbacks(&s_cb_obj, true);
     scan->setActiveScan(false);
     /* Aggressive interval → more frequent samples for live RSSI. */
     scan->setInterval(40);
     scan->setWindow(30);
-    scan->start(0, nullptr, false);
+    scan->start(0, false);
 
     int cursor = 0;
     ui_draw_footer(";/.=move  ENTER=hunt  `=back");

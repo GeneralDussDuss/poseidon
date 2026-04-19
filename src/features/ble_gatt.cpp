@@ -55,13 +55,11 @@ static void add_node(bool is_svc, uint8_t depth, NimBLEUUID u, uint8_t props,
 static void enumerate_services(void)
 {
     s_flat_n = 0;
-    std::vector<NimBLERemoteService *> *svcs = s_client->getServices(true);
-    if (!svcs) return;
-    for (auto *svc : *svcs) {
+    const std::vector<NimBLERemoteService *> &svcs = s_client->getServices(true);
+    for (auto *svc : svcs) {
         add_node(true, 0, svc->getUUID(), 0, svc, nullptr);
-        std::vector<NimBLERemoteCharacteristic *> *chrs = svc->getCharacteristics(true);
-        if (!chrs) continue;
-        for (auto *chr : *chrs) {
+        const std::vector<NimBLERemoteCharacteristic *> &chrs = svc->getCharacteristics(true);
+        for (auto *chr : chrs) {
             uint8_t props = 0;
             if (chr->canRead())            props |= 0x01;
             if (chr->canWrite())           props |= 0x02;

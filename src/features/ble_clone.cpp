@@ -21,15 +21,17 @@ static volatile uint32_t s_conn_count = 0;
 static volatile bool     s_currently_connected = false;
 static volatile uint16_t s_last_conn_handle = 0;
 
+/* NimBLE 2.x: server/char callbacks now take NimBLEConnInfo& as a 2nd arg.
+ * onDisconnect also gets an int reason. */
 class clone_srv_cb : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer *srv) override {
-        (void)srv;
+    void onConnect(NimBLEServer *srv, NimBLEConnInfo &info) override {
+        (void)srv; (void)info;
         s_conn_count++;
         s_currently_connected = true;
         NimBLEDevice::startAdvertising();
     }
-    void onDisconnect(NimBLEServer *srv) override {
-        (void)srv;
+    void onDisconnect(NimBLEServer *srv, NimBLEConnInfo &info, int reason) override {
+        (void)srv; (void)info; (void)reason;
         s_currently_connected = false;
         NimBLEDevice::startAdvertising();
     }
@@ -37,8 +39,8 @@ class clone_srv_cb : public NimBLEServerCallbacks {
 static clone_srv_cb s_srv_cb;
 
 class clone_chr_cb : public NimBLECharacteristicCallbacks {
-    void onRead(NimBLECharacteristic *chr) override  { (void)chr; }
-    void onWrite(NimBLECharacteristic *chr) override { (void)chr; }
+    void onRead(NimBLECharacteristic *chr, NimBLEConnInfo &info) override  { (void)chr; (void)info; }
+    void onWrite(NimBLECharacteristic *chr, NimBLEConnInfo &info) override { (void)chr; (void)info; }
 };
 static clone_chr_cb s_chr_cb;
 
@@ -84,7 +86,7 @@ void feat_ble_clone(void)
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     adv->setAdvertisementData(data);
     /* BLE_GAP_CONN_MODE_UND = undirected connectable */
-    adv->setAdvertisementType(BLE_GAP_CONN_MODE_UND);
+    adv->setConnectableMode(BLE_GAP_CONN_MODE_UND);
     adv->setMinInterval(0x20);
     adv->setMaxInterval(0x40);
     adv->start();

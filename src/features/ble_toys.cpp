@@ -38,7 +38,7 @@ static toy_t s_toys[MAX_TOYS];
 static volatile int s_toy_count = 0;
 
 /* Known toy name prefixes / service UUIDs. */
-static const char *identify_toy(NimBLEAdvertisedDevice *d)
+static const char *identify_toy(const NimBLEAdvertisedDevice *d)
 {
     std::string name = d->haveName() ? d->getName() : std::string();
     if (!name.empty()) {
@@ -65,11 +65,11 @@ static const char *identify_toy(NimBLEAdvertisedDevice *d)
     return nullptr;
 }
 
-class scan_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
+class scan_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
         const char *brand = identify_toy(d);
         if (!brand) return;
-        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
+        const uint8_t *a = d->getAddress().getBase()->val;
         for (int i = 0; i < s_toy_count; ++i)
             if (memcmp(s_toys[i].addr, a, 6) == 0) {
                 s_toys[i].rssi = d->getRSSI();
@@ -108,12 +108,10 @@ static bool connect_lovense(const toy_t &t)
 
     /* Walk services looking for a writable characteristic whose UUID
      * starts with 53300001 — that's Lovense TX. */
-    std::vector<NimBLERemoteService *> *svcs = s_client->getServices(true);
-    if (!svcs) { s_client->disconnect(); return false; }
-    for (auto *svc : *svcs) {
-        std::vector<NimBLERemoteCharacteristic *> *chrs = svc->getCharacteristics(true);
-        if (!chrs) continue;
-        for (auto *chr : *chrs) {
+    const std::vector<NimBLERemoteService *> &svcs = s_client->getServices(true);
+    for (auto *svc : svcs) {
+        const std::vector<NimBLERemoteCharacteristic *> &chrs = svc->getCharacteristics(true);
+        for (auto *chr : chrs) {
             if (chr->canWrite() || chr->canWriteNoResponse()) {
                 std::string u = chr->getUUID().toString();
                 if (u.find("53300001") != std::string::npos ||
@@ -126,10 +124,9 @@ static bool connect_lovense(const toy_t &t)
         }
     }
     /* Fall back: first writable characteristic. */
-    for (auto *svc : *svcs) {
-        std::vector<NimBLERemoteCharacteristic *> *chrs = svc->getCharacteristics(true);
-        if (!chrs) continue;
-        for (auto *chr : *chrs) {
+    for (auto *svc : svcs) {
+        const std::vector<NimBLERemoteCharacteristic *> &chrs = svc->getCharacteristics(true);
+        for (auto *chr : chrs) {
             if (chr->canWriteNoResponse()) {
                 s_tx_char = chr;
                 s_connected = true;
@@ -229,11 +226,11 @@ void feat_ble_toys(void)
     s_toy_count = 0;
 
     NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setAdvertisedDeviceCallbacks(&s_cb, true);
+    scan->setScanCallbacks(&s_cb, true);
     scan->setActiveScan(true);
     scan->setInterval(45);
     scan->setWindow(30);
-    scan->start(0, nullptr, false);
+    scan->start(0, false);
 
     ui_draw_footer(";/. = move  ENTER = connect  `=back");
     int cursor = 0;
@@ -250,7 +247,7 @@ void feat_ble_toys(void)
             ui_toast("connecting...", T_WARN, 0);
             if (!connect_lovense(s_toys[cursor])) {
                 ui_toast("connect failed", T_BAD, 1200);
-                scan->start(0, nullptr, false);
+                scan->start(0, false);
                 continue;
             }
             /* Enter control screen. */
@@ -281,7 +278,7 @@ void feat_ble_toys(void)
                     send_vibrate(s_intensity);
                 }
             }
-            scan->start(0, nullptr, false);
+            scan->start(0, false);
         }
     }
 }

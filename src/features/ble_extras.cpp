@@ -25,7 +25,7 @@ struct tracker_t {
 static tracker_t s_trackers[TRACKER_MAX];
 static volatile int s_tracker_count = 0;
 
-static bool is_tracker(NimBLEAdvertisedDevice *d, char *type_out)
+static bool is_tracker(const NimBLEAdvertisedDevice *d, char *type_out)
 {
     if (d->haveManufacturerData()) {
         std::string md = d->getManufacturerData();
@@ -48,11 +48,13 @@ static bool is_tracker(NimBLEAdvertisedDevice *d, char *type_out)
     return false;
 }
 
-class tracker_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
+/* NimBLE 2.x: callback base class renamed to NimBLEScanCallbacks and
+ * onResult now takes a const pointer. Address bytes via getBase()->val. */
+class tracker_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
         char type[12] = {0};
         if (!is_tracker(d, type)) return;
-        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
+        const uint8_t *a = d->getAddress().getBase()->val;
         for (int i = 0; i < s_tracker_count; ++i) {
             if (memcmp(s_trackers[i].addr, a, 6) == 0) {
                 s_trackers[i].last_seen = millis();
@@ -79,11 +81,11 @@ void feat_ble_tracker(void)
     /* s_tracker_cb is static-allocated. */
 
     NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setAdvertisedDeviceCallbacks(s_tracker_cb, true);
+    scan->setScanCallbacks(s_tracker_cb, true);
     scan->setActiveScan(false);
     scan->setInterval(45);
     scan->setWindow(30);
-    scan->start(0, nullptr, false);
+    scan->start(0, false);  /* duration=0 (indefinite), is_continue=false */
 
     ui_clear_body();
     ui_draw_footer("`=back");
@@ -169,21 +171,20 @@ void feat_ble_tracker(void)
 static volatile uint32_t s_sniff_count = 0;
 static File s_sniff_file;
 
-class sniff_cb : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *d) override {
+class sniff_cb : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice *d) override {
         if (!s_sniff_file) return;
         s_sniff_count++;
-        NimBLEAddress _addr = d->getAddress(); const uint8_t *a = _addr.getNative();
+        const uint8_t *a = d->getAddress().getBase()->val;
         s_sniff_file.printf("%lu,%02X:%02X:%02X:%02X:%02X:%02X,%d,%u,",
                  (unsigned long)millis(),
                  a[5], a[4], a[3], a[2], a[1], a[0],
                  d->getRSSI(), d->getAddressType());
         if (d->haveName()) s_sniff_file.printf("\"%s\"", d->getName().c_str());
         s_sniff_file.print(",");
-        std::string payload = d->getPayload() ? "" : "";
-        uint8_t *p = d->getPayload();
-        size_t n = d->getPayloadLength();
-        for (size_t i = 0; i < n; ++i) s_sniff_file.printf("%02X", p[i]);
+        /* NimBLE 2.x: getPayload() returns std::vector<uint8_t> by value. */
+        const std::vector<uint8_t> &payload = d->getPayload();
+        for (size_t i = 0; i < payload.size(); ++i) s_sniff_file.printf("%02X", payload[i]);
         s_sniff_file.print("\n");
         if ((s_sniff_count & 31) == 0) s_sniff_file.flush();
     }
@@ -205,9 +206,9 @@ void feat_ble_sniff(void)
 
     /* s_sniff_cb is static-allocated. */
     NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setAdvertisedDeviceCallbacks(s_sniff_cb, true);
+    scan->setScanCallbacks(s_sniff_cb, true);
     scan->setActiveScan(false);
-    scan->start(0, nullptr, false);
+    scan->start(0, false);
 
     ui_clear_body();
     ui_draw_footer("`=stop");
@@ -255,9 +256,12 @@ void feat_ble_beacon(void)
         /* power */ 0xC5
     };
     NimBLEAdvertisementData data;
-    data.addData(std::string((const char *)payload, sizeof(payload)));
+    /* NimBLE 2.x: addData now takes uint8_t*+size_t. */
+    data.addData(payload, sizeof(payload));
     adv->setAdvertisementData(data);
-    adv->setAdvertisementType(BLE_GAP_CONN_MODE_NON);
+    /* setAdvertisementType removed — use setConnectableMode. BLE_GAP_CONN_MODE_NON
+     * = non-connectable advertising (pure beacon). */
+    adv->setConnectableMode(BLE_GAP_CONN_MODE_NON);
     adv->start();
 
     ui_clear_body();

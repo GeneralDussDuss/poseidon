@@ -45,7 +45,7 @@ static void teardown_current(void)
         /* Only deinit if NimBLE is actually initialized — features that
          * explicitly deinit on exit (ble_hid) leave a dangling state
          * flag, and a second deinit crashes on some NimBLE builds. */
-        if (NimBLEDevice::getInitialized()) NimBLEDevice::deinit(true);
+        if (NimBLEDevice::isInitialized()) NimBLEDevice::deinit(true);
         break;
     case RADIO_LORA:
         if (lora_is_up()) lora_end();

@@ -70,10 +70,10 @@ static void fm_task(void *)
         build_findmy(pkt, key, 0xE0 /* OWNED */, 0x00);
 
         NimBLEAdvertisementData data;
-        data.addData(std::string((const char *)pkt, 30));
+        data.addData(pkt, 30);
         adv->stop();
         adv->setAdvertisementData(data);
-        adv->setAdvertisementType(BLE_GAP_CONN_MODE_NON);
+        adv->setConnectableMode(BLE_GAP_CONN_MODE_NON);
         adv->setMinInterval(0x0640);  /* 1 s — matches real AirTag cadence */
         adv->setMaxInterval(0x0780);  /* 1.2 s */
         adv->start();
