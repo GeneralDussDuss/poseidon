@@ -4,42 +4,87 @@ All notable changes to POSEIDON are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-04-19
 
-### Fixed — deauth frames actually TX on-air (v0.4 platform migration)
+### Fixed — deauth frames actually TX on-air
 
-Replaced stock `espressif32@6.7.0` (Arduino Core 3.1.0 / ESP-IDF 5.3) with
-`pioarduino/platform-espressif32@55.03.38` (Arduino Core 3.3.8 / ESP-IDF
-5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched
-`framework-arduinoespressif32-libs` (`bruce_esp32-arduino-libs-20260407`).
-The patched `libnet80211.a` lifts the IDF 5.3 blob-level filter on management
-frame subtypes `0xC` (deauth) and `0xA` (disassoc) — frames from
-`esp_wifi_80211_tx` now leave the chip instead of returning
-`ESP_ERR_INVALID_ARG`.
+The ESP-IDF WiFi blob (`libnet80211.a`) contains a function
+`ieee80211_raw_frame_sanity_check(int32_t, int32_t, int32_t)` that is
+called from `esp_wifi_80211_tx` before every raw-frame send. It rejects
+MGMT subtypes `0xC` (deauth) and `0xA` (disassoc) by returning non-zero,
+causing TX to return `ESP_ERR_INVALID_ARG (258)` and logging
+`wifi:unsupport frame type: 0c0/0a0`. That filter is the actual blocker —
+not the interface, not the mode, not the silent-AP pattern.
+
+Every previous fix attempt was at the wrong layer. Fun fact: the
+"patched libs" from `bmorcelli/esp32-arduino-lib-builder` do **not**
+actually patch this function. We verified the symbol is still strong
+and the filter string is still in every Bruce-lib zip.
+
+**The real fix** (credit: [GANESH-ICMC/esp32-deauther](https://github.com/GANESH-ICMC/esp32-deauther)):
+link-time symbol override. Define
+`ieee80211_raw_frame_sanity_check` in our own code returning 0, and add
+`-Wl,--allow-multiple-definition` so the linker prefers our `.o` over
+the library's `.a`. See `src/features/wifi_sanity_override.cpp` and the
+linker flag in `platformio.ini`.
+
+Verified on-device: autotest fired 800 deauth/disassoc frames at a
+non-PMF WPA2 AP, result `ok=800 fail=0 rate=99%`. Target client
+disconnected within seconds.
 
 Fixes all five deauth paths: targeted (`wifi_deauth`), per-client
-(`wifi_clients`), all-clients channel-hop (`wifi_clients_all`), broadcast-all
-(`wifi_deauth_extras`), and Triton autonomous. No code changes to the deauth
-features themselves — the Marauder-pattern silent-AP TX + addr1 / disassoc
-pair / seq increment logic was already correct, just blocked at the blob.
+(`wifi_clients`), all-clients channel-hop (`wifi_clients_all`),
+broadcast-all (`wifi_deauth_extras`), and Triton autonomous. No code
+changes to those features — they were all correct, just blocked at the
+blob.
+
+### Fixed — NimBLE 2.x migration (13 files)
+
+NimBLE-Arduino 1.4.1 crashes at BLE init on Core 3.3.8. Bumped to
+`^2.3.9` (matching Bruce) and migrated every BLE feature file:
+
+- `NimBLEAdvertisedDeviceCallbacks` → `NimBLEScanCallbacks`
+- `onResult(*)` → `onResult(const *) override`
+- `setAdvertisedDeviceCallbacks` → `setScanCallbacks`
+- `scan->start(dur_sec, callback, is_continue)` → `scan->start(dur_ms, is_continue)` — unit change sec→ms, callback arg gone (UI polls `isScanning()`)
+- `NimBLEAddress::getNative()` → `getBase()->val`
+- `setAdvertisementType(MODE)` → `setConnectableMode(MODE)`
+- `addData(std::string(...))` → `addData(uint8_t*, size_t)`
+- Server/characteristic callbacks now take `NimBLEConnInfo&`
+- `NimBLEHIDDevice::inputReport/manufacturer/hidInfo/...` → `getInputReport/setManufacturer/setHidInfo/...`
+- `getServices()/getCharacteristics()` return vector by reference, not pointer
+- `NimBLEDevice::getInitialized` → `isInitialized`
+
+All 13 BLE feature files compile clean + BLE scan tested on-device
+(enumerates devices over 6s, no reboot).
+
+### Added — full platform migration
+
+Platform moved to `pioarduino/platform-espressif32@55.03.38` (Arduino
+Core 3.3.8 / ESP-IDF 5.5.4) with
+`bruce_esp32-arduino-libs-20260123`. Migration was required for recent
+NimBLE/RadioLib/lwIP versions — deauth was solved separately by the
+symbol override above.
 
 Toolchain fallout (fixed):
-- `c5_cmd.cpp`, `mesh.cpp` — ESP-NOW recv callback changed in IDF 5.x from
-  `(mac, data, len)` to `(recv_info, data, len)` where `recv_info->src_addr`
-  holds the source MAC. Updated both callbacks.
+- `c5_cmd.cpp`, `mesh.cpp` — ESP-NOW recv callback signature changed in
+  IDF 5.x from `(mac, data, len)` to `(recv_info, data, len)`. Wrapped
+  in `#if ESP_IDF_VERSION_MAJOR >= 5` for dual-platform builds.
 - `meshtastic_node.cpp` — `esp_read_mac` / `ESP_MAC_WIFI_STA` moved to
-  `esp_mac.h` in IDF 5.x. Added include.
-- Library versions (NimBLE-Arduino 1.4.1, RadioLib 7.4.0, M5Cardputer 1.1.1,
-  M5Unified 0.2.13) compile clean on Core 3.3.8 / IDF 5.5.4 without bumps.
+  `esp_mac.h`. Gated on the same macro.
+- RMT legacy driver (`driver/rmt.h`) conflicts with IDF 5.5 `driver_ng`
+  at boot — stubbed out in `subghz_record/replay/broadcast` pending a
+  proper migration to the new `rmt_tx.h/rmt_rx.h` API. Those three
+  features are no-ops in v0.4; scan/spectrum/brute force still work.
 
-Rollback path: `cp platformio.ini.stable platformio.ini` restores the v0.3
-stock platform (deauth returns to blob-filtered).
+Rollback path: `cp platformio.ini.stable platformio.ini` + `git checkout
+v0.3.0` — but you don't need it, v0.4 just works.
 
-Build note: migration must run from WSL2 / native Linux, not Git Bash on
-Windows. The pioarduino install runs `idf_tools.py` which hard-fails if it
-sees MSys environment markers. See `docs/v0.4-platform-migration.md` for
-the full execution log, including the 3.3.6 → 3.3.8 tarball mirror 504
-workaround.
+Build note: must run from WSL2 / native Linux, not Git Bash on Windows.
+pioarduino's `idf_tools.py` hard-fails on MSys environment markers. See
+`docs/v0.4-platform-migration.md`.
+
+### Added — SaltyJack LAN attack suite (phase 1)
 
 ### Added — SaltyJack LAN attack suite (phase 1)
 

@@ -99,23 +99,23 @@
       </div>
     </div>
 
-    <div class="rm-item current reveal-left">
+    <div class="rm-item shipped reveal-left">
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.4.0</span>
-          <span class="rm-date">Master · awaiting on-hardware verify</span>
-          <span class="rm-tag current">Current</span>
+          <span class="rm-date">Shipped 2026-04-19</span>
+          <span class="rm-tag shipped">Released</span>
         </div>
-        <div class="rm-title">The arsenal release — SaltyJack (RaspyJack port) + deauth parity + TRIDENT fixes</div>
+        <div class="rm-title">Deauth actually lands · SaltyJack · NimBLE 2.x · pioarduino IDF 5.5.4</div>
         <div class="rm-body">
-          The release that makes deauth frames <em>actually land on-air</em>, delivers a full <b>RaspyJack</b> LAN arsenal on the Cardputer, and lands a month of TRIDENT hardening.
+          The release where deauth frames finally TX on-air, a full <b>RaspyJack</b> LAN arsenal lands, and the whole BLE stack migrates to NimBLE 2.x.
           <ul>
-            <li><b>SaltyJack = RaspyJack port.</b> Direct port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack + Evil-M5Project arsenal — DHCP Starve, Rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB NTLMv2), WPAD PAC harvest, on-device NTLMv2 cracker. Custom pirate UX, 16×16 sprite pack, full-screen boot splash. Press <code>j</code>.</li>
-            <li><b>Platform fork for real deauth.</b> Migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Arduino 3.3.8 / IDF 5.5.4) + patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses. Lifts the IDF subtype-filter blocking deauth/disassoc TX.</li>
-            <li><b>TRIDENT companion app polish.</b> PyQt6 desktop viewer + key-forwarding bridge over USB-CDC — v0.4 hardens the protocol (atomic header+binary send, robust disconnect state, arrow-key translation fix so menus actually scroll from the PC). See the <a href="https://github.com/GeneralDussDuss/trident" target="_blank" rel="noopener">TRIDENT repo</a>.</li>
-            <li><b>W5500 SPI Ethernet hat (new).</b> Wired RJ45 unlocks full RaspyJack parity — SaltyJack runs over lwIP's transport-agnostic <code>netif</code>, bypassing WiFi STA (and PMF / WPA3 / 802.1X) entirely.</li>
-            <li>IDF 5.x API drift fixes outside the deauth path. NimBLE 1.4.1, RadioLib 7.4.0, M5 stack — no bumps needed.</li>
-            <li>Build now runs on WSL2 / native Linux — pioarduino's installer trips on Git Bash MSys markers.</li>
+            <li><b>Deauth on-air.</b> The real blocker was <code>ieee80211_raw_frame_sanity_check</code> inside libnet80211.a — not the interface, not the mode, not the silent-AP pattern. Bypassed with a 5-line link-time symbol override + one linker flag. Credit to <a href="https://github.com/GANESH-ICMC/esp32-deauther" target="_blank" rel="noopener">GANESH-ICMC</a> for the original trick. Verified on-device: 800/800 frames TX'd, target kicks in seconds.</li>
+            <li><b>SaltyJack = RaspyJack port.</b> Direct port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack + Evil-M5Project — DHCP Starve, Rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB NTLMv2), WPAD PAC harvest, on-device NTLMv2 cracker. Custom pirate UX, 16×16 sprite pack, full-screen boot splash. Press <code>j</code>.</li>
+            <li><b>NimBLE 2.x migration.</b> 1.4.1 crashed at BLE init on Core 3.3.8. Bumped to 2.3.9 and migrated 13 BLE feature files — callbacks take <code>NimBLEConnInfo&amp;</code>, scan signatures changed, HID accessors renamed, et al.</li>
+            <li><b>Platform on pioarduino.</b> <code>platform-espressif32@55.03.38</code> (Arduino 3.3.8 / IDF 5.5.4) + <code>bruce_esp32-arduino-libs-20260123</code> for stack parity with Bruce.</li>
+            <li><b>W5500 SPI Ethernet hat.</b> Wired RJ45 for full RaspyJack parity — SaltyJack runs over lwIP's transport-agnostic <code>netif</code>, bypassing WiFi STA / PMF / 802.1X.</li>
+            <li>Build runs from WSL2 / native Linux (pioarduino's installer trips on Git Bash MSys markers).</li>
           </ul>
         </div>
       </div>

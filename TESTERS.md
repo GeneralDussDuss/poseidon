@@ -3,52 +3,74 @@
 If you're helping stress-test POSEIDON, this doc tells you **what just changed**,
 **what to hit hardest**, and **how to report what you find**.
 
-**Currently testing:** v0.4 pre-release on master — **platform fork + Bruce
-patched WiFi libs**. If you flash master, you're the first person to confirm
-whether deauth frames actually land on-air. That is the single most
-important thing to verify right now; everything else is regression.
+**Currently testing:** v0.4.0 shipped — deauth lands on-air, full
+SaltyJack LAN arsenal, NimBLE 2.x, pioarduino + IDF 5.5.4 platform. We
+want regression breadth now: hit every feature, find the one thing that
+slipped through.
 
 ---
 
-## Priority 1 — Deauth frames actually TX on-air (PLATFORM FORK VALIDATION)
+## Priority 1 — Regression sweep
 
-**What changed.** Migration from stock `espressif32@6.7.0` (ESP-IDF 5.3,
-deauth subtype filtered at the WiFi blob) to `pioarduino@55.03.38` (Core
-3.3.8 / IDF 5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched
-`libnet80211.a` with the `0xC` / `0xA` subtype filter NOP'd. All five
-deauth paths (targeted, per-client, all-clients channel-hop, broadcast-all,
-Triton) go through the same TX helper — if one works, all should work.
+Every feature from v0.3 should still work, plus the six new SaltyJack
+modules. Work through the menu leaf-by-leaf:
 
-**How to test:**
-1. Pick a known non-PMF WPA2 AP you own (anything WPA3 or transition-mode
-   uses PMF — the UI blocks those by design)
-2. Associate a phone / laptop to it
-3. POSEIDON → WiFi → Scan → select the target AP → press `D`
-4. Watch the UI counters:
-   - `sent:` should climb rapidly (100s/sec)
-   - `drops:` should stay at 0 or near-zero
-   - Serial monitor (if attached) should NOT print `[80211_tx] deauth rc=258`
-5. Phone / laptop should disassociate within 2–5 seconds
+- **WiFi:** Scan, Clients (both variants), Deauth, Deauth All, Deauth
+  Detector, AP Clone, Evil Portal, Karma, Beacon Spam, Probe Sniff,
+  PMKID, 2.4 Spectrum, Wardrive (with GPS hat), CIW Zeroclick, Connect
+- **BLE:** Scan, Spam, Bad-KB HID, Tracker Detect, Sniffer, iBeacon,
+  Clone, GATT, Flood, Karma, Sour Apple, Find My Emulator, Toys
+- **Sub-GHz:** Scan, Replay, Spectrum, Brute Force, Jammer, Broadcast
+  Library, Finder — NOTE: Record/Replay/Broadcast TX are stubbed in
+  v0.4 pending RMT driver_ng migration. They'll show a toast and exit
+  cleanly. Scan/Spectrum/Finder/Brute still work.
+- **nRF24:** Sniffer, MouseJack, BLE spam, Spectrum, Jammer, Finder
+- **LoRa:** Scan, Beacon, Meshtastic Listener, Analyzer, Mesh Chat,
+  Nodes, Page, Pos, GPS Fix
+- **SaltyJack:** DHCP Starve, Rogue DHCP (STA+AP), Responder, WPAD,
+  NTLMv2 cracker
+- **Everything else:** Triton, TRIDENT PC bridge, MIMIR control, IR
+  (TV-B-Gone + Samsung), BadUSB, theme picker, SFX settings, file
+  browser, SD format, net attacks
 
-**What to report — critical signal:**
-- **Did `sent:` climb and `drops:` stay near zero?** — this is THE question
-- **Did the target client actually disconnect?** (yes / no / stayed on)
-- Did you see any `[80211_tx] deauth rc=<non-zero>` in serial?
-- Router model, target client model + OS
-- If you want to sanity-check the blob is patched, try "WiFi → Deauth All"
-  — every AP in range should see its clients kicked. Rapid verification.
+If anything crashes, reboots the device, or doesn't work as it did in
+v0.3.0, **file an issue with the menu path + serial log + how to
+reproduce**.
 
-**If ALL five deauth paths work:** reply "deauth verified v0.4" on GitHub
-Issues — that's the signal to cut the v0.4.0 release tag.
+## Priority 2 — Deauth stress test
 
-**If `drops:` is climbing and target doesn't disconnect:** something went
-wrong with the platform_packages override. Serial log + `pio pkg list`
-output on the issue and we'll dig in.
+Deauth frames now actually land (see [CHANGELOG](CHANGELOG.md) for
+the link-time symbol override story). But we need real-world range
+numbers:
 
-**Known limits (unchanged from v0.3):**
-- WPA3-PSK, WPA2-Enterprise, WPA3-transition networks use PMF (Protected
-  Management Frames) — the UI warns before firing and those targets won't
-  kick by design. This is a protocol-level defense, not a POSEIDON limit.
+1. Non-PMF WPA2 AP you own
+2. WiFi → Scan → target → press `D`
+3. `frames:` should climb rapidly, `drops:` stays at 0
+4. Target phone/laptop disconnects in 2-5 sec
+5. Report: router model, client model + OS, did it kick?
+
+Also verify **Deauth All** (kicks every AP in range) and **PMKID** (hunt
+mode now works too since it uses the same TX path — should capture
+4-way handshakes on reconnect).
+
+## Priority 3 — BLE across the whole stack
+
+NimBLE 2.x migration touched 13 files. Scan is confirmed working. Run
+through the rest:
+
+- Bad-KB HID against a phone — pair, type a string, works?
+- Tracker detect — leave running near an AirTag/Tile, does it pick up?
+- Sour Apple against an iPhone — does the target see the popup storm?
+- GATT explorer against your own device — enumerate services, read a
+  characteristic
+- Clone / Spam / Flood — all should at least start without crash
+
+Report any BLE feature that still reboots the device.
+
+**Known limits (unchanged):**
+- WPA3-PSK, WPA2-Enterprise, WPA3-transition use PMF (Protected
+  Management Frames). Deauth is cryptographically dropped — protocol
+  defense, not a POSEIDON limit. UI warns.
 
 ## Priority 2 — Meshtastic node participation (new feature)
 

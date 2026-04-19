@@ -20,13 +20,11 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![features](https://img.shields.io/badge/features-90+-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
-![version](https://img.shields.io/badge/version-0.3.0-cyan?style=flat-square)
+![version](https://img.shields.io/badge/version-0.4.0-cyan?style=flat-square)
 
 [**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
 
-**v0.3.0 just shipped** — POSEIDON is now a full Meshtastic leaf node (send, receive, page, position) plus WiFi deauth correctness, LoRa crash fixes, and a rewritten spectrum analyzer with real packet capture. See [CHANGELOG](CHANGELOG.md) and [TESTERS.md](TESTERS.md) for what to stress-test.
-
-**v0.4 incoming (master)** — platform fork lands. Stock ESP-IDF 5.3's WiFi blob filters deauth/disassoc frame subtypes, so every v0.3 deauth mode returned `ESP_ERR_INVALID_ARG` at TX. Master now builds against `pioarduino@55.03.38` (Core 3.3.8 / IDF 5.5.4) + [Bruce](https://github.com/pr3y/Bruce)'s patched `libnet80211.a` with the subtype filter NOP'd. See [`KnownDeauthBugFixSoon.md`](KnownDeauthBugFixSoon.md) and [`docs/v0.4-platform-migration.md`](docs/v0.4-platform-migration.md). v0.4.0 gets tagged once on-hardware verification confirms frames land.
+**v0.4.0 shipped** — deauth frames actually TX on-air now. The fix wasn't the platform migration or Bruce's "patched" libs (which don't actually patch anything). The real blocker was `ieee80211_raw_frame_sanity_check` inside libnet80211.a — bypassed at link time with a 5-line C override + one linker flag. Full SaltyJack LAN arsenal lands (DHCP starve / rogue DHCP / Responder / WPAD / on-device NTLMv2 cracker), NimBLE migrated to 2.x across all 13 BLE features, platform on pioarduino + IDF 5.5.4. See [CHANGELOG](CHANGELOG.md) for the full breakdown.
 
 **New — SaltyJack LAN attack suite** ported from [@7h30th3r0n3](https://github.com/7h30th3r0n3)'s [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) / [RaspyJack](https://github.com/7h30th3r0n3/Raspyjack). DHCP starvation shipping first; Rogue DHCP, Responder (LLMNR/NBNS/SMB-NTLMv2), WPAD harvest, and on-device NTLMv2 cracker coming in subsequent commits. All credit where credit is due — every file in `src/features/saltyjack/` has a prominent homage header.
 
