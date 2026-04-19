@@ -41,6 +41,7 @@ extern void feat_ble_karma(void);
 extern void feat_ble_sourapple(void);
 extern void feat_ble_findmy(void);
 extern void feat_ble_toys(void);
+extern void feat_ble_whisperpair(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_mesh(void);
@@ -270,6 +271,14 @@ static const menu_node_t MENU_BLE[] = {
       "Magic Motion devices. Connect to a Lovense and control vibration "
       "intensity 0-20 via the keyboard. Number keys 1-9 jump to a level; "
       "; and . nudge up/down; SPACE or 0 stops." },
+    { 'w', "WhisperPair", "CVE-2025-36911 Fast Pair probe", nullptr, feat_ble_whisperpair,
+      "Scans for Google Fast Pair accessories (AirPods rivals from Sony, "
+      "JBL, Jabra, Pixel Buds, Nothing, OnePlus). Classifies each as "
+      "pairable or in-use, then writes a bogus Key-Based Pairing blob to "
+      "the FE2C service. Response = VULNERABLE. Silent drop = PATCHED. "
+      "Verdicts logged to /poseidon/whisperpair.csv. Probe only — the "
+      "ESP32-S3 has no BR/EDR radio so we never complete the bond. "
+      "Credit: COSIC KU Leuven." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
