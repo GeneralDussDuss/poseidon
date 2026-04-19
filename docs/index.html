@@ -304,13 +304,13 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <div class="hero-badge"><span class="dot"></span> v0.4 &mdash; SALTYJACK LAN ARSENAL LIVE</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
-    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 90+ features across <span class="hl">six radio bands</span>. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. All from your pocket.</p>
+    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 96+ features across <span class="hl">six radio bands</span> plus wired Ethernet. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. RJ45. All from your pocket.</p>
     <div class="hero-prompt">
       <span class="prompt-dollar">poseidon ▸</span>
-      <span class="prompt-cmd">attack</span>
-      <span class="prompt-arg">--mode deauth</span>
-      <span class="prompt-flag">--pair</span>
-      <span class="prompt-flag">--band all</span>
+      <span class="prompt-cmd">saltyjack</span>
+      <span class="prompt-arg">--responder</span>
+      <span class="prompt-flag">--wpad</span>
+      <span class="prompt-flag">--crack-on-device</span>
       <span class="prompt-cursor"></span>
     </div>
     <div class="hero-btns">
@@ -318,8 +318,8 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
       <a href="https://github.com/GeneralDussDuss/poseidon" class="btn btn-secondary">⎇ View Source</a>
     </div>
     <div class="hero-stats">
-      <div class="hero-stat"><div class="num" data-count="90" data-suffix="+">90+</div><div class="label">Features</div></div>
-      <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">RF Bands</div></div>
+      <div class="hero-stat"><div class="num" data-count="96" data-suffix="+">96+</div><div class="label">Features</div></div>
+      <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">RF + Wired</div></div>
       <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">Themes</div></div>
       <div class="hero-stat"><div class="num" data-count="3190" data-suffix="+">3190+</div><div class="label">.sub Signals</div></div>
     </div>
@@ -327,21 +327,35 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="hero-scroll">SCROLL</div>
 </section>
 
-<!-- Stats ticker -->
+<!-- Stats ticker — the live signals POSEIDON emits -->
 <div class="ticker">
   <div class="ticker-track">
-    <span>SEQ <span class="val">auto-increment</span></span>
-    <span>DISASSOC <span class="val">paired</span></span>
-    <span>PMF <span class="val">detected</span></span>
-    <span>CLIENTS <span class="val">live-sniffed</span></span>
-    <span>TX <span class="val">error-tracked</span></span>
-    <span>CHANNEL <span class="val">hopper-locked</span></span>
-    <span>SEQ <span class="val">auto-increment</span></span>
-    <span>DISASSOC <span class="val">paired</span></span>
-    <span>PMF <span class="val">detected</span></span>
-    <span>CLIENTS <span class="val">live-sniffed</span></span>
-    <span>TX <span class="val">error-tracked</span></span>
-    <span>CHANNEL <span class="val">hopper-locked</span></span>
+    <span>DEAUTH <span class="val">on-air</span></span>
+    <span>DHCP POOL <span class="val">starved</span></span>
+    <span>NTLMv2 <span class="val">captured</span></span>
+    <span>LLMNR <span class="val">poisoned</span></span>
+    <span>PMKID <span class="val">caught</span></span>
+    <span>WPAD <span class="val">407</span></span>
+    <span>MESH <span class="val">paging</span></span>
+    <span>SX1262 <span class="val">cad-clear</span></span>
+    <span>CC1101 <span class="val">recorded</span></span>
+    <span>MOUSEJACK <span class="val">hid-injected</span></span>
+    <span>CHANNEL <span class="val">rl-hopped</span></span>
+    <span>C5 <span class="val">esp-now</span></span>
+    <span>W5500 <span class="val">lan-native</span></span>
+    <span>DEAUTH <span class="val">on-air</span></span>
+    <span>DHCP POOL <span class="val">starved</span></span>
+    <span>NTLMv2 <span class="val">captured</span></span>
+    <span>LLMNR <span class="val">poisoned</span></span>
+    <span>PMKID <span class="val">caught</span></span>
+    <span>WPAD <span class="val">407</span></span>
+    <span>MESH <span class="val">paging</span></span>
+    <span>SX1262 <span class="val">cad-clear</span></span>
+    <span>CC1101 <span class="val">recorded</span></span>
+    <span>MOUSEJACK <span class="val">hid-injected</span></span>
+    <span>CHANNEL <span class="val">rl-hopped</span></span>
+    <span>C5 <span class="val">esp-now</span></span>
+    <span>W5500 <span class="val">lan-native</span></span>
   </div>
 </div>
 
@@ -513,18 +527,19 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.4.0</span>
-          <span class="rm-date">Master, awaiting on-hardware verify</span>
+          <span class="rm-date">Master · awaiting on-hardware verify</span>
           <span class="rm-tag current">Current</span>
         </div>
-        <div class="rm-title">Platform fork + SaltyJack LAN suite</div>
+        <div class="rm-title">The arsenal release — SaltyJack (RaspyJack port) + deauth parity + TRIDENT fixes</div>
         <div class="rm-body">
-          The release that makes deauth frames <em>actually land on-air</em>, plus the SaltyJack arsenal.
+          The release that makes deauth frames <em>actually land on-air</em>, delivers a full <b>RaspyJack</b> LAN arsenal on the Cardputer, and lands a month of TRIDENT hardening.
           <ul>
-            <li>Platform migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Core 3.3.8 / IDF 5.5.4)</li>
-            <li>Patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses — lifts the IDF subtype-filter on deauth/disassoc</li>
-            <li><b>SaltyJack LAN arsenal</b> — direct port of <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack / Evil-M5Project. DHCP Starve + Rogue DHCP + Responder + WPAD + on-device NTLMv2 cracker, custom pirate UX with sprite icons and boot splash</li>
-            <li>IDF 5.x API drift fixes (ESP-NOW recv callback, <code>esp_mac.h</code>) outside the deauth path</li>
-            <li>Build now runs on WSL2 / native Linux (pioarduino's installer trips on Git Bash MSys)</li>
+            <li><b>SaltyJack = RaspyJack port.</b> Direct port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack + Evil-M5Project arsenal — DHCP Starve, Rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB NTLMv2), WPAD PAC harvest, on-device NTLMv2 cracker. Custom pirate UX, 16×16 sprite pack, full-screen boot splash — every file carries attribution. Press <code>j</code>.</li>
+            <li><b>Platform fork for real deauth.</b> Migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Arduino 3.3.8 / IDF 5.5.4) + patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses. Lifts the IDF subtype-filter blocking deauth/disassoc TX.</li>
+            <li><b>TRIDENT companion app polish.</b> PyQt6 desktop viewer + key-forwarding bridge over USB-CDC — v0.4 hardens the protocol (atomic header+binary send, robust disconnect state, arrow-key translation fix so menus actually scroll from the PC). See the <a href="https://github.com/GeneralDussDuss/trident" target="_blank" rel="noopener">TRIDENT repo</a>.</li>
+            <li><b>W5500 SPI Ethernet hat (new).</b> Wired RJ45 unlocks full RaspyJack parity — SaltyJack attacks run over lwIP's transport-agnostic <code>netif</code>, bypassing WiFi STA (and PMF / WPA3 / 802.1X) entirely.</li>
+            <li>IDF 5.x API drift fixes outside the deauth path (ESP-NOW recv cb, <code>esp_mac.h</code>). No library bumps — NimBLE 1.4.1, RadioLib 7.4.0, M5 stack all compile clean on Core 3.3.8.</li>
+            <li>Build now runs on WSL2 / native Linux — pioarduino's installer trips on Git Bash MSys markers.</li>
           </ul>
         </div>
       </div>
@@ -593,61 +608,65 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="section-label reveal">05 // FIELD TEAM</div>
   <h2 class="section-title reveal">For testers</h2>
   <p class="testers-intro reveal">
-    v0.4 is live on master and needs eyes before the tag cuts. <b>Priority 1:</b> confirm
-    deauth frames actually land on-air (the platform migration's entire purpose) &mdash;
-    flash master, hit <code>WiFi → Deauth</code> on a non-PMF WPA2 AP, watch <code>sent:</code>
-    climb with <code>drops:</code> near zero. <b>Priority 2:</b> the whole SaltyJack arsenal
-    (DHCP starve / rogue DHCP / Responder / WPAD / NTLMv2 cracker) &mdash; against networks
-    you own. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
+    v0.4 is on master and needs eyes before the tag cuts. One question gates the release: <b style="color:#f59e0b;">do deauth frames actually land on-air?</b> Everything else is regression.
+    If you flash master and confirm it works, ping the repo. That's the signal. Full doc:
+    <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
   </p>
 
   <div class="test-grid">
-    <div class="test-card p1 reveal">
-      <div class="test-prio">Priority 1 · High Signal</div>
-      <h3>Deauth actually lands now</h3>
-      <p>Primary path <code>addr1</code> was self-addressed to the AP's BSSID — no client ever saw a frame. Plus static seq=0, no disassoc pair, no unicast follow-up. All fixed.</p>
+    <div class="test-card p1 reveal" style="border-color:rgba(245,158,11,.5);box-shadow:0 0 0 1px rgba(245,158,11,.1), 0 24px 60px -20px rgba(245,158,11,.25);">
+      <div class="test-prio" style="color:#f59e0b;">★ Priority 1 · RELEASE GATE</div>
+      <h3>Deauth frames on-air (platform-fork validation)</h3>
+      <p>The whole v0.4 migration exists to answer one question. Stock IDF 5.3 blob filtered MGMT subtypes <code>0xC</code> / <code>0xA</code> at the TX FIFO. Bruce's patched <code>libnet80211.a</code> lifts the filter. This test confirms that actually happened.</p>
       <ul class="test-steps">
-        <li>Pick a known WPA2 AP you own</li>
-        <li>Associate a phone / laptop</li>
-        <li>POSEIDON → WiFi → Deauth → pick target</li>
-        <li>Watch <code>drops:</code> and <code>sta:N</code> counters</li>
-        <li>Report: did the client disconnect within a few seconds?</li>
+        <li>Flash master, boot, confirm splash reads v0.4</li>
+        <li>Pick a non-PMF WPA2 AP you own; associate a phone / laptop to it</li>
+        <li>POSEIDON → WiFi → Scan → select target → press <code>D</code></li>
+        <li><b>Watch the counters:</b> <code>sent:</code> climbs hundreds/sec, <code>drops:</code> stays near zero</li>
+        <li>Target client drops WiFi within 2-5 seconds</li>
       </ul>
-      <div class="test-note">WPA3 / WPA2-Enterprise use PMF and won't kick — that's a design limit, not a bug. UI now warns.</div>
+      <div class="test-note" style="border-left-color:#f59e0b;"><b>Success signal:</b> reply "deauth verified v0.4" on GitHub Issues. That's the tag-trigger.</div>
     </div>
 
     <div class="test-card p2 reveal">
-      <div class="test-prio">Priority 2 · New Feature</div>
-      <h3>Meshtastic node participation</h3>
-      <p>POSEIDON is a full leaf node on the public LongFast channel now. Receive, send, page, optionally report position.</p>
+      <div class="test-prio">Priority 2 · SaltyJack LAN arsenal</div>
+      <h3>RaspyJack port end-to-end</h3>
+      <p>Full homage port of <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack. Six new attack modules behind the <code>j</code> menu key. Run against networks you own.</p>
       <ul class="test-steps">
-        <li><b>RX:</b> open Mesh Nodes, wait 2 min in a mesh-covered area</li>
-        <li><b>TX broadcast:</b> Mesh Chat → T → type → Enter; verify another Meshtastic client sees it</li>
-        <li><b>Paging:</b> Mesh Nodes → Enter on a target → send DM</li>
-        <li><b>Position:</b> Mesh Pos → T → wait GPS fix → B (send now); check if we appear as a pin on other apps</li>
+        <li><b>DHCP Starve:</b> join target WiFi → run → watch pool exhaust (NAK ≥ 20)</li>
+        <li><b>Rogue DHCP:</b> STA mode races real server; AP mode <em>is</em> the server</li>
+        <li><b>Responder:</b> poison LLMNR/NBT-NS, capture NTLMv2 hashes to SD</li>
+        <li><b>WPAD:</b> serve PAC + HTTP 407 challenge; confirm Windows clients auto-auth</li>
+        <li><b>NTLMv2 cracker:</b> feed captured hash + wordlist, verify it runs on-device</li>
+        <li>Report: which modules landed, any crashes, pcap/hash-file output paths</li>
       </ul>
-      <div class="test-note">Leaf-only — we don't forward. No CAD-before-TX yet, so we collide slightly more than a polite node.</div>
+      <div class="test-note">Every file in <code>src/features/saltyjack/</code> is authorized-testing-only. Don't hunt strangers.</div>
     </div>
 
     <div class="test-card p3 reveal">
-      <div class="test-prio">Priority 3 · Regression</div>
-      <h3>LoRa stability</h3>
-      <p>Pre-v0.3.0 every LoRa feature crashed on frequency select (bandwidth unit bug) or boot-looped the device (PI4IOE antenna switch LoadProhibited). Spectrum analyzer froze and backtick didn't back out.</p>
+      <div class="test-prio">Priority 3 · TRIDENT companion</div>
+      <h3>PC bridge after protocol fixes</h3>
+      <p>TRIDENT mirrors the Cardputer screen to the PyQt6 desktop and forwards keystrokes over USB-CDC. v0.4 audit caught an arrow-key translation mismap + unexpected-disconnect state leak; both are now fixed — confirm.</p>
       <ul class="test-steps">
-        <li>Enter every LoRa feature — Scan, Beacon, Mesh LF, Analyzer, 4 mesh features</li>
-        <li>Analyzer: all 3 modes render, backtick backs out instantly</li>
-        <li>TAB through bands — radio retunes without crash</li>
-        <li>Report: any Guru Meditation panic (grab <code>pio device monitor</code> log)</li>
+        <li>Clone <code>GeneralDussDuss/trident</code>, <code>pip install -e .</code>, launch <code>trident</code></li>
+        <li>Connect to COM port, confirm framebuffer streams at ~10 fps</li>
+        <li>Press arrow keys on your PC → menus scroll on Cardputer (regression: they didn't before)</li>
+        <li>Unplug USB mid-stream → button should flip back to "Connect" within 2s</li>
+        <li>Replug + reconnect works without app restart</li>
       </ul>
+      <div class="test-note">Record-mode (imageio-ffmpeg) is optional; ignore if you didn't install the <code>[record]</code> extra.</div>
     </div>
 
     <div class="test-card p4 reveal">
-      <div class="test-prio">Priority 4 · Smoke Test</div>
-      <h3>Everything else still works</h3>
-      <p>Confirming v0.2.0 features haven't regressed: sub-GHz capture/replay/spectrum, BLE scan/spam, nRF24 MouseJack, WiFi scan/PMKID/wardrive, BadUSB, IR, GPS, themes, SD, TRIDENT PC bridge.</p>
+      <div class="test-prio">Priority 4 · Regression sweep</div>
+      <h3>Everything v0.3 shipped — still works?</h3>
+      <p>v0.4 migrated the entire platform. Library versions stayed, code stayed — but some corners might've drifted. Touch every menu leaf at least once.</p>
       <ul class="test-steps">
-        <li>File as a regression if something worked before and doesn't now</li>
-        <li>Include feature path + what specifically broke</li>
+        <li><b>Radios:</b> WiFi scan, BLE scan, LoRa scan, CC1101 scan, nRF24 scan — all enumerate</li>
+        <li><b>Capture:</b> Sub-GHz record+replay, PMKID, 4-way handshake (.22000 format)</li>
+        <li><b>Meshtastic:</b> Chat, Nodes, Page, Pos — receive real traffic if within range</li>
+        <li><b>Peripherals:</b> SD browse, BadUSB, IR TV-B-Gone, GPS fix, theme + SFX toggle</li>
+        <li>File any regression with feature path, serial log, reproducibility count</li>
       </ul>
     </div>
   </div>
