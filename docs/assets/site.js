@@ -187,3 +187,89 @@ document.querySelectorAll('[data-count]').forEach(el => counterObs.observe(el));
     heroContent.style.transform = `translate(${dx}px,${dy}px)`;
   });
 })();
+
+/* ─────────────────────────────────────────
+ *  PREEM PASS — cyber/tech polish
+ * ───────────────────────────────────────── */
+
+// Matrix rain layer. Injects a <canvas id="matrixRain"> and runs it if the page
+// has a <body data-matrix>. Safe on every page.
+(function matrixRain() {
+  if (document.body.dataset.matrix === undefined) return;
+  const c = document.createElement('canvas');
+  c.id = 'matrixRain';
+  document.body.prepend(c);
+  const x = c.getContext('2d');
+  let cols, drops;
+  const glyphs = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ0123456789<>/*[]{}|=+#$%▸◂┃━╱╲'.split('');
+  function resize() {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+    cols = Math.floor(c.width / 14);
+    drops = Array.from({ length: cols }, () => Math.random() * c.height / 14);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  x.font = '12px "JetBrains Mono", monospace';
+  (function draw() {
+    x.fillStyle = 'rgba(4,8,18,0.08)';
+    x.fillRect(0, 0, c.width, c.height);
+    for (let i = 0; i < cols; i++) {
+      const g = glyphs[Math.floor(Math.random() * glyphs.length)];
+      const py = drops[i] * 14;
+      // Random leading character: brighter
+      if (Math.random() > 0.97) x.fillStyle = 'rgba(125,211,252,.9)';
+      else x.fillStyle = 'rgba(14,165,233,' + (0.25 + Math.random() * 0.35) + ')';
+      x.fillText(g, i * 14, py);
+      drops[i] = py > c.height && Math.random() > 0.975 ? 0 : drops[i] + 1;
+    }
+    requestAnimationFrame(draw);
+  })();
+})();
+
+// CRT sweep element
+(function crtSweep() {
+  if (document.getElementById('crtSweep')) return;
+  const el = document.createElement('div');
+  el.id = 'crtSweep';
+  document.body.appendChild(el);
+})();
+
+// Cursor spotlight
+(function spotlight() {
+  if (matchMedia('(hover:none)').matches) return;
+  const sp = document.createElement('div');
+  sp.id = 'spotlight';
+  document.body.appendChild(sp);
+  document.body.classList.add('has-cursor');
+  let tx = 0, ty = 0, cx = 0, cy = 0;
+  document.addEventListener('mousemove', e => { tx = e.clientX; ty = e.clientY; });
+  (function tick() {
+    cx += (tx - cx) * 0.08;
+    cy += (ty - cy) * 0.08;
+    sp.style.left = cx + 'px';
+    sp.style.top = cy + 'px';
+    requestAnimationFrame(tick);
+  })();
+})();
+
+// Glitch attribute — stamp data-text on every .hero-title for the ::before/::after
+(function glitchPrime() {
+  document.querySelectorAll('.hero-title,.page-head h1').forEach(h => {
+    if (!h.dataset.text) h.dataset.text = h.textContent.trim();
+  });
+})();
+
+// Frame corners helper — stamp 2 extra divs in any .frame so all four corners render
+(function frames() {
+  document.querySelectorAll('.frame').forEach(f => {
+    if (!f.querySelector('.cnr-bl')) {
+      const bl = document.createElement('span');
+      const br = document.createElement('span');
+      bl.className = 'cnr-bl';
+      br.className = 'cnr-br';
+      f.appendChild(bl);
+      f.appendChild(br);
+    }
+  });
+})();

@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body data-matrix>
 
 <div id="bootOverlay">
   <div class="boot-trident">🔱</div>
@@ -25,6 +25,7 @@
     <li><a href="arsenal.html">Arsenal</a></li>
     <li><a href="hardware.html" class="active">Hardware</a></li>
     <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="install.html">Install</a></li>
     <li><a href="testers.html">Testers</a></li>
     <li><a href="credits.html">Credits</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
@@ -36,6 +37,17 @@
   <h1>Four Hats. Every Frequency. Now with Wired.</h1>
   <p class="lede">POSEIDON runs on the M5Stack Cardputer-Adv and supports swappable hats — one at a time. Pick the mission's tool. v0.4 adds a W5500 SPI-to-Ethernet hat that unlocks full RaspyJack parity over a wired cable.</p>
 </header>
+
+<div class="console-strip">
+  <div class="console-bar">
+    <span class="ck">[HW]</span>
+    <span>mcu=<span class="nm">esp32-s3</span></span>
+    <span>hats=<span class="nm">4</span></span>
+    <span>radios=<span class="nm">wifi+ble+lora+cc1101+nrf24+c5</span></span>
+    <span>wired=<span class="nm">w5500</span></span>
+    <span class="blink">▸</span>
+  </div>
+</div>
 
 <section id="hardware" style="padding-top:1rem;">
   <div class="hw-grid">

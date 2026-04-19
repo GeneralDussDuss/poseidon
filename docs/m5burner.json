@@ -1,0 +1,34 @@
+{
+  "name": "POSEIDON",
+  "author": "GeneralDussDuss",
+  "homepage": "https://generaldussduss.github.io/poseidon/",
+  "repo": "https://github.com/GeneralDussDuss/poseidon",
+  "description": "Commander of the Deep — keyboard-first pentesting firmware for M5Stack Cardputer-Adv. 96+ features across WiFi / BLE / sub-GHz / 2.4 GHz / LoRa / IR / RJ45. SaltyJack LAN arsenal (DHCP starve, Responder, WPAD, on-device NTLMv2 cracker). MIMIR drop-box control. TRIDENT PC bridge.",
+  "icon": "https://generaldussduss.github.io/poseidon/assets/icon.png",
+  "firmware": [
+    {
+      "name": "POSEIDON v0.4.0",
+      "version": "0.4.0",
+      "chip": "esp32s3",
+      "target": "M5Cardputer-Adv",
+      "flash_size": "8MB",
+      "psram": true,
+      "url": "https://github.com/GeneralDussDuss/poseidon/releases/download/v0.4.0/poseidon-v0.4.0-factory.bin",
+      "offset": "0x0",
+      "description": "Full factory image. Deauth actually lands on-air (ieee80211_raw_frame_sanity_check override). NimBLE 2.x migration. SaltyJack LAN suite featured.",
+      "date": "2026-04-19",
+      "changelog": "https://github.com/GeneralDussDuss/poseidon/blob/master/CHANGELOG.md",
+      "license": "MIT"
+    }
+  ],
+  "suite": {
+    "name": "THE SUITE",
+    "siblings": [
+      "AETHER",
+      "CHARON",
+      "HYDRA",
+      "FACELESS",
+      "PROMETHEUS"
+    ]
+  }
+}

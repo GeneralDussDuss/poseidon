@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install — POSEIDON</title>
+<meta name="description" content="Three ways to flash POSEIDON onto a Cardputer-Adv: M5Burner custom repo, esptool direct, or PlatformIO from source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-matrix>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">POSEIDON</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> install.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>INSTALL · three routes</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="install.html" class="active">Install</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">06 // DEPLOYMENT</div>
+  <h1>Flash POSEIDON</h1>
+  <p class="lede">Three supported routes. M5Burner if you want the one-click GUI flow. esptool if you already have a terminal open. PlatformIO if you're building from source. All three drop the same factory image at <code>0x0</code>.</p>
+</header>
+
+<div class="console-strip">
+  <div class="console-bar">
+    <span class="ck">[FLASH]</span>
+    <span>target=<span class="nm">esp32-s3 @ 8MB</span></span>
+    <span>offset=<span class="nm">0x0</span></span>
+    <span>image=<span class="nm">factory.bin</span></span>
+    <span>size=<span class="nm">~2.1 MB</span></span>
+    <span class="blink">▸</span>
+  </div>
+</div>
+
+<section style="padding-top:1rem;">
+
+  <!-- ── Route 1: M5Burner ── -->
+  <div class="reveal frame" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(14,165,233,.22);border-radius:18px;background:linear-gradient(135deg,rgba(14,165,233,.08) 0%,rgba(6,10,22,.4) 100%);position:relative;overflow:hidden;margin-bottom:2.5rem;">
+    <div style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;color:var(--ocean-bright);margin-bottom:.5rem;">01 · EASIEST</div>
+    <h2 style="font-family:var(--font-display);font-size:clamp(1.6rem,3vw,2.2rem);color:var(--ocean-vivid);letter-spacing:.04em;margin-bottom:1rem;">M5Burner — custom repository</h2>
+    <p style="color:#cbd5e1;line-height:1.6;margin-bottom:1.2rem;">M5Burner is M5Stack's official GUI flasher. POSEIDON isn't on their public list yet, but you can add our custom repo in <b>one click</b> and get auto-updates whenever we tag a release.</p>
+
+    <div class="stream-panel" style="margin-bottom:1.2rem;">
+      <div class="head"><span class="led"></span>M5BURNER · CUSTOM REPO URL</div>
+      <div><span class="ocean">https://generaldussduss.github.io/poseidon/m5burner.json</span></div>
+      <div class="dim" style="margin-top:.3rem;">paste into M5Burner → Settings → Custom → Add</div>
+    </div>
+
+    <h3 style="font-family:var(--font-display);font-size:1rem;color:var(--ocean-vivid);letter-spacing:.05em;margin-bottom:.8rem;">Step-by-step</h3>
+    <ol style="padding-left:1.5rem;color:#cbd5e1;line-height:1.7;font-size:.95rem;">
+      <li>Download M5Burner from <a href="https://docs.m5stack.com/en/download" target="_blank" rel="noopener">docs.m5stack.com/download</a> and open it.</li>
+      <li>Open <b>Settings</b> (gear icon, bottom-left) → <b>Custom Firmware</b> tab.</li>
+      <li>Paste the repo URL above and click <b>Add</b>.</li>
+      <li>Back in the main view, scroll the sidebar until you see the <b>POSEIDON</b> entry (icon: trident).</li>
+      <li>Click it → select <b>v0.4.0</b> → hit <b>Burn</b>.</li>
+      <li>M5Burner auto-detects the COM port, erases, and flashes. Reboots when done.</li>
+    </ol>
+
+    <p style="margin-top:1rem;color:#94a3b8;font-size:.9rem;font-style:italic;">M5Burner checks this URL on every launch, so once we tag <code style="background:rgba(14,165,233,.12);padding:.1rem .3rem;border-radius:3px;color:var(--ocean-vivid);font-family:var(--font-mono);">v0.5.0</code> you'll see it listed without doing anything.</p>
+  </div>
+
+  <!-- ── Route 2: esptool ── -->
+  <div class="reveal frame" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(251,191,36,.22);border-radius:18px;background:linear-gradient(135deg,rgba(251,191,36,.06) 0%,rgba(6,10,22,.4) 100%);position:relative;overflow:hidden;margin-bottom:2.5rem;">
+    <div style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;color:var(--gold);margin-bottom:.5rem;">02 · TERMINAL</div>
+    <h2 style="font-family:var(--font-display);font-size:clamp(1.6rem,3vw,2.2rem);color:var(--gold);letter-spacing:.04em;margin-bottom:1rem;">esptool — direct flash</h2>
+    <p style="color:#cbd5e1;line-height:1.6;margin-bottom:1.2rem;">Download the factory image from the <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" target="_blank">latest release</a> and flash it. Works on Windows / macOS / Linux.</p>
+
+    <div class="stream-panel" style="margin-bottom:1rem;">
+      <div class="head"><span class="led" style="background:var(--gold);box-shadow:0 0 6px var(--gold)"></span>SHELL · one-liner</div>
+      <div class="dim"># install esptool (one time)</div>
+      <div><span class="ocean">$</span> pip install esptool</div>
+      <div style="margin-top:.5rem;"></div>
+      <div class="dim"># erase + flash at 0x0</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> erase_flash</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> write_flash 0x0 poseidon-v0.4.0-factory.bin</div>
+    </div>
+    <p style="color:#94a3b8;font-size:.9rem;">Replace <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">COM5</code> with your actual port. macOS looks like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/tty.usbmodem*</code>, Linux like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/ttyACM0</code>.</p>
+  </div>
+
+  <!-- ── Route 3: PlatformIO ── -->
+  <div class="reveal frame" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(34,211,238,.22);border-radius:18px;background:linear-gradient(135deg,rgba(34,211,238,.06) 0%,rgba(6,10,22,.4) 100%);position:relative;overflow:hidden;margin-bottom:2.5rem;">
+    <div style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;color:var(--bio);margin-bottom:.5rem;">03 · SOURCE</div>
+    <h2 style="font-family:var(--font-display);font-size:clamp(1.6rem,3vw,2.2rem);color:var(--bio);letter-spacing:.04em;margin-bottom:1rem;">PlatformIO — build from source</h2>
+    <p style="color:#cbd5e1;line-height:1.6;margin-bottom:1.2rem;">Clone the repo, open in VS Code with the PlatformIO extension, hit Upload. Uses pioarduino platform 55.03.38 + Bruce's patched libs (pinned in <code style="background:rgba(34,211,238,.15);padding:.1rem .35rem;border-radius:3px;color:var(--bio);font-family:var(--font-mono);">platformio.ini</code>).</p>
+
+    <div class="stream-panel" style="margin-bottom:1rem;">
+      <div class="head"><span class="led" style="background:var(--bio);box-shadow:0 0 6px var(--bio)"></span>SHELL · clone + flash</div>
+      <div><span class="ocean">$</span> git clone https://github.com/GeneralDussDuss/poseidon.git</div>
+      <div><span class="ocean">$</span> cd poseidon</div>
+      <div><span class="ocean">$</span> pio run -t upload</div>
+    </div>
+    <p style="color:#94a3b8;font-size:.9rem;">First build pulls ~500 MB (framework + libs). Subsequent builds are ~30 seconds. Need <b>Python 3.10+</b> and <b>PlatformIO Core</b> installed.</p>
+  </div>
+
+  <!-- ── Recovery note ── -->
+  <div class="reveal" style="padding:1.2rem 1.5rem;border:1px solid rgba(249,115,22,.3);border-radius:12px;background:rgba(249,115,22,.05);margin-bottom:2rem;">
+    <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.18em;color:var(--coral);margin-bottom:.5rem;">⚠ BRICK RECOVERY</div>
+    <p style="color:#cbd5e1;font-size:.92rem;line-height:1.55;margin:0;">If the device boots to black or locks up: hold <b>G0</b> during power-on to force download mode, then re-flash. Every ESP32-S3 has this escape hatch — you cannot permanently brick a Cardputer-Adv from software.</p>
+  </div>
+
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/aether/">AETHER</a>
+    <a href="https://generaldussduss.github.io/charon/">CHARON</a>
+    <a href="https://generaldussduss.github.io/hydra/">HYDRA</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+    <a href="https://generaldussduss.github.io/prometheus/">PROMETHEUS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>

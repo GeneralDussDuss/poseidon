@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body data-matrix>
 
 <!-- Boot overlay -->
 <div id="bootOverlay">
@@ -35,6 +35,7 @@
     <li><a href="arsenal.html">Arsenal</a></li>
     <li><a href="hardware.html">Hardware</a></li>
     <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="install.html">Install</a></li>
     <li><a href="testers.html">Testers</a></li>
     <li><a href="credits.html">Credits</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
@@ -70,6 +71,24 @@
   </div>
   <div class="hero-scroll">SCROLL</div>
 </section>
+
+<!-- Console readout directly under hero. Feels like a tail -f of the firmware. -->
+<div class="console-strip">
+  <div class="console-bar">
+    <span class="ck">[OK]</span>
+    <span>ch=<span class="nm">hop</span></span>
+    <span>tx=<span class="nm">0xC0 deauth</span></span>
+    <span>rc=<span class="ck">0</span></span>
+    <span>ok=<span class="nm">800</span></span>
+    <span>fail=<span class="nm">0</span></span>
+    <span>rate=<span class="ck">99%</span></span>
+    <span>ble=<span class="nm">nimble-2.x</span></span>
+    <span>sd=<span class="nm">mounted</span></span>
+    <span>gnss=<span class="nm">locked</span></span>
+    <span>theme=<span class="vk">poseidon</span></span>
+    <span class="blink">▸</span>
+  </div>
+</div>
 
 <!-- Ticker -->
 <div class="ticker">
@@ -107,7 +126,7 @@
     <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">Press <code style="background:rgba(245,158,11,0.15);padding:.2rem .5rem;border-radius:5px;color:#fbbf24;font-family:var(--font-mono);font-weight:700;">j</code> from the root menu. Full wired/wireless LAN attack suite with a pirate UX — DHCP starvation, rogue DHCP (STA + AP), Responder (LLMNR/NBT-NS/SMB), WPAD PAC harvest, on-device NTLMv2 cracker. No PC tether. No Pi server. Pocket-sized.</p>
 
     <!-- ===== Big Homage Panel for @7h30th3r0n3 ===== -->
-    <div class="reveal" style="margin-top:2.5rem;padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(245,158,11,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(245,158,11,0.08) 0%,rgba(14,165,233,0.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;">
+    <div class="reveal frame" style="margin-top:2.5rem;padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(245,158,11,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(245,158,11,0.08) 0%,rgba(14,165,233,0.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;">
       <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(245,158,11,0.25) 0%,transparent 70%);pointer-events:none;"></div>
       <div style="display:flex;gap:clamp(1.2rem,3vw,2.2rem);align-items:flex-start;flex-wrap:wrap;position:relative;">
         <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="flex:0 0 auto;text-decoration:none;">
@@ -262,11 +281,17 @@
 <section class="cta-section" id="download">
   <div class="section-label reveal" style="justify-content:center">★ · DEPLOY</div>
   <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
-  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO.</p>
-  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download Latest</a>
+  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO. Full walkthrough on the <a href="install.html">install page</a>.</p>
+  <div class="hero-btns reveal" style="justify-content:center;margin-bottom:1.5rem;">
+    <a href="install.html" class="btn btn-primary">⬇ Install Guide</a>
+    <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-secondary">GitHub Release ↗</a>
+  </div>
   <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; ~2.1 MB &bull; Flash at 0x0</div>
   <div class="cta-install reveal">
-    <span class="comment"># build + flash from source</span><br>
+    <span class="comment"># M5Burner custom repo · one-click GUI flash</span><br>
+    <span class="prompt-dollar">▸</span>https://generaldussduss.github.io/poseidon/m5burner.json<br>
+    <br>
+    <span class="comment"># or build + flash from source</span><br>
     <span class="prompt-dollar">▸</span>git clone github.com/GeneralDussDuss/poseidon<br>
     <span class="prompt-dollar">▸</span>cd poseidon &amp;&amp; pio run -t upload
   </div>

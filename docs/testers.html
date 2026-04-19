@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body data-matrix>
 
 <div id="bootOverlay">
   <div class="boot-trident">🔱</div>
@@ -25,6 +25,7 @@
     <li><a href="arsenal.html">Arsenal</a></li>
     <li><a href="hardware.html">Hardware</a></li>
     <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="install.html">Install</a></li>
     <li><a href="testers.html" class="active">Testers</a></li>
     <li><a href="credits.html">Credits</a></li>
     <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
@@ -36,6 +37,17 @@
   <h1>For testers</h1>
   <p class="lede">v0.4 is on master and needs eyes before the tag cuts. One question gates the release: <b style="color:#f59e0b;">do deauth frames actually land on-air?</b> Everything else is regression. If you flash master and confirm it works, ping the repo. That's the signal. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.</p>
 </header>
+
+<div class="console-strip">
+  <div class="console-bar">
+    <span class="ck">[FIELD]</span>
+    <span>gate=<span class="hot">deauth on-air</span></span>
+    <span>verified=<span class="ck">ok=800 fail=0</span></span>
+    <span>regressions=<span class="nm">saltyjack / trident / sd / theme</span></span>
+    <span>flash=<span class="vk">pio run -t upload</span></span>
+    <span class="blink">▸</span>
+  </div>
+</div>
 
 <section id="testers" style="padding-top:1rem;">
   <div class="test-grid">

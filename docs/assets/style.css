@@ -255,6 +255,129 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
 .reveal-left{opacity:0;transform:translateX(-40px);transition:all .8s var(--ease-smooth)}
 .reveal-left.visible{opacity:1;transform:translateX(0)}
 
+/* ─────────────────────────────────────────
+ *  PREEM PASS — cyber/tech visual polish
+ * ───────────────────────────────────────── */
+
+/* CRT scanline overlay (applied to <body>). Very subtle. */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.35;background:
+  radial-gradient(ellipse at top,rgba(14,165,233,.09),transparent 60%),
+  radial-gradient(ellipse at bottom,rgba(7,89,133,.06),transparent 60%),
+  repeating-linear-gradient(to bottom,transparent 0,transparent 2px,rgba(14,165,233,.022) 3px,transparent 4px);}
+/* CRT soft vignette + RGB subpixel shimmer */
+html::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:3;background:
+  radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.45) 100%),
+  repeating-linear-gradient(90deg,rgba(255,0,80,.010) 0,rgba(0,255,180,.010) 1px,rgba(0,120,255,.010) 2px);mix-blend-mode:overlay;opacity:.7}
+
+/* Rolling chromatic scanline that sweeps once every 7s */
+#crtSweep{position:fixed;top:-4rem;left:0;right:0;height:6rem;pointer-events:none;z-index:4;
+  background:linear-gradient(180deg,transparent 0%,rgba(14,165,233,.06) 45%,rgba(125,211,252,.10) 50%,rgba(14,165,233,.06) 55%,transparent 100%);
+  animation:crtSweep 7s linear infinite;mix-blend-mode:screen}
+@keyframes crtSweep{0%{top:-6rem}100%{top:110vh}}
+
+/* Matrix rain layer (behind everything) */
+#matrixRain{position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.25}
+
+/* Corner brackets — stamp on any container to make it feel like a HUD frame */
+.frame{position:relative}
+.frame::before,.frame::after,.frame>.cnr-tl,.frame>.cnr-tr,.frame>.cnr-bl,.frame>.cnr-br{
+  content:'';position:absolute;width:14px;height:14px;border:1.5px solid var(--ocean-bright);pointer-events:none;z-index:5}
+.frame::before{top:-2px;left:-2px;border-right:none;border-bottom:none}
+.frame::after{top:-2px;right:-2px;border-left:none;border-bottom:none}
+.frame>.cnr-bl{bottom:-2px;left:-2px;border-right:none;border-top:none}
+.frame>.cnr-br{bottom:-2px;right:-2px;border-left:none;border-top:none}
+
+/* Page-head turns into a hollow HUD panel with corner ticks */
+.page-head{border-top:1px solid rgba(14,165,233,.12);border-bottom:1px solid rgba(14,165,233,.12);background:
+  linear-gradient(180deg,rgba(14,165,233,.03),transparent 60%);position:relative;overflow:hidden}
+.page-head::before{content:'';position:absolute;top:6rem;right:2rem;width:12rem;height:12rem;
+  background:conic-gradient(from 0deg,rgba(14,165,233,.12),transparent 30%,rgba(34,211,238,.12) 55%,transparent 80%);
+  filter:blur(30px);animation:huddle 12s linear infinite;pointer-events:none;border-radius:50%}
+@keyframes huddle{to{transform:rotate(360deg)}}
+.page-head h1{position:relative;z-index:1}
+.page-head::after{content:'';position:absolute;left:0;bottom:-1px;width:160px;height:2px;background:var(--ocean-vivid);box-shadow:var(--glow-medium)}
+
+/* Hex-grid faint backdrop element */
+.hexgrid{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.45;background-image:
+  linear-gradient(30deg,transparent 47%,rgba(14,165,233,.08) 49%,rgba(14,165,233,.08) 51%,transparent 53%),
+  linear-gradient(-30deg,transparent 47%,rgba(14,165,233,.08) 49%,rgba(14,165,233,.08) 51%,transparent 53%),
+  linear-gradient(90deg,transparent 47%,rgba(14,165,233,.06) 49%,rgba(14,165,233,.06) 51%,transparent 53%);
+  background-size:42px 72px,42px 72px,42px 72px;mask-image:radial-gradient(ellipse at center,#000 20%,transparent 80%);-webkit-mask-image:radial-gradient(ellipse at center,#000 20%,transparent 80%)}
+
+/* Glitch effect on hero title */
+.hero-title{position:relative}
+.hero-title[data-text]::before,.hero-title[data-text]::after{content:attr(data-text);position:absolute;inset:0;background:inherit;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;pointer-events:none;mix-blend-mode:screen}
+.hero-title[data-text]::before{left:2px;text-shadow:-2px 0 rgba(255,0,120,.6);clip-path:polygon(0 0,100% 0,100% 48%,0 48%);animation:glitchTop 6s infinite steps(1)}
+.hero-title[data-text]::after {left:-2px;text-shadow:2px 0 rgba(0,255,255,.6);clip-path:polygon(0 52%,100% 52%,100% 100%,0 100%);animation:glitchBot 6s infinite steps(1)}
+@keyframes glitchTop{0%,97%,100%{transform:translate(0)}97.5%{transform:translate(-3px,-1px)}98%{transform:translate(4px,1px)}98.5%{transform:translate(-2px,0)}99%{transform:translate(3px,1px)}99.5%{transform:translate(0,-1px)}}
+@keyframes glitchBot{0%,97%,100%{transform:translate(0)}97.5%{transform:translate(3px,1px)}98%{transform:translate(-4px,-1px)}98.5%{transform:translate(2px,0)}99%{transform:translate(-3px,-1px)}99.5%{transform:translate(0,1px)}}
+
+/* Nav becomes a denser HUD bar with a technical read-out on the right */
+nav{border-bottom:1px solid transparent;transition:background .3s,border-color .3s,box-shadow .3s}
+nav.scrolled{box-shadow:0 12px 40px -20px rgba(14,165,233,.4)}
+.nav-logo .icon{background:linear-gradient(135deg,rgba(14,165,233,.25),transparent 60%)}
+.nav-logo .icon::before{content:'';position:absolute;inset:3px;border:1px dashed rgba(14,165,233,.3);border-radius:4px;animation:spin 18s linear infinite reverse}
+.nav-links a{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase}
+.nav-links a::before{content:'[';opacity:0;margin-right:.15rem;color:var(--ocean-bright);transition:opacity .25s}
+.nav-links a::after{content:']';opacity:0;margin-left:.15rem;color:var(--ocean-bright);transition:opacity .25s;background:none;width:auto;height:auto;bottom:auto;left:auto;position:static;transition:opacity .25s}
+.nav-links a:hover::before,.nav-links a.active::before,
+.nav-links a:hover::after,.nav-links a.active::after{opacity:1}
+
+/* Card sheen — thin diagonal light that sweeps once on hover */
+.feature-card .sheen,.teaser .sheen,.hw-card .sheen,.rm-card .sheen{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,transparent 38%,rgba(255,255,255,.08) 50%,transparent 62%);transform:translateX(-120%);transition:transform .9s var(--ease-smooth)}
+.feature-card:hover .sheen,.teaser:hover .sheen,.hw-card:hover .sheen,.rm-card:hover .sheen{transform:translateX(120%)}
+/* Pseudo equivalent that doesn't require an extra DOM node */
+.feature-card::after{background:linear-gradient(135deg,rgba(14,165,233,.3),transparent,rgba(34,211,238,.2))}
+
+/* Terminal readout strip — drop under page heads for that "console ready" feel */
+.console-strip{max-width:1200px;margin:-1rem auto 1rem;padding:0 2rem}
+.console-strip .console-bar{display:flex;gap:1.5rem;align-items:center;padding:.6rem 1rem;border:1px solid rgba(14,165,233,.14);border-radius:6px;background:rgba(6,10,22,.85);backdrop-filter:blur(10px);font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;color:#64748b;flex-wrap:wrap;position:relative;overflow:hidden}
+.console-strip .console-bar::before{content:'';position:absolute;left:0;top:0;height:100%;width:3px;background:linear-gradient(180deg,var(--ocean-vivid),var(--bio));box-shadow:0 0 8px var(--ocean-bright)}
+.console-strip .ck{color:#22c55e}.console-strip .nm{color:var(--ocean-vivid)}
+.console-strip .vk{color:var(--gold)}
+.console-strip .blink{animation:blink 1.2s infinite;color:var(--ocean-vivid)}
+
+/* Big "v0.4" chip for feature cards */
+.chip-ship{display:inline-block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;padding:.15rem .45rem;border-radius:3px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.35);margin-left:.4rem;vertical-align:middle}
+
+/* Section title: add a mono count badge */
+.section-title .tag{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.18em;color:var(--ocean-muted);vertical-align:middle;margin-left:1rem;border:1px solid rgba(14,165,233,.2);padding:.2rem .55rem;border-radius:3px}
+
+/* Badge ticker: second ticker line for the hero */
+.sub-ticker{position:relative;background:transparent;border:none;padding:0;margin-top:.5rem;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+
+/* Hero badge upgrade — pulsing "LIVE" strip */
+.hero-badge{position:relative}
+.hero-badge::before{content:'';position:absolute;inset:-1px;border-radius:100px;padding:1px;background:conic-gradient(from var(--angle),rgba(14,165,233,.8),transparent 40%,rgba(34,211,238,.8),transparent 80%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 4s linear infinite;opacity:.9}
+
+/* Cursor-following spotlight (subtle; set from JS) */
+#spotlight{position:fixed;pointer-events:none;z-index:1;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(14,165,233,.12) 0%,transparent 70%);mix-blend-mode:screen;transform:translate(-50%,-50%);transition:opacity .3s;opacity:0}
+body.has-cursor #spotlight{opacity:1}
+@media(hover:none){#spotlight{display:none}}
+
+/* Data stream panel — terminal-style box that we can drop anywhere */
+.stream-panel{background:rgba(4,8,18,.92);border:1px solid rgba(14,165,233,.18);border-radius:8px;font-family:var(--font-mono);font-size:.82rem;color:#cbd5e1;padding:.9rem 1.1rem;line-height:1.55;position:relative;overflow:hidden}
+.stream-panel::before{content:'';position:absolute;left:0;top:0;height:100%;width:2px;background:linear-gradient(180deg,var(--ocean-vivid),var(--bio));box-shadow:0 0 6px var(--ocean-bright)}
+.stream-panel .dim{color:#64748b}.stream-panel .good{color:#22c55e}.stream-panel .warn{color:var(--gold)}.stream-panel .hot{color:var(--coral)}.stream-panel .ocean{color:var(--ocean-vivid)}
+.stream-panel .head{display:flex;gap:.5rem;align-items:center;font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ocean-bright);margin-bottom:.5rem;padding-bottom:.4rem;border-bottom:1px dashed rgba(14,165,233,.1)}
+.stream-panel .head .led{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:pulse 1.5s infinite}
+
+/* Bigger hero stat numbers with glow + monospace underscore for depth */
+.hero-stat .num{background:linear-gradient(180deg,#e0f2fe 0%,var(--ocean-vivid) 80%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;position:relative;display:inline-block}
+.hero-stat .num::after{content:'';display:block;width:40%;height:1px;background:var(--ocean-bright);margin:.25rem auto 0;box-shadow:0 0 4px var(--ocean-bright);opacity:.6}
+
+/* Make .count pills more HUD-like */
+.feature-card .count{font-family:var(--font-mono);text-transform:uppercase}
+.feature-card .count::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(14,165,233,.3),transparent);margin-left:.5rem}
+
+/* Download / CTA: give it a "deploying" loader feel */
+.cta-section .btn-primary{position:relative}
+.cta-section .btn-primary::after{content:'';position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);width:70%;height:2px;background:linear-gradient(90deg,transparent,var(--ocean-vivid),transparent);animation:cta-sweep 2.5s linear infinite}
+@keyframes cta-sweep{0%{opacity:0;transform:translateX(-70%)}10%,90%{opacity:1}100%{opacity:0;transform:translateX(70%)}}
+
+/* Footer gets a dense glyph bar */
+footer::after{content:'01001000 01010101 01001110 01010100  ·  01010010 01010101 01001110  ·  01010011 01001000 01001001 01010000';display:block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;color:#1e293b;margin-top:1.5rem;opacity:.6}
+
 /* Mobile */
 @media(max-width:768px){
   .nav-links{display:none}
@@ -266,4 +389,5 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   section{padding:4rem 1.25rem}
   .page-head{padding:6rem 1.25rem 2rem}
   .credits-grid{grid-template-columns:1fr}
+  #spotlight{display:none}
 }
