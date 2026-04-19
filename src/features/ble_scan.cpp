@@ -213,10 +213,10 @@ static void start_scan(void)
     scan->setInterval(45);
     scan->setWindow(30);
     s_scanning = true;
-    scan->start(/*duration_sec=*/6, [](NimBLEScanResults) {
-        s_scanning = false;
-        qsort(s_devs, s_count, sizeof(ble_dev_t), sort_fn);
-    }, /*is_continue=*/false);
+    /* NimBLE 2.x: start(duration_ms, is_continue). Callback on completion
+     * is gone — we poll s_scanning from the UI loop which calls
+     * scan->isScanning() directly via the poll on line ~240. */
+    scan->start(6000, false);  /* 6000ms = 6s, matches pre-migration behaviour */
 }
 
 void feat_ble_scan(void)
@@ -234,6 +234,16 @@ void feat_ble_scan(void)
     int cursor = 0;
     uint32_t last_redraw = 0;
     while (true) {
+        /* NimBLE 2.x has no scan-completed callback — poll isScanning()
+         * and run the qsort when the scan finishes. */
+        if (s_scanning) {
+            NimBLEScan *scan = NimBLEDevice::getScan();
+            if (scan && !scan->isScanning()) {
+                s_scanning = false;
+                qsort(s_devs, s_count, sizeof(ble_dev_t), sort_fn);
+            }
+        }
+
         uint32_t now = millis();
         if (now - last_redraw > 350) {
             last_redraw = now;
