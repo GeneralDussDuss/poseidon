@@ -30,13 +30,11 @@
 
 /* ===== attack feature entry points ===== */
 
-void feat_saltyjack_info(void);         /* homage + help landing page */
-void feat_saltyjack_dhcp_starve(void);  /* DHCP Starvation */
-
-/* coming in later commits:
- *   void feat_saltyjack_rogue_dhcp_sta(void);
- *   void feat_saltyjack_rogue_dhcp_ap(void);
- *   void feat_saltyjack_responder(void);
- *   void feat_saltyjack_wpad(void);
- *   void feat_saltyjack_ntlm_crack(void);
- */
+void feat_saltyjack_root(void);               /* RaspyJack-style submenu root */
+void feat_saltyjack_info(void);               /* homage + help landing page */
+void feat_saltyjack_dhcp_starve(void);        /* DHCP Starvation */
+void feat_saltyjack_dhcp_rogue_sta(void);     /* Rogue DHCP on joined WiFi */
+void feat_saltyjack_dhcp_rogue_ap(void);      /* Rogue DHCP on our SoftAP */
+void feat_saltyjack_responder(void);          /* LLMNR/NBNS/SMB harvester */
+void feat_saltyjack_wpad(void);               /* WPAD + 407 NTLM harvest */
+void feat_saltyjack_ntlm_crack(void);         /* Wordlist NTLMv2 cracker */
