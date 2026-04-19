@@ -301,7 +301,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <canvas id="heroCanvas"></canvas>
   <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.3.0 &mdash; MESHTASTIC NODE LIVE</div>
+    <div class="hero-badge"><span class="dot"></span> v0.4 &mdash; SALTYJACK LAN ARSENAL LIVE</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
     <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 90+ features across <span class="hl">six radio bands</span>. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. All from your pocket.</p>
@@ -345,6 +345,26 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   </div>
 </div>
 
+<!-- SaltyJack feature spotlight — v0.4 headline drop -->
+<section id="saltyjack" style="padding:clamp(3.5rem,7vw,6rem) 1.5rem;position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(14,165,233,0.04) 0%,rgba(6,10,22,1) 80%);">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div class="section-label reveal" style="color:#f59e0b;">★ FEATURED DROP</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.2rem,5vw,3.8rem);">SaltyJack &mdash; the LAN arsenal</h2>
+    <p class="section-desc reveal" style="max-width:820px;">A direct port &amp; homage to <a href="https://github.com/7h30th3r0n3/Raspyjack" target="_blank" rel="noopener" style="color:var(--ocean-bright);text-decoration:underline;">@7h30th3r0n3's RaspyJack</a> and <a href="https://github.com/7h30th3r0n3/Evil-M5Project" target="_blank" rel="noopener" style="color:var(--ocean-bright);text-decoration:underline;">Evil-M5Project</a>, reforged for POSEIDON. Press <code style="background:rgba(14,165,233,0.1);padding:.15rem .45rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);">j</code> from the root menu &rarr; custom pirate-themed submenu renderer with list / grid / carousel view toggles, 16&times;16 RGB565 sprite pack, pixel-doubled for scale, and a 240&times;135 boot splash baked right into flash.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-top:2rem;">
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 4h16v3H4z M5 8v11h14V8 M8 12h3v3H8z M13 12h3v3h-3z"/></svg></span><h3>DHCP Starvation</h3></div><p>Floods the target network's DHCP server with random-MAC Discover/Request cycles until the pool exhausts. Live counters for discover/offer/request/ACK/NAK. Auto-detects pool exhaustion on NAK ≥ 20.</p><div class="count">PHASE 1</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z M12 3v18 M3 8l9 5 9-5"/></svg></span><h3>Rogue DHCP (STA + AP)</h3></div><p>Races the real server with our own Offer/Ack (STA mode) or serves DHCP itself for clients on our SoftAP (AP mode). Gateway + DNS poisoning for chained MitM.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z M2 12h20 M12 2a15 15 0 010 20 M12 2a15 15 0 000 20"/></svg></span><h3>Responder</h3></div><p>LLMNR + NBT-NS name-poisoning plus SMB1 NTLMv2 Type-2 builder. Captured NTLMv2 hashes log straight to SD in hashcat mode-5600 format. Feed to the on-device cracker.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M7 14h4"/></svg></span><h3>WPAD NTLM harvest</h3></div><p>Serves a PAC file on port 80 + HTTP 407 Proxy-Authenticate challenge. Windows clients auto-fetch WPAD, auto-auth with current domain creds — hash captured, logged, crack-ready.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2v20 M2 12h20 M6 6l12 12 M18 6L6 18"/></svg></span><h3>On-device NTLMv2 cracker</h3></div><p>Pure-C HMAC-MD5 wordlist runner. Reads hashcat-mode-5600 lines from SD, tries each password. No PC needed. Seeds a starter wordlist on first run.</p><div class="count">PHASE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f59e0b;"><svg viewBox="0 0 24 24"><path d="M12 2C9 2 7 4 7 7v3H5v12h14V10h-2V7c0-3-2-5-5-5z M9 10V7c0-2 1-3 3-3s3 1 3 3v3"/></svg></span><h3>Custom UX</h3></div><p>Own renderer — 3 view modes (list/grid/carousel), RaspyJack-faithful per-tool info pages, idle screensaver, and a pirate 7-sprite icon pack in 16&times;16 RGB565 baked from PNG via <code style="background:rgba(245,158,11,0.1);padding:.1rem .3rem;border-radius:3px;color:#f59e0b;font-family:var(--font-mono);font-size:.85rem;">tools/sprite_sheet_to_icons.py</code>.</p><div class="count">UX</div></div>
+    </div>
+
+    <p class="section-desc reveal" style="max-width:820px;margin-top:2rem;font-style:italic;opacity:.85;">Every file in <code style="background:rgba(14,165,233,0.1);padding:.1rem .35rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);font-size:.9rem;">src/features/saltyjack/</code> carries a prominent attribution header to <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="color:var(--ocean-bright);">@7h30th3r0n3</a>. Go star the originals. Authorized testing only.</p>
+  </div>
+</section>
+
 <section id="features">
   <div class="section-label reveal">01 // ARSENAL</div>
   <h2 class="section-title reveal">Every Radio. Every Attack.</h2>
@@ -356,7 +376,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg></span><h3>Sub-GHz (CC1101)</h3></div><p>Signal capture with protocol decoder (Princeton, CAME, NICE, Linear). Record RAW. Replay Flipper .sub files. 3,190+ signal library. Spectrum analyzer. Brute force. Jammer.</p><div class="count">9 TOOLS</div></div>
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83 M8 12a4 4 0 018 0"/></svg></span><h3>2.4 GHz (nRF24L01+)</h3></div><p>Promiscuous ESB sniffer (Goodspeed trick). MouseJack HID injection. BLE advertising spam via nRF24 with full CRC24 + whitening. Spectrum analyzer. CW carrier jammer.</p><div class="count">6 TOOLS</div></div>
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 1-4.5 4 1 6L12 16l-5.5 3 1-6L3 9l6-1z"/></svg></span><h3>LoRa + GNSS (SX1262)</h3></div><p>Multi-band LoRa scan. Beacon TX with GPS coordinates. Meshtastic LongFast listener. Live GPS fix with NMEA diagnostics + baud auto-detect.</p><div class="count">4 TOOLS</div></div>
-    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M8 14h2 M12 14h2 M16 14h2"/></svg></span><h3>Network Attacks</h3></div><p>DHCP starvation + rogue DHCP + chained MitM. WPAD abuse. Exchange Autodiscover NTLM capture. Responder. SSDP poisoner. Honeypot. Reverse TCP tunnel. UART shell.</p><div class="count">18 TOOLS</div></div>
+    <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M8 14h2 M12 14h2 M16 14h2"/></svg></span><h3>Network Attacks + SaltyJack</h3></div><p>Full LAN suite: port scan, ping, DNS, SSDP poisoner, honeypot, reverse TCP tunnel, UART shell, plus the <a href="#saltyjack" style="color:var(--ocean-bright);">SaltyJack</a> arsenal (DHCP starve, rogue DHCP, Responder, WPAD NTLM, on-device cracker).</p><div class="count">18 TOOLS</div></div>
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z M10 7h4 M7 10v4 M14 17h3 M17 14v-4"/></svg></span><h3>MIMIR Drop-Box</h3></div><p>USB-C control client for the BPI-M4 Zero pentest drop-box. 5 attack modes. Pocket-mode MAC randomization. No wireless link — pure opsec.</p><div class="count">1 MODULE</div></div>
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M3 5h18v12H3z M3 19h18 M9 9l6 3-6 3z"/></svg></span><h3>TRIDENT PC Bridge</h3></div><p>Mirror the Cardputer screen to your desktop at 10+ fps. Send keystrokes remotely. Screenshot capture + MP4 record. PyQt6 companion app, USB-CDC only.</p><div class="count">1 MODULE</div></div>
     <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 00-5 5v3a5 5 0 0010 0V7a5 5 0 00-5-5z M8 22c0-2 2-3 4-3s4 1 4 3 M9 14h6 M9 11h.01 M15 11h.01"/></svg></span><h3>Triton Gotchi</h3></div><p>Autonomous handshake hunter with cyberpunk helmet face. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Now inherits the full deauth correctness stack.</p><div class="count">1 CREATURE</div></div>
@@ -368,8 +388,8 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
 
 <section id="hardware">
   <div class="section-label reveal">02 // HARDWARE</div>
-  <h2 class="section-title reveal">Three Hats. Every Frequency.</h2>
-  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports three expansion hats — swap for the mission.</p>
+  <h2 class="section-title reveal">Four Hats. Every Frequency. Now with Wired.</h2>
+  <p class="section-desc reveal">POSEIDON runs on the Cardputer-Adv and supports swappable hats — pick the one the mission needs.</p>
 
   <div class="hw-grid">
     <div class="hw-card reveal">
@@ -408,6 +428,16 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
         <tr><td>802.15.4</td><td>Zigbee / Thread</td></tr>
         <tr><td>Link</td><td>ESP-NOW mesh to Cardputer</td></tr>
         <tr><td>Use</td><td>5G scan/deauth, Zigbee sniff</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal" style="border-color:rgba(245,158,11,.45);">
+      <h3>W5500 SPI&thinsp;⇄&thinsp;Ethernet <span class="chip" style="background:rgba(245,158,11,.2);color:#f59e0b;border-color:rgba(245,158,11,.4);">NEW · RJ45</span></h3>
+      <table>
+        <tr><td>PHY</td><td>WIZnet W5500 10/100 full-duplex</td></tr>
+        <tr><td>Bus</td><td>SPI (shared FSPI w/ SD)</td></tr>
+        <tr><td>Stack</td><td>lwIP via Arduino Ethernet — transport-agnostic <code>netif</code></td></tr>
+        <tr><td>Unlocks</td><td>Full RaspyJack parity on Cardputer — drop the cable and the <a href="#saltyjack" style="color:var(--ocean-bright);">SaltyJack</a> suite (DHCP starve, rogue DHCP, Responder, WPAD, NTLM harvest) runs over wired instead of WiFi STA</td></tr>
+        <tr><td>Why</td><td>Wired gets you past every PMF / WPA3 / corporate 802.1X defense that kills the wireless path — plug in, own the broadcast domain</td></tr>
       </table>
     </div>
   </div>
@@ -457,24 +487,44 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
         </div>
       </div>
     </div>
-    <div class="rm-item current reveal-left">
+    <div class="rm-item reveal-left">
       <div class="rm-card">
         <div class="rm-head">
           <span class="rm-ver">v0.3.0</span>
-          <span class="rm-date">In Progress</span>
-          <span class="rm-tag current">Current</span>
+          <span class="rm-date">Shipped</span>
+          <span class="rm-tag">Released</span>
         </div>
-        <div class="rm-title">Meshtastic node + platform fork</div>
+        <div class="rm-title">Meshtastic node + deauth correctness</div>
         <div class="rm-body">
-          POSEIDON becomes a full Meshtastic participant — send, receive, page specific nodes, show up on the mesh.
+          POSEIDON becomes a full Meshtastic participant — send, receive, page, show up on the mesh.
           <ul>
             <li>Hand-rolled minimal protobuf for MeshPacket / Data / User / Position</li>
-            <li>AES-CTR via mbedtls with default LongFast channel PSK</li>
-            <li>Broadcast text messages + direct-to-node messaging (paging)</li>
-            <li>Live node roster with long/short names, SNR, hops, last-seen</li>
-            <li>Optional position reporting — POSEIDON appears as a pin on other people's Meshtastic apps when GPS has fix</li>
-            <li>ESP32 Arduino core fork with patched <code>libnet80211.a</code> / <code>libpp.a</code> for full Marauder / Ghost ESP deauth parity on-air</li>
-            <li>CAD-based channel busy-check before LoRa TX</li>
+            <li>AES-CTR-128 with default LongFast PSK (nonce counter at bytes 12-15 — byte-exact vs fw v2.7.23)</li>
+            <li>Broadcast text + direct-to-node (paging) + position reporting</li>
+            <li>Live node roster with long/short names, SNR, hops, last-seen, GPS pin</li>
+            <li>Deauth correctness pass — addr1 fix, disassoc pair, seq counter, PMF guard, live client sniffer</li>
+            <li>LoRa rewrite — spectrum analyzer with real packet capture, LoadProhibited fix, freq-select crash fix</li>
+            <li>Tron-style cyberpunk SFX engine with NVS-persisted volume</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="rm-item current reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.4.0</span>
+          <span class="rm-date">Master, awaiting on-hardware verify</span>
+          <span class="rm-tag current">Current</span>
+        </div>
+        <div class="rm-title">Platform fork + SaltyJack LAN suite</div>
+        <div class="rm-body">
+          The release that makes deauth frames <em>actually land on-air</em>, plus the SaltyJack arsenal.
+          <ul>
+            <li>Platform migrated to <code>pioarduino/platform-espressif32@55.03.38</code> (Core 3.3.8 / IDF 5.5.4)</li>
+            <li>Patched <code>libnet80211.a</code> from <a href="https://github.com/bmorcelli/esp32-arduino-lib-builder" target="_blank" rel="noopener">bmorcelli</a> — same stack <a href="https://github.com/pr3y/Bruce" target="_blank" rel="noopener">Bruce</a> uses — lifts the IDF subtype-filter on deauth/disassoc</li>
+            <li><b>SaltyJack LAN arsenal</b> — direct port of <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener">@7h30th3r0n3</a>'s RaspyJack / Evil-M5Project. DHCP Starve + Rogue DHCP + Responder + WPAD + on-device NTLMv2 cracker, custom pirate UX with sprite icons and boot splash</li>
+            <li>IDF 5.x API drift fixes (ESP-NOW recv callback, <code>esp_mac.h</code>) outside the deauth path</li>
+            <li>Build now runs on WSL2 / native Linux (pioarduino's installer trips on Git Bash MSys)</li>
           </ul>
         </div>
       </div>
@@ -482,7 +532,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <div class="rm-item planned reveal-left">
       <div class="rm-card">
         <div class="rm-head">
-          <span class="rm-ver">v0.4.0</span>
+          <span class="rm-ver">v0.5.0</span>
           <span class="rm-date">Q3 2026</span>
           <span class="rm-tag planned">Planned</span>
         </div>
@@ -494,7 +544,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
             <li>5 GHz PMKID + handshake capture with EAPOL relay over ESP-NOW</li>
             <li>802.15.4 Zigbee full packet capture + Wireshark PCAP export</li>
             <li>Thread network discovery + device enumeration</li>
-            <li>Multi-C5 coordination — deploy several satellites, control all from one Cardputer</li>
+            <li>Multi-C5 coordination — deploy satellites, control all from one Cardputer</li>
           </ul>
         </div>
       </div>
@@ -502,7 +552,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
     <div class="rm-item planned reveal-left">
       <div class="rm-card">
         <div class="rm-head">
-          <span class="rm-ver">v0.5.0</span>
+          <span class="rm-ver">v0.6.0</span>
           <span class="rm-date">Q4 2026</span>
           <span class="rm-tag planned">Planned</span>
         </div>
@@ -543,10 +593,12 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="section-label reveal">05 // FIELD TEAM</div>
   <h2 class="section-title reveal">For testers</h2>
   <p class="testers-intro reveal">
-    If you're helping stress-test POSEIDON, here's what just changed and what to
-    hit hardest. v0.3.0 is a bigger delta than v0.2.0 — Meshtastic node
-    participation is new, deauth got rewritten, LoRa stopped crashing.
-    Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
+    v0.4 is live on master and needs eyes before the tag cuts. <b>Priority 1:</b> confirm
+    deauth frames actually land on-air (the platform migration's entire purpose) &mdash;
+    flash master, hit <code>WiFi → Deauth</code> on a non-PMF WPA2 AP, watch <code>sent:</code>
+    climb with <code>drops:</code> near zero. <b>Priority 2:</b> the whole SaltyJack arsenal
+    (DHCP starve / rogue DHCP / Responder / WPAD / NTLMv2 cracker) &mdash; against networks
+    you own. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.
   </p>
 
   <div class="test-grid">
@@ -603,7 +655,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="test-report reveal">
     <h4>Ideal bug report</h4>
     <ul>
-      <li><b>Build</b>: v0.3.0 (confirm in boot splash)</li>
+      <li><b>Build</b>: v0.4 / commit SHA (confirm in boot splash)</li>
       <li><b>Hardware</b>: Cardputer-Adv + which hat attached</li>
       <li><b>Feature path</b>: e.g. <code>WiFi → Deauth → specific target</code></li>
       <li><b>What happened</b> vs <b>what you expected</b></li>
@@ -611,7 +663,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
       <li><b>Serial log</b> if possible (<code>pio device monitor --baud 115200</code>)</li>
     </ul>
     <p style="margin-top:1rem;font-size:.88rem;color:#cbd5e1">
-      File at <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank">github.com/GeneralDussDuss/poseidon/issues</a> with label <code>v0.3.0-tester</code>.
+      File at <a href="https://github.com/GeneralDussDuss/poseidon/issues" target="_blank">github.com/GeneralDussDuss/poseidon/issues</a> with label <code>v0.4-tester</code>.
     </p>
   </div>
 </section>
@@ -719,7 +771,7 @@ footer .copy{font-family:var(--font-mono);font-size:.72rem;color:#334155;letter-
   <div class="section-label reveal" style="justify-content:center">07 // DEPLOY</div>
   <h2 class="section-title reveal" style="text-align:center">Ready to Dive?</h2>
   <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">Flash with M5Burner, esptool, or build from source with PlatformIO.</p>
-  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download v0.3.0</a>
+  <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" class="btn btn-primary reveal">⬇ Download Latest</a>
   <div class="cta-version reveal">ESP32-S3 &bull; Cardputer-Adv &bull; 1.8 MB &bull; Flash at 0x0</div>
   <div class="cta-install reveal">
     <span class="comment"># build + flash from source</span><br>

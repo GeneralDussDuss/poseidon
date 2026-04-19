@@ -38,10 +38,11 @@
 
 POSEIDON is a pentesting firmware for the M5Stack Cardputer-Adv (ESP32-S3). 90+ features across WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, network attacks, and more. In the same family as Flipper Zero, Bruce, Evil-M5Project, and ESP32Marauder — but built around a **real keyboard** with letter mnemonics, typed parameters, and 6 swappable visual themes.
 
-Supports three hardware hats (one at a time):
+Supports four hardware hats (one at a time):
 - **M5Stack CAP-LoRa1262** — LoRa (SX1262) + GNSS (GPS)
 - **PINGEQUA Hydra RF Cap 424** — CC1101 sub-GHz + nRF24L01+ 2.4 GHz
 - **ESP32-C5 companion node** — 5 GHz WiFi + Zigbee via ESP-NOW mesh
+- **W5500 SPI → Ethernet** — wired RJ45 for full RaspyJack / SaltyJack parity (DHCP starve, rogue DHCP, Responder, WPAD, NTLM harvest) over a LAN cable instead of WiFi STA
 
 ## Quick Start
 
