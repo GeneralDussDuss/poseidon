@@ -11,7 +11,10 @@
 #include "../radio.h"
 #include "../theme.h"
 #include "../version.h"
+#include "../sd_helper.h"
+#include "../wifi_wardrive.h"
 #include "trident.h"
+#include <SD.h>
 #include <esp_heap_caps.h>
 
 /* Stream frame in scanline chunks — only 480 bytes of buffer needed
@@ -98,6 +101,82 @@ static void handle_line(const char *line)
         send_frame();
     } else if (!strcmp(cmd, "stream")) {
         s_streaming = json_bool_val(line, "on");
+    } else if (!strcmp(cmd, "status")) {
+        /* Dump runtime state so desktop doesn't have to screen-scrape. */
+        Serial.printf("{\"evt\":\"status\",\"fw\":\"%s\",\"radio\":\"%s\","
+                      "\"heap\":%u,\"wdr_aps\":%d}\n",
+                      poseidon_version(),
+                      radio_name(),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      g_wdr_ap_count);
+    } else if (!strcmp(cmd, "loot")) {
+        /* Stream the portal credential log as JSON lines. One event per
+         * row, plus a trailing loot_end so the PC knows when to stop. */
+        char which[16] = {0};
+        json_val(line, "which", which, sizeof(which));
+        const char *path = "/poseidon/creds.log";
+        if (!strcmp(which, "ntlm")) path = "/poseidon/ntlm_hashes.txt";
+        else if (!strcmp(which, "responder")) path = "/poseidon/ntlm.log";
+        else if (!strcmp(which, "whisperpair")) path = "/poseidon/whisperpair.csv";
+        else if (!strcmp(which, "wigle")) {
+            /* Wigle CSVs are timestamped — stream the freshest. */
+            File dir = SD.open("/poseidon");
+            String newest; uint32_t newest_ts = 0;
+            if (dir) {
+                File f;
+                while ((f = dir.openNextFile())) {
+                    String n = f.name();
+                    if (n.startsWith("wigle-") && n.endsWith(".csv")) {
+                        uint32_t ts = strtoul(n.substring(6).c_str(), nullptr, 10);
+                        if (ts > newest_ts) { newest_ts = ts; newest = "/poseidon/" + n; }
+                    }
+                    f.close();
+                }
+                dir.close();
+            }
+            if (newest.length()) {
+                static char buf[64];
+                strncpy(buf, newest.c_str(), sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = '\0';
+                path = buf;
+            }
+        }
+        if (!sd_mount()) {
+            Serial.println("{\"evt\":\"loot_err\",\"reason\":\"no_sd\"}");
+        } else {
+            File f = SD.open(path, FILE_READ);
+            if (!f) {
+                Serial.printf("{\"evt\":\"loot_err\",\"reason\":\"open\",\"path\":\"%s\"}\n", path);
+            } else {
+                Serial.printf("{\"evt\":\"loot_begin\",\"path\":\"%s\",\"size\":%u}\n",
+                              path, (unsigned)f.size());
+                /* Stream in 512B chunks as base64-ish raw-text lines.
+                 * Keep it simple: send the content with newlines intact
+                 * inside a data event per line. */
+                String row;
+                while (f.available()) {
+                    int c = f.read();
+                    if (c < 0) break;
+                    if (c == '\r') continue;
+                    if (c == '\n') {
+                        /* Minimal JSON-string escape: backslash + quote. */
+                        row.replace("\\", "\\\\");
+                        row.replace("\"", "\\\"");
+                        Serial.printf("{\"evt\":\"loot_row\",\"data\":\"%s\"}\n", row.c_str());
+                        row = "";
+                    } else {
+                        row += (char)c;
+                    }
+                }
+                if (row.length()) {
+                    row.replace("\\", "\\\\");
+                    row.replace("\"", "\\\"");
+                    Serial.printf("{\"evt\":\"loot_row\",\"data\":\"%s\"}\n", row.c_str());
+                }
+                f.close();
+                Serial.println("{\"evt\":\"loot_end\"}");
+            }
+        }
     } else if (!strcmp(cmd, "quit")) {
         s_streaming = false;
         Serial.println("{\"evt\":\"bye\"}");

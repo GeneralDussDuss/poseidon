@@ -85,6 +85,7 @@ extern void feat_subghz_spectrum(void);
 extern void feat_subghz_bruteforce(void);
 extern void feat_subghz_jammer(void);
 extern void feat_subghz_broadcast(void);
+extern void feat_subghz_jam_detect(void);
 extern void feat_nrf24_sniffer(void);
 extern void feat_nrf24_mousejack(void);
 extern void feat_nrf24_ble_spam(void);
@@ -373,7 +374,35 @@ static const menu_node_t MENU_IR[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+/* HUNT bundle — unified menu for every hot/cold RSSI locator + tracker
+ * detector. Previously scattered across BLE, SubGHz, and nRF24 menus;
+ * bundled here so an operator on a job site can just pick "what kind of
+ * emitter am I chasing?" without remembering which radio category it
+ * lives under. Each entry delegates to the existing per-radio finder. */
+static const menu_node_t MENU_HUNT[] = {
+    { 'b', "BLE tracker", "Geiger-style BLE tracker hunt", nullptr, feat_ble_finder,
+      "Pick a tracker from the list, then HUNT mode turns the screen into a "
+      "big proximity meter. Beep rate speeds up as you get closer, like a "
+      "metal detector. Ideal for locating a surveillance tracker on you." },
+    { 't', "Tracker scan", "Detect AirTag/SmartTag/Tile", nullptr, feat_ble_tracker,
+      "Passive scan for Apple Find My, Samsung SmartTag, and Tile. Shows "
+      "distance class + signal bar + MAC. Feeds the BLE tracker hunt." },
+    { 'g', "Sub-GHz finder", "CC1101 hot/cold locator", nullptr, feat_subghz_finder,
+      "Walk around — big thermometer bar goes from blue (cold/far) to red "
+      "(hot/close). Beep rate increases near the source. Find sub-GHz key "
+      "fobs, garage remotes, hidden transmitters." },
+    { 'n', "2.4 GHz finder", "nRF24 hot/cold locator", nullptr, feat_nrf24_finder,
+      "Same proximity UI on 2.4 GHz. Hunt wireless HID devices, rogue "
+      "dongles, ISM-band sources." },
+    { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
+};
+
 static const menu_node_t MENU_TOOLS[] = {
+    { 'h', "Hunt",       "Unified hot/cold proximity hunter", MENU_HUNT, nullptr,
+      "Every RF proximity locator in one submenu — BLE tracker hunt, BLE "
+      "tracker passive scan, sub-GHz (CC1101) finder, 2.4 GHz (nRF24) "
+      "finder. Previously scattered across BLE/SubGHz/nRF24 menus; here "
+      "so you can just pick 'what am I hunting?' first." },
     { 'l', "Flashlight", "Full-screen white torch", nullptr, feat_tool_flashlight,
       "Fills the screen with white. Simple panic light." },
     { 's', "Stopwatch", "Timer with laps", nullptr, feat_tool_stopwatch,
@@ -459,6 +488,13 @@ static const menu_node_t MENU_SUBGHZ[] = {
       "Walk around with the device — big thermometer bar goes from blue "
       "(cold/far) to red (hot/close). Beep rate increases near the source. "
       "Find hidden transmitters, cameras, key fobs." },
+    { 'd', "Jam Detect", "RSSI anomaly monitor", nullptr, feat_subghz_jam_detect,
+      "Learns the noise floor on a picked frequency for 10 seconds, then "
+      "alerts on sustained spikes above baseline +15 dBm — the signature of "
+      "a jammer or sustained TX in the band. Fires a red overlay + siren, "
+      "logs timestamp + peak RSSI to /poseidon/jamdetect.csv. Peer to the "
+      "WiFi deauth detector. Use it to verify your jammer actually works "
+      "or to flag hostile RF interference near a target." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

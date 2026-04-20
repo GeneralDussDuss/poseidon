@@ -4,6 +4,42 @@ All notable changes to POSEIDON are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-04-20
+
+### Added — three-tier polish pass (15 items)
+
+Tier 1 (QoL wins):
+- WiFi scan: **S=save** dumps filtered results to `/poseidon/wifiscan-<ts>.csv` (ssid/bssid/channel/rssi/auth).
+- BLE scan: **S=save** dumps filtered results to `/poseidon/blescan-<ts>.csv` (mac/type/name/rssi).
+- BLE scan: **W=whisper** in the detail popup jumps straight into WhisperPair on the selected device; skips the rescan phase.
+- MouseJack: **T=type** now prompts for a custom payload via `input_line()` instead of hardcoding `cmd /c echo pwned`. The only real TODO in the codebase — closed.
+- Portal: new credentials fire a two-tone 1800Hz/2400Hz beep + `CRED CAPTURED <user>` WAVES overlay via a deferred flag (HTTP response stays snappy). Also serial-log for live tail.
+- Deleted `src/deauth_autotest.cpp` and its `#ifdef POSEIDON_AUTO_DEAUTH_TEST` call site in `main.cpp` — served its purpose during v0.4 debug; the real fix is shipped in `wifi_sanity_override.cpp`.
+
+Tier 2 (architectural):
+- **Wardrive AP table now public** (`src/wifi_wardrive.h`). `g_wdr_aps[256]` + `g_wdr_ap_count` survive across feature exits — the session's richest BSSID→SSID→auth dictionary is now queryable by any WiFi-centric feature.
+- **Triton seeds from wardrive on entry**: closes the "first 30s of hashcat lines have blank ESSID" gap. Serial logs the seed count.
+- **wifi_pmkid seeds from wardrive too**: handshakes captured right after a wardrive session now carry the real ESSID field from frame zero.
+- **Sub-GHz last-capture global** (`src/subghz_types.h`): `g_subghz_last_cap` (pulses + count + freq + ts) populated by `subghz_scan` after every successful decode. Infrastructure for future "play the last thing you caught" workflows that skip the SD round-trip.
+- **nRF24 last-device global** (`src/nrf24_types.h`): `g_nrf24_last_device` set when MouseJack targets from the sniffer list. Readied for HUNT-bundle / TRIDENT handoff.
+- **In-feature `?` help**: `menu.cpp` exports `g_current_feature_item` + `ui_show_current_help()`. Press `?` inside a feature to render its own long-form info paragraph without ESCing back to the menu. Wired into wifi_scan / ble_scan / ble_whisperpair / subghz_jam_detect as the starter set; other features can add the binding with one line.
+
+Tier 3 (strategic):
+- **TRIDENT `status` command**: desktop companion can now query `{"cmd":"status"}` to get fw version, active radio, free heap, wardrive AP count without screen-scraping.
+- **TRIDENT `loot` command**: `{"cmd":"loot","which":"creds|ntlm|responder|whisperpair|wigle"}` streams SD logs as JSON-line events (`loot_begin` / `loot_row` / `loot_end`) — live credential relay to the desktop without pulling the SD card.
+- **Mesh `!poseidon ping` / `!poseidon status`**: LoRa Meshtastic messages prefixed with `!poseidon ` are parsed in the RX path and respond with broadcast text. Turns the mesh into a C2 channel for field-deployed nodes.
+- **New feature: `Radio → Sub-GHz → Jam Detect`**: RSSI-anomaly monitor. 10-second baseline warmup, then alerts on sustained `baseline + 15 dBm` spikes — the signature of a jammer or sustained TX in-band. Red overlay + two-tone siren + CSV log to `/poseidon/jamdetect.csv`. Peer to the WiFi deauth-detect feature.
+- **New menu: `Tools → Hunt`**: bundles all four hot/cold RSSI locators (BLE tracker hunt + passive tracker scan + sub-GHz finder + 2.4 GHz finder) under one submenu. Operator picks "what am I hunting?" first instead of digging through per-radio menus.
+
+### Fixed — theme persistence
+
+- `theme_picker` was calling `theme_set()` inside a 6-iteration render loop every frame (~300 NVS writes/sec while browsing), which made the persisted theme a near-random final intermediate value. New `theme_preview(id)` is RAM-only; `theme_set()` is called once on ENTER commit.
+- `theme_set()` no longer elides based on `s_current` — preview may have shifted it, so write-through on commit is mandatory.
+
+### Fixed — WhisperPair scan UUID match
+
+- Was constructing the 128-bit long form of `0xFE2C` to filter Fast Pair service data; NimBLE's internal equality across the 16/128-bit boundary was missing every hit. Now uses `NimBLEUUID((uint16_t)0xFE2C)` and also iterates all service-data entries as belt-and-braces. Scan duty cycle bumped (interval 100, window 99). Added `R=rescan` + empty-state adv-counter so the user can tell the scan is alive before a Fast Pair device happens to beacon.
+
 ## [0.4.1] - 2026-04-20
 
 ### Added — WhisperPair probe (CVE-2025-36911)

@@ -373,6 +373,37 @@ static void handle_decoded_data(uint32_t from, uint32_t to, uint8_t hops,
         m.text[n] = '\0';
         m.text_len = n;
         push_message(m);
+
+        /* Command parser — if this text starts with "!poseidon " the
+         * message is a remote query. Currently supports "!poseidon ping"
+         * which echoes a status reply back. Addressed to us specifically
+         * or broadcast; either way we only respond if the suffix matches
+         * a known command. Serial-log unknown !poseidon-prefixed msgs
+         * so the operator can see activity. */
+        if (n >= 10 && memcmp(m.text, "!poseidon ", 10) == 0) {
+            const char *cmd = m.text + 10;
+            char reply[96];
+            reply[0] = '\0';
+            if (!strncmp(cmd, "ping", 4)) {
+                snprintf(reply, sizeof(reply),
+                         "pong from !%08x  rssi=%d snr=%.1f hops=%u",
+                         (unsigned)mesh_own_node_id(),
+                         (int)rssi, snr, (unsigned)hops);
+            } else if (!strncmp(cmd, "status", 6)) {
+                snprintf(reply, sizeof(reply),
+                         "!%08x  heap=%uK  mesh-ok",
+                         (unsigned)mesh_own_node_id(),
+                         (unsigned)(ESP.getFreeHeap() / 1024));
+            }
+            if (reply[0]) {
+                Serial.printf("[mesh-cmd] from=!%08x cmd=%s -> %s\n",
+                              (unsigned)from, cmd, reply);
+                mesh_send_broadcast_text(reply);
+            } else {
+                Serial.printf("[mesh-cmd] from=!%08x unknown=%s\n",
+                              (unsigned)from, cmd);
+            }
+        }
         break;
     }
     case MESH_PORT_NODEINFO: {

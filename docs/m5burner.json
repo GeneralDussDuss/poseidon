@@ -7,6 +7,20 @@
   "icon": "https://generaldussduss.github.io/poseidon/assets/icon.png",
   "firmware": [
     {
+      "name": "POSEIDON v0.4.2",
+      "version": "0.4.2",
+      "chip": "esp32s3",
+      "target": "M5Cardputer-Adv",
+      "flash_size": "8MB",
+      "psram": true,
+      "url": "https://github.com/GeneralDussDuss/poseidon/releases/download/v0.4.2/poseidon-v0.4.2-factory.bin",
+      "offset": "0x0",
+      "description": "Three-tier polish pass: scan CSV export, BLE-scan->WhisperPair hotchain, MouseJack custom text, portal cred overlay, shared state globals (wardrive/subghz/nrf24), in-feature ? help, TRIDENT loot+status commands, Meshtastic !poseidon parser, sub-GHz jam detect, unified HUNT submenu. Theme NVS persistence + WhisperPair scan UUID fixes.",
+      "date": "2026-04-20",
+      "changelog": "https://github.com/GeneralDussDuss/poseidon/blob/master/CHANGELOG.md",
+      "license": "MIT"
+    },
+    {
       "name": "POSEIDON v0.4.1",
       "version": "0.4.1",
       "chip": "esp32s3",
