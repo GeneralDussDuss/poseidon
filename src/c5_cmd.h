@@ -23,10 +23,12 @@ enum {
     C5_TYPE_CMD_SCAN_2G = 13,
     C5_TYPE_CMD_DEAUTH  = 14,
     C5_TYPE_CMD_STOP    = 15,
+    C5_TYPE_CMD_PMKID   = 16,
     C5_TYPE_RESP_PONG   = 20,
     C5_TYPE_RESP_AP     = 21,
     C5_TYPE_RESP_ZB     = 22,
     C5_TYPE_RESP_STATUS = 23,
+    C5_TYPE_RESP_PMKID  = 24,
 };
 
 struct __attribute__((packed)) c5_deauth_req_t {
@@ -34,6 +36,20 @@ struct __attribute__((packed)) c5_deauth_req_t {
     uint8_t  channel;
     uint8_t  bcast_all;
     uint16_t duration_ms;
+};
+
+struct __attribute__((packed)) c5_pmkid_req_t {
+    uint8_t  bssid[6];
+    uint8_t  channel;
+    uint16_t duration_ms;
+};
+
+struct __attribute__((packed)) c5_pmkid_t {
+    uint8_t  bssid[6];
+    uint8_t  sta[6];
+    uint8_t  pmkid[16];
+    uint8_t  ssid_len;
+    char     ssid[33];
 };
 
 struct __attribute__((packed)) c5_msg_t {
@@ -91,6 +107,7 @@ uint16_t c5_cmd_stop(void);
 uint16_t c5_cmd_ping(void);
 uint16_t c5_cmd_deauth(const uint8_t bssid[6], uint8_t channel,
                        uint8_t bcast_all, uint16_t duration_ms);
+uint16_t c5_cmd_pmkid(const uint8_t bssid[6], uint8_t channel, uint16_t duration_ms);
 
 /* Latest RESP_STATUS values from the C5 (for live attack dashboards). */
 uint32_t c5_status_frames(void);
@@ -104,4 +121,5 @@ uint32_t c5_dbg_raw_ap_records(void);
 /* Pull collected results. Returns count written. */
 int c5_aps(c5_ap_t *out, int max);
 int c5_zbs(c5_zb_t *out, int max);
+int c5_pmkids(c5_pmkid_t *out, int max);
 void c5_clear_results(void);

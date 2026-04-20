@@ -19,6 +19,7 @@
 #define MAX_PEERS 4
 #define MAX_APS   64
 #define MAX_ZBS   32
+#define MAX_PMKIDS 16
 
 /* Spin-lock shared between the ESP-NOW recv callback (runs in the WiFi
  * task) and the UI thread reading peer/result arrays. Without this,
@@ -42,6 +43,9 @@ static volatile int s_ap_n = 0;
 
 static c5_zb_t  s_zbs[MAX_ZBS];
 static volatile int s_zb_n = 0;
+
+static c5_pmkid_t s_pmkids[MAX_PMKIDS];
+static volatile int s_pmkid_n = 0;
 
 static volatile uint32_t s_last_status_frames  = 0;
 static volatile uint8_t  s_last_status_channel = 0;
@@ -135,6 +139,28 @@ static void handle_resp_zb(const c5_msg_t *m)
     portEXIT_CRITICAL(&s_mux);
 }
 
+static void handle_resp_pmkid(const c5_msg_t *m)
+{
+    if (m->payload_len < (int)sizeof(c5_pmkid_t)) return;
+    const c5_pmkid_t *p = (const c5_pmkid_t *)m->payload;
+    portENTER_CRITICAL(&s_mux);
+    /* Dedup by (bssid, sta, pmkid). */
+    for (int i = 0; i < s_pmkid_n; ++i) {
+        if (memcmp(s_pmkids[i].bssid, p->bssid, 6) == 0 &&
+            memcmp(s_pmkids[i].sta,   p->sta,   6) == 0 &&
+            memcmp(s_pmkids[i].pmkid, p->pmkid, 16) == 0) {
+            portEXIT_CRITICAL(&s_mux);
+            return;
+        }
+    }
+    if (s_pmkid_n >= MAX_PMKIDS) {
+        memmove(s_pmkids, s_pmkids + 1, sizeof(c5_pmkid_t) * (MAX_PMKIDS - 1));
+        s_pmkid_n = MAX_PMKIDS - 1;
+    }
+    memcpy(&s_pmkids[s_pmkid_n++], p, sizeof(c5_pmkid_t));
+    portEXIT_CRITICAL(&s_mux);
+}
+
 /* ESP-NOW recv callback signature differs by ESP-IDF major version.
  *   IDF 4.x (stock espressif32@6.7.0): void(const uint8_t *mac, data, len)
  *   IDF 5.x (pioarduino 55.x):         void(const esp_now_recv_info_t*, ...)
@@ -174,6 +200,7 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
         }
         break;
     }
+    case C5_TYPE_RESP_PMKID: handle_resp_pmkid(m); break;
     }
 }
 
@@ -319,6 +346,16 @@ uint16_t c5_cmd_deauth(const uint8_t bssid[6], uint8_t channel,
     return send_simple_cmd(C5_TYPE_CMD_DEAUTH, (uint8_t *)&r, sizeof(r));
 }
 
+uint16_t c5_cmd_pmkid(const uint8_t bssid[6], uint8_t channel, uint16_t duration_ms)
+{
+    c5_pmkid_req_t r;
+    memcpy(r.bssid, bssid, 6);
+    r.channel     = channel;
+    r.duration_ms = duration_ms;
+    s_last_status_channel = channel;
+    return send_simple_cmd(C5_TYPE_CMD_PMKID, (uint8_t *)&r, sizeof(r));
+}
+
 uint32_t c5_status_frames(void)  { return s_last_status_frames; }
 uint8_t  c5_status_channel(void) { return s_last_status_channel; }
 
@@ -340,10 +377,19 @@ int c5_zbs(c5_zb_t *out, int max)
     portEXIT_CRITICAL(&s_mux);
     return out ? n : total;
 }
+int c5_pmkids(c5_pmkid_t *out, int max)
+{
+    portENTER_CRITICAL(&s_mux);
+    int n = s_pmkid_n < max ? s_pmkid_n : max;
+    if (out && n > 0) memcpy(out, s_pmkids, n * sizeof(c5_pmkid_t));
+    int total = s_pmkid_n;
+    portEXIT_CRITICAL(&s_mux);
+    return out ? n : total;
+}
 void c5_clear_results(void)
 {
     portENTER_CRITICAL(&s_mux);
-    s_ap_n = 0; s_zb_n = 0;
+    s_ap_n = 0; s_zb_n = 0; s_pmkid_n = 0;
     s_dbg_resp_ap_frames = 0;
     s_dbg_raw_ap_records = 0;
     portEXIT_CRITICAL(&s_mux);

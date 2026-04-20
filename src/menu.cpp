@@ -50,6 +50,7 @@ extern void feat_c5_status(void);
 extern void feat_c5_scan_5g(void);
 extern void feat_c5_scan_zb(void);
 extern void feat_c5_deauth_5g(void);
+extern void feat_c5_pmkid_5g(void);
 extern void feat_tool_sd_format(void);
 extern void feat_tool_flashlight(void);
 extern void feat_tool_screen_test(void);
@@ -211,6 +212,14 @@ static const menu_node_t MENU_C5[] = {
       "the dual-band scan, or hit X to broadcast-deauth every AP on its channel. "
       "C5 streams live frame counts back so you see attack rate in real time. "
       "First pocket tool that can deauth 5 GHz networks." },
+    { 'p', "PMKID 5G", "5 GHz PMKID capture via C5", nullptr, feat_c5_pmkid_5g,
+      "The ESP32-S3 side can't receive on 5 GHz — which means it physically "
+      "cannot capture handshakes from 5 GHz networks. C5 closes that gap. Pick "
+      "a 5 GHz target, C5 locks its promisc receiver to the channel + BSSID and "
+      "watches for EAPOL-Key M1 frames carrying a PMKID KDE. Hits stream back "
+      "over ESP-NOW and write directly to /poseidon/hashcat.22000 in WPA*01* "
+      "format for offline cracking. Pair with Deauth 5G to force clients to "
+      "reconnect and cough up a fresh M1." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

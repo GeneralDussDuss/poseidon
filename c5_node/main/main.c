@@ -34,6 +34,8 @@ extern void wifi_scanner_run(const uint8_t *, uint16_t, uint16_t);
 extern void zb_sniffer_start(const uint8_t *, uint8_t, uint16_t);
 extern void zb_sniffer_stop(void);
 extern void wifi_attacker_deauth(const uint8_t *, const posei_deauth_req_t *, uint16_t);
+extern void pmkid_capture_start(const uint8_t *, const posei_pmkid_req_t *, uint16_t);
+extern void pmkid_capture_stop(void);
 
 static char s_node_name[12] = "C5-?";
 
@@ -142,9 +144,17 @@ static void on_recv(const esp_now_recv_info_t *info,
         wifi_attacker_deauth(info->src_addr, r, m->seq);
         break;
     }
+    case POSEI_TYPE_CMD_PMKID: {
+        if (m->payload_len < (int)sizeof(posei_pmkid_req_t)) break;
+        led_fx_set(LED_MODE_SCAN);
+        const posei_pmkid_req_t *r = (const posei_pmkid_req_t *)m->payload;
+        pmkid_capture_start(info->src_addr, r, m->seq);
+        break;
+    }
     case POSEI_TYPE_CMD_STOP:
         led_fx_set(LED_MODE_IDLE);
         zb_sniffer_stop();
+        pmkid_capture_stop();
         break;
     }
 }
