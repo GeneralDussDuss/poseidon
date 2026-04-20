@@ -18,6 +18,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "ble_types.h"
 #include <NimBLEDevice.h>
 
@@ -265,6 +266,10 @@ void feat_ble_gatt(void)
         if (k == PK_ESC) break;
         if (k == ';' || k == PK_UP)   { if (cursor > 0) cursor--; }
         if (k == '.' || k == PK_DOWN) { if (cursor + 1 < s_flat_n) cursor++; }
+        if (k == '?') {
+            ui_show_current_help();
+            ui_draw_footer(";/.=move  ENTER=open  `=back");
+        }
         if (k == PK_ENTER) {
             if (cursor < s_flat_n && !s_flat[cursor].is_svc) {
                 show_characteristic(cursor);

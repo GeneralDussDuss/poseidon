@@ -20,6 +20,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "../wifi_wardrive.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
@@ -512,6 +513,7 @@ void feat_wifi_pmkid(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
         if (k == 'h' || k == 'H') s_hunt = !s_hunt;
     }
 

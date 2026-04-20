@@ -23,6 +23,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "c5_cmd.h"
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
@@ -899,6 +900,7 @@ void feat_triton(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
     }
 
     s_alive = false;

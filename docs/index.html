@@ -46,10 +46,10 @@
   <canvas id="heroCanvas"></canvas>
   <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.4.0 SHIPPED &mdash; DEAUTH ACTUALLY LANDS</div>
+    <div class="hero-badge"><span class="dot"></span> v0.4.3 LIVE &mdash; CVE-2025-36911 PROBE ONBOARD</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
-    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 96+ features across <span class="hl">six radio bands</span> plus wired Ethernet. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. RJ45. All from your pocket.</p>
+    <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 100+ features across <span class="hl">six radio bands</span> plus wired Ethernet. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. RJ45. All from your pocket.</p>
     <div class="hero-prompt">
       <span class="prompt-dollar">poseidon ▸</span>
       <span class="prompt-cmd">saltyjack</span>
@@ -63,7 +63,7 @@
       <a href="arsenal.html" class="btn btn-secondary">⎇ See Arsenal</a>
     </div>
     <div class="hero-stats">
-      <div class="hero-stat"><div class="num" data-count="96" data-suffix="+">96+</div><div class="label">Features</div></div>
+      <div class="hero-stat"><div class="num" data-count="100" data-suffix="+">100+</div><div class="label">Features</div></div>
       <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">RF + Wired</div></div>
       <div class="hero-stat"><div class="num" data-count="6">6</div><div class="label">Themes</div></div>
       <div class="hero-stat"><div class="num" data-count="3190" data-suffix="+">3190+</div><div class="label">.sub Signals</div></div>
@@ -159,6 +159,35 @@
     </div>
 
     <p class="reveal" style="max-width:820px;margin:2.5rem 0 0;font-style:italic;opacity:.85;text-align:center;color:#cbd5e1;">Every file in <code style="background:rgba(14,165,233,0.12);padding:.12rem .4rem;border-radius:4px;color:var(--ocean-bright);font-family:var(--font-mono);font-size:.9rem;">src/features/saltyjack/</code> opens with an attribution header crediting <a href="https://github.com/7h30th3r0n3" target="_blank" rel="noopener" style="color:#fbbf24;">@7h30th3r0n3</a>. Authorized testing only — hunt your own LAN.</p>
+  </div>
+</section>
+
+<!-- FEATURED DROP — v0.4.1 WhisperPair CVE-2025-36911 probe -->
+<section id="whisperpair" style="padding:clamp(4rem,8vw,7rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(220,38,38,0.09) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(6,10,22,1) 0%,rgba(6,10,22,1) 85%);border-top:1px solid rgba(220,38,38,0.18);border-bottom:1px solid rgba(220,38,38,0.18);">
+  <div style="max-width:1150px;margin:0 auto;">
+    <div class="section-label reveal" style="color:#f87171;letter-spacing:.18em;">★ FEATURED DROP · v0.4.1</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.4rem,5.5vw,4.2rem);background:linear-gradient(135deg,#ef4444 0%,#fb7185 40%,var(--ocean-bright) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">WhisperPair — CVE probe for hundreds of millions of devices</h2>
+    <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">Press <code style="background:rgba(220,38,38,0.15);padding:.2rem .5rem;border-radius:5px;color:#fca5a5;font-family:var(--font-mono);font-weight:700;">W</code> in the BLE menu. Scans for Google Fast Pair accessories — Sony XM5, Pixel Buds Pro, Jabra, JBL, Marshall, Nothing, OnePlus, Soundcore, Logitech — and probes each one for CVE-2025-36911. Vulnerable firmware responds to a Key-Based Pairing write even when it's not in pairing mode, silently letting an attacker take over the device in about ten seconds.</p>
+
+    <div class="reveal frame" style="margin-top:2.5rem;padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(220,38,38,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(220,38,38,0.08) 0%,rgba(14,165,233,0.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(220,38,38,0.25) 0%,transparent 70%);pointer-events:none;"></div>
+      <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:#f87171;margin-bottom:.5rem;">★ CREDIT · COSIC @ KU LEUVEN</div>
+      <h3 style="font-family:var(--font-display);font-size:clamp(1.3rem,2.2vw,1.8rem);margin:0 0 .6rem;color:#fca5a5;letter-spacing:.02em;">The researchers who disclosed it</h3>
+      <p style="font-size:1rem;line-height:1.6;color:#e2e8f0;margin:0 0 1rem;">CVE-2025-36911 was disclosed by <b style="color:#fca5a5;">Preneel, Singelée, Antonijević, Duttagupta, and Wyns</b> at COSIC, KU Leuven in January 2026. $15K Google bounty. POSEIDON's probe is a demonstration + self-check tool built on top of their published findings — stand on giants' shoulders, always.</p>
+      <div style="display:flex;gap:.65rem;flex-wrap:wrap;">
+        <a href="https://www.esat.kuleuven.be/cosic/news/whisperpair-hijacking-bluetooth-accessories-using-google-fast-pair/" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;border-color:rgba(220,38,38,0.55);color:#fca5a5;">★ Disclosure writeup</a>
+        <a href="https://whisperpair.eu/" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:.82rem;padding:.55rem 1.1rem;">whisperpair.eu →</a>
+      </div>
+    </div>
+
+    <h3 class="reveal" style="margin-top:3rem;font-family:var(--font-display);font-size:1.75rem;color:#fca5a5;letter-spacing:.04em;">What the probe does</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-top:1rem;">
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f87171;border-color:rgba(220,38,38,.4);"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z M2 12h20 M12 2a15 15 0 010 20"/></svg></span><h3 style="color:#fca5a5;">Scan + classify</h3></div><p>Active scan for Fast Pair service UUID 0xFE2C. Classifies each hit as pairable (spec-compliant) or in-use (shouldn't accept pairing — the vulnerable column). Model-ID lookup names the device on-screen.</p><div class="count" style="color:#f87171;">STAGE 1</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f87171;border-color:rgba(220,38,38,.4);"><svg viewBox="0 0 24 24"><path d="M12 2v20 M2 12h20 M6 6l12 12"/></svg></span><h3 style="color:#fca5a5;">Real crypto probe</h3></div><p>secp256r1 ephemeral keypair via mbedTLS (hardware accelerated on ESP32-S3). AES-128-ECB encrypts a valid Key-Based Pairing plaintext. 80-byte envelope lands on the target's KBP characteristic.</p><div class="count" style="color:#f87171;">STAGE 2</div></div>
+      <div class="feature-card reveal"><div class="fc-head"><span class="fc-glyph" style="color:#f87171;border-color:rgba(220,38,38,.4);"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 8h8v2H8z M8 12h8v2H8z M8 16h4v2H8z"/></svg></span><h3 style="color:#fca5a5;">Verdict + MAC lift</h3></div><p>Response in 3 seconds = <b>VULNERABLE</b>. Silent drop = patched. When we have the accessory's anti-spoofing pubkey, we decrypt the response and extract the <b>hidden BR/EDR MAC</b>. Logged to <code style="background:rgba(220,38,38,0.1);padding:.05rem .3rem;border-radius:3px;color:#fca5a5;font-family:var(--font-mono);font-size:.85rem;">/poseidon/whisperpair.csv</code>.</p><div class="count" style="color:#f87171;">STAGE 3</div></div>
+    </div>
+
+    <p class="reveal" style="max-width:820px;margin:2.5rem 0 0;font-style:italic;opacity:.85;text-align:center;color:#cbd5e1;">Probe-only. ESP32-S3 has no Classic Bluetooth radio so the full attack (bond + HFP mic capture + Find Hub registration) needs external hardware. Roadmap: nRF52 companion hat closes the loop. <b style="color:#fca5a5;">Authorized targets only</b> — patches are rolling out unevenly, scan your own gear.</p>
   </div>
 </section>
 

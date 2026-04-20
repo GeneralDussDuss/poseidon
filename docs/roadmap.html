@@ -41,9 +41,9 @@
 <div class="console-strip">
   <div class="console-bar">
     <span class="ck">[TIMELINE]</span>
-    <span>shipped=<span class="nm">v0.1 → v0.4.0</span></span>
-    <span>current=<span class="ck">v0.4.0</span></span>
-    <span>next=<span class="vk">v0.5 C5 / nRF52</span></span>
+    <span>shipped=<span class="nm">v0.1 → v0.4.3</span></span>
+    <span>current=<span class="ck">v0.4.3</span></span>
+    <span>next=<span class="vk">v0.5 C5 / nRF52 / OTA</span></span>
     <span>after=<span class="vk">v0.6 MIMIR / FENRIR</span></span>
     <span class="blink">▸</span>
   </div>
@@ -107,6 +107,20 @@
             <li>Tron-style cyberpunk SFX engine with NVS-persisted volume (boot jingle, menu clicks, attack cues, warn/bad)</li>
             <li>SaltyJack phase-1: DHCP Starvation shipped standalone</li>
           </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item shipped current reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="rm-ver">v0.4.3</span>
+          <span class="rm-date">Shipped 2026-04-20</span>
+          <span class="rm-tag shipped">Live</span>
+        </div>
+        <div class="rm-title">Sub-GHz actually transmits · WhisperPair CVE probe · Jam Detect · HUNT bundle</div>
+        <div class="rm-body">
+          Four consecutive drops across two days. Record / replay / broadcast finally fire the radio (native <code>rmt_tx.h</code> / <code>rmt_rx.h</code>). WhisperPair CVE-2025-36911 detector with real secp256r1 ECDH lands (credit COSIC @ KU Leuven). Sub-GHz Jam Detect RSSI monitor ships as peer to the WiFi deauth detector. Unified Tools → Hunt submenu. TRIDENT protocol grows <code>status</code> + <code>loot</code> commands. Meshtastic <code>!poseidon</code> command parser. Scan CSV export everywhere. Cross-feature state handoff (wardrive → Triton / PMKID). In-feature <code>?</code> help. Theme persistence + WhisperPair scan fixes.
         </div>
       </div>
     </div>

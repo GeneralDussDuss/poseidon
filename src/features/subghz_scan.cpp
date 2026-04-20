@@ -13,6 +13,7 @@
 #include "../sd_helper.h"
 #include "../subghz_decode.h"
 #include "../subghz_types.h"
+#include "../menu.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
 
@@ -228,6 +229,7 @@ void feat_subghz_scan(void)
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
         if (k == '+' || k == '=') {
             freq += 0.5f;
             ELECHOUSE_cc1101.setSidle();

@@ -14,6 +14,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "gps.h"
 #include "../wifi_wardrive.h"
 #include <WiFi.h>
@@ -237,6 +238,7 @@ void feat_wifi_wardrive(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
         if (k == 'f' || k == 'F') {
             flush_dirty_rows();
             ui_toast("flushed", T_GOOD, 400);

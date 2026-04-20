@@ -11,11 +11,17 @@
 #include "../radio.h"
 #include "../cc1101_hw.h"
 #include "../cc1101_rmt.h"
+#include "../subghz_decode.h"
 #include "../sd_helper.h"
+#include "../menu.h"
 #include <SD.h>
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 
 #define RAW_MAX_PULSES 4096
+
+/* Cached protocol decode result for display + filename. Cleared on
+ * retry / freq change. */
+static subghz_decoded_t s_decoded = { nullptr, 0, 0, 0, false };
 
 /* Full CC1101 frequency table covering all three bands. */
 static const float SCAN_FREQS[] = {
@@ -92,6 +98,19 @@ void feat_subghz_record(void)
         if (recorded) {
             d.setTextColor(T_GOOD, T_BG);
             d.setCursor(4, BODY_Y + 20); d.printf("captured %d pulses", s_raw_len);
+            /* Protocol decode result inline, if any. */
+            if (s_decoded.valid) {
+                d.setTextColor(T_ACCENT, T_BG);
+                d.setCursor(4, BODY_Y + 32);
+                d.printf("%s  0x%lX  %u bits",
+                         s_decoded.protocol,
+                         (unsigned long)s_decoded.value,
+                         (unsigned)s_decoded.bits);
+            } else {
+                d.setTextColor(T_DIM, T_BG);
+                d.setCursor(4, BODY_Y + 32);
+                d.print("RAW (no protocol match)");
+            }
             /* Mini waveform preview */
             int mid_y = BODY_Y + 55;
             d.drawFastHLine(4, mid_y, SCR_W - 8, T_DIM);
@@ -118,6 +137,7 @@ void feat_subghz_record(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
         if (k == '+' || k == '=') { freq += 0.5f; cc1101_set_freq(freq); recorded = false; }
         if (k == '-')             { freq -= 0.5f; cc1101_set_freq(freq); recorded = false; }
         if ((k == 'a' || k == 'A') && !recorded) {
@@ -163,23 +183,43 @@ void feat_subghz_record(void)
             s_raw_len = cc1101_rmt_rx(s_raw, RAW_MAX_PULSES, 20000, 10000);
             if (s_raw_len > 0) {
                 recorded = true;
-                char msg[40];
-                snprintf(msg, sizeof(msg), "captured %d pulses", s_raw_len);
-                ui_toast(msg, T_GOOD, 900);
+                /* Auto-decode immediately so the UI + filename can show
+                 * protocol + value. Decoder tries Princeton / CAME /
+                 * NICE / Linear / Chamberlain / Holtek etc. */
+                s_decoded = subghz_decode(s_raw, s_raw_len);
+                char msg[48];
+                if (s_decoded.valid) {
+                    snprintf(msg, sizeof(msg), "%s %lu bits=%u",
+                             s_decoded.protocol,
+                             (unsigned long)s_decoded.value,
+                             (unsigned)s_decoded.bits);
+                } else {
+                    snprintf(msg, sizeof(msg), "captured %d pulses (RAW)", s_raw_len);
+                }
+                ui_toast(msg, T_GOOD, 1200);
             } else {
                 ui_toast("no signal", T_WARN, 900);
             }
         }
-        if (k == 'r' || k == 'R') { recorded = false; s_raw_len = 0; }
+        if (k == 'r' || k == 'R') { recorded = false; s_raw_len = 0; s_decoded.valid = false; }
         if ((k == 's' || k == 'S') && recorded) {
             /* Teardown CC1101 so FSPI releases GPIO matrix for SD's HSPI. */
             cc1101_end();
             delay(10);
             if (sd_remount()) {
-                char path[64];
-                snprintf(path, sizeof(path), "/poseidon/signals/custom/raw-%lu.sub",
-                         (unsigned long)(millis()/1000));
+                char path[96];
                 SD.mkdir("/poseidon/signals/custom");
+                if (s_decoded.valid) {
+                    snprintf(path, sizeof(path),
+                             "/poseidon/signals/custom/%s-%lX-%lu.sub",
+                             s_decoded.protocol,
+                             (unsigned long)s_decoded.value,
+                             (unsigned long)(millis()/1000));
+                } else {
+                    snprintf(path, sizeof(path),
+                             "/poseidon/signals/custom/raw-%lu.sub",
+                             (unsigned long)(millis()/1000));
+                }
                 if (save_sub_file(path, freq, s_raw, s_raw_len))
                     ui_toast("saved", T_GOOD, 800);
                 else

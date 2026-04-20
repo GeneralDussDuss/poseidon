@@ -69,7 +69,7 @@
       <li>Open <b>Settings</b> (gear icon, bottom-left) → <b>Custom Firmware</b> tab.</li>
       <li>Paste the repo URL above and click <b>Add</b>.</li>
       <li>Back in the main view, scroll the sidebar until you see the <b>POSEIDON</b> entry (icon: trident).</li>
-      <li>Click it → select <b>v0.4.0</b> → hit <b>Burn</b>.</li>
+      <li>Click it → select the latest version → hit <b>Burn</b>.</li>
       <li>M5Burner auto-detects the COM port, erases, and flashes. Reboots when done.</li>
     </ol>
 
@@ -89,7 +89,7 @@
       <div style="margin-top:.5rem;"></div>
       <div class="dim"># erase + flash at 0x0</div>
       <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> erase_flash</div>
-      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> write_flash 0x0 poseidon-v0.4.0-factory.bin</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> write_flash 0x0 poseidon-v0.4.3-factory.bin</div>
     </div>
     <p style="color:#94a3b8;font-size:.9rem;">Replace <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">COM5</code> with your actual port. macOS looks like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/tty.usbmodem*</code>, Linux like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/ttyACM0</code>.</p>
   </div>

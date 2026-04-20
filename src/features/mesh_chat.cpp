@@ -10,6 +10,7 @@
 #include "../input.h"
 #include "../radio.h"
 #include "../sfx.h"
+#include "../menu.h"
 #include "../mesh/meshtastic.h"
 #include <stdio.h>
 #include <string.h>
@@ -95,6 +96,7 @@ void feat_mesh_chat(void)
 
         if (!typing) {
             if (k == PK_ESC) break;
+            if (k == '?') { ui_show_current_help(); dirty = true; }
             if (k == 't' || k == 'T') { typing = true; dirty = true; }
             if (k == 'r' || k == 'R') { mesh_clear_messages(); dirty = true; }
         } else {

@@ -12,6 +12,7 @@
 #include "../cc1101_hw.h"
 #include "../cc1101_rmt.h"
 #include "../sd_helper.h"
+#include "../menu.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
 
@@ -149,6 +150,7 @@ void feat_subghz_replay(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == '?') { ui_show_current_help(); }
         if (k == PK_ENTER) {
             d.setTextColor(T_BAD, T_BG);
             d.setCursor(4, BODY_Y + 76); d.print("TX...");
