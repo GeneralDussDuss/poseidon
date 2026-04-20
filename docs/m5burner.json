@@ -7,6 +7,20 @@
   "icon": "https://generaldussduss.github.io/poseidon/assets/icon.png",
   "firmware": [
     {
+      "name": "POSEIDON v0.4.1",
+      "version": "0.4.1",
+      "chip": "esp32s3",
+      "target": "M5Cardputer-Adv",
+      "flash_size": "8MB",
+      "psram": true,
+      "url": "https://github.com/GeneralDussDuss/poseidon/releases/download/v0.4.1/poseidon-v0.4.1-factory.bin",
+      "offset": "0x0",
+      "description": "Adds WhisperPair probe (CVE-2025-36911) — Fast Pair accessory scanner with real secp256r1 ECDH + AES-128-ECB response decryption to extract BR/EDR MAC on vulnerable targets. Plus everything in v0.4.0.",
+      "date": "2026-04-20",
+      "changelog": "https://github.com/GeneralDussDuss/poseidon/blob/master/CHANGELOG.md",
+      "license": "MIT"
+    },
+    {
       "name": "POSEIDON v0.4.0",
       "version": "0.4.0",
       "chip": "esp32s3",

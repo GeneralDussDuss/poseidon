@@ -4,6 +4,49 @@ All notable changes to POSEIDON are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-04-20
+
+### Added — WhisperPair probe (CVE-2025-36911)
+
+New BLE feature under `w` in the BLE menu. Scans for Google Fast Pair
+advertisements (service UUID `0xFE2C`), classifies each as DISCOVERABLE
+(pairable, spec-compliant) or NON-DISCOVERABLE (in-use). On a selected
+target, connects GATT → discovers the Key-Based Pairing characteristic
+(`FE2C1234-8366-4814-8EB0-01DE32100BEA`) → writes a 2-stage probe.
+
+**Stage 1 (any target):** real secp256r1 ephemeral keypair (via mbedTLS
+hardware accel), sends 80-byte envelope = 16B ciphertext + 64B ephemeral
+pubkey. Vulnerable firmware responds with a notify on the KBP char even
+though the accessory isn't in pairing mode — a compliant provider must
+silently drop the write. Result: `VULNERABLE` / `LIKELY PATCHED` /
+`NO_FE2C_SVC` / `CONNECT_FAIL`.
+
+**Stage 2 (when we have the accessory's anti-spoofing pubkey):** real
+ECDH → `K = SHA-256(shared_secret.x)[0:16]` → AES-128-ECB decrypt the
+response → lift the BR/EDR address from bytes 1..6. Pubkeys loaded at
+runtime from `/poseidon/fastpair_keys.bin` (67 bytes per record: 3B
+model ID BE + 64B raw X||Y pubkey). Lets the probe extract the
+Classic-BT MAC normally hidden behind RPA until pairing mode.
+
+Verdict + BR/EDR MAC (when extracted) logged to
+`/poseidon/whisperpair.csv`.
+
+**Module is probe-only.** The ESP32-S3 has no BR/EDR radio, so the full
+attack (SSP bond + A2DP/HFP hijack + Find Hub registration) cannot
+complete on-device. The CVE demonstration + extracted BR/EDR hand off
+to external Classic-BT hardware. Built-in 15-device model-ID lookup
+covers popular accessories (Pixel Buds, Sony XM4/XM5, Jabra, JBL,
+Nothing, OnePlus, etc.); unknown IDs display as hex.
+
+Credit: CVE-2025-36911 disclosed by [COSIC @ KU Leuven](https://www.esat.kuleuven.be/cosic/news/whisperpair-hijacking-bluetooth-accessories-using-google-fast-pair/)
+(Preneel, Singelée, Antonijević, Duttagupta, Wyns) in January 2026,
+$15K Google bounty. Reference PoCs:
+[aalex954/whisperpair-poc-tool](https://github.com/aalex954/whisperpair-poc-tool),
+[SpectrixDev/DIY_WhisperPair](https://github.com/SpectrixDev/DIY_WhisperPair).
+
+**Authorized testing only** — probe devices you own. Disclosed CVE,
+patches rolling out; this is a demonstration + self-check tool.
+
 ## [0.4.0] - 2026-04-19
 
 ### Fixed — deauth frames actually TX on-air

