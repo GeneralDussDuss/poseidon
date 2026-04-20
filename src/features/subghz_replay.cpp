@@ -10,12 +10,10 @@
 #include "../input.h"
 #include "../radio.h"
 #include "../cc1101_hw.h"
+#include "../cc1101_rmt.h"
 #include "../sd_helper.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
-/* driver/rmt.h (legacy) removed — conflicts with IDF 5.5 driver_ng at
- * boot (v0.4 platform migration). rmt_tx_raw() is a stub until the
- * feature is migrated to the new rmt_tx.h API. */
 
 #define MAX_REPLAY_PULSES 4096
 
@@ -58,11 +56,7 @@ static bool parse_sub_file(const char *path, sub_file_t *out)
     return out->raw_len > 0;
 }
 
-static void rmt_tx_raw(const int16_t *raw, int len)
-{
-    (void)raw; (void)len;
-    /* Disabled pending legacy-RMT → driver_ng migration (v0.4.x). */
-}
+/* TX lives in cc1101_rmt.cpp — call site below. */
 
 /* Simple SD file picker for .sub files. */
 static bool pick_sub_file(char *out_path, int max_len)
@@ -159,7 +153,8 @@ void feat_subghz_replay(void)
             d.setTextColor(T_BAD, T_BG);
             d.setCursor(4, BODY_Y + 76); d.print("TX...");
             cc1101_set_tx();
-            rmt_tx_raw(sub.raw, sub.raw_len);
+            pinMode(CC1101_GDO0, OUTPUT);
+            cc1101_rmt_tx(sub.raw, sub.raw_len);
             cc1101_set_rx();
             plays++;
         }

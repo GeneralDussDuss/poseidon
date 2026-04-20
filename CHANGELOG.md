@@ -4,6 +4,45 @@ All notable changes to POSEIDON are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-04-20
+
+### Fixed — Sub-GHz record / replay / broadcast actually transmit
+
+All three sub-GHz features were stubbed on the v0.4 platform migration
+because the legacy `driver/rmt.h` API linked against IDF 5.5's
+`driver_ng` aborted the chip at boot. The UI + file parsers + waveform
+preview were fully built but the actual RMT call was a `(void)raw;
+(void)len;` no-op. Record toasted `"record unavailable v0.4"`. Replay
+and broadcast silently transmitted nothing.
+
+**Migrated to the new `rmt_tx.h` / `rmt_rx.h` API.** New helper module
+`src/cc1101_rmt.{h,cpp}` owns channel + encoder lifecycle around the
+CC1101 GDO0 pin. Two public calls:
+
+- `cc1101_rmt_tx(pulses, n)` — transmit a pulse train. Converts the
+  `int16_t` signed-microsecond format (pos=high, neg=low) to
+  `rmt_symbol_word_t[]` pairs, uses the built-in copy encoder, blocks
+  on `rmt_tx_wait_all_done`.
+- `cc1101_rmt_rx(out, max, timeout_ms, gap_us)` — capture pulses into
+  a buffer. 1 MHz resolution (1 µs tick, matches Flipper `.sub` file
+  encoding 1:1). ISR-to-task notification on capture complete.
+
+Wired into all three features. Record now actually samples the CC1101
+demod output for 20 seconds (10ms silence = end-of-signal). Replay and
+broadcast drive GDO0 via RMT with the precise timing the `.sub`
+format requires — no more bit-bang approximation.
+
+Boot verified clean on ESP32-S3: no RMT conflict. The three features
+that appeared broken since v0.4.0 now actually work.
+
+### Changed — release assets
+
+Dropped the three ancillary bins (`-app.bin`, `-bootloader.bin`,
+`-partitions.bin`). v0.4.3 and onward ship only `poseidon-v0.4.3-factory.bin`
+which is the only one anyone actually needs. M5Burner's custom repo
+points at factory.bin. esptool users want factory.bin. PlatformIO
+users build from source. Cleaner release page, no user confusion.
+
 ## [0.4.2] - 2026-04-20
 
 ### Added — three-tier polish pass (15 items)

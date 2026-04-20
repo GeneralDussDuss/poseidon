@@ -15,13 +15,10 @@
 #include "../input.h"
 #include "../radio.h"
 #include "../cc1101_hw.h"
+#include "../cc1101_rmt.h"
 #include "../sd_helper.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
-/* driver/rmt.h (legacy API) removed — IDF 5.5 + Arduino 3.3.8 uses
- * driver_ng via rmt_tx.h / rmt_rx.h and aborts at boot if both are
- * linked. Migration to the new API is pending; rmt_tx() below is a
- * no-op stub until then. */
 
 #define MAX_FILES 30
 #define MAX_PULSES 2048
@@ -125,15 +122,7 @@ static int parse_sub_raw(const char *path, int16_t *raw, int max_pulses)
     return count;
 }
 
-static void rmt_tx(const int16_t *raw, int len)
-{
-    (void)raw; (void)len;
-    /* TX temporarily disabled on the v0.4 platform migration — the
-     * legacy driver/rmt.h API conflicts with IDF 5.5's driver_ng and
-     * aborts the whole device at boot. Migration to the new rmt_tx.h
-     * API is pending for v0.4.x. The feature still renders its menu
-     * and signal list so the code path is exercised. */
-}
+/* TX lives in cc1101_rmt.cpp — call site below. */
 
 static int pick_category(void)
 {
@@ -274,7 +263,8 @@ void feat_subghz_broadcast(void)
                 d.setTextColor(T_BAD, T_BG);
                 d.setCursor(4, BODY_Y + 98); d.print("TX...");
                 ELECHOUSE_cc1101.SetTx();
-                rmt_tx(raw, plen);
+                pinMode(CC1101_GDO0, OUTPUT);
+                cc1101_rmt_tx(raw, plen);
                 ELECHOUSE_cc1101.setSidle();
                 ELECHOUSE_cc1101.SetRx();
                 plays++;

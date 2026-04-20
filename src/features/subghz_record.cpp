@@ -10,15 +10,12 @@
 #include "../input.h"
 #include "../radio.h"
 #include "../cc1101_hw.h"
+#include "../cc1101_rmt.h"
 #include "../sd_helper.h"
 #include <SD.h>
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
-/* driver/rmt.h (legacy) removed — conflicts with IDF 5.5 driver_ng at
- * boot. rmt_rx_init() is a stub returning false; the feature aborts
- * cleanly and shows a toast. Migration to the new rmt_rx.h API pending. */
 
 #define RAW_MAX_PULSES 4096
-#define RMT_GPIO       17  /* CC1101_GDO0 placeholder for future migration */
 
 /* Full CC1101 frequency table covering all three bands. */
 static const float SCAN_FREQS[] = {
@@ -37,14 +34,7 @@ static int16_t *s_raw = nullptr;
 static int      s_raw_len = 0;
 static volatile bool s_recording = false;
 
-static bool rmt_rx_init(void)
-{
-    /* Legacy RMT driver removed for v0.4 platform migration — returns
-     * false so the feature exits cleanly with a user-visible toast. */
-    return false;
-}
-
-/* rmt_rx_capture inlined into the record loop with live waveform. */
+/* RMT RX lives in cc1101_rmt.cpp — this file just calls it. */
 
 static bool save_sub_file(const char *path, float freq, const int16_t *raw, int len)
 {
@@ -165,9 +155,20 @@ void feat_subghz_record(void)
         }
 
         if (k == PK_ENTER && !recorded) {
-            /* Record path disabled pending legacy-RMT → driver_ng migration
-             * (v0.4.x). See top of file. Scan / replay menu still renders. */
-            ui_toast("record unavailable v0.4", T_WARN, 1500);
+            /* Put chip in RX so demodulated data drives GDO0, then arm
+             * the RMT capture. 20s timeout, 10ms silence = signal end. */
+            cc1101_set_rx();
+            pinMode(CC1101_GDO0, INPUT);
+            ui_toast("recording 20s...", T_ACCENT, 400);
+            s_raw_len = cc1101_rmt_rx(s_raw, RAW_MAX_PULSES, 20000, 10000);
+            if (s_raw_len > 0) {
+                recorded = true;
+                char msg[40];
+                snprintf(msg, sizeof(msg), "captured %d pulses", s_raw_len);
+                ui_toast(msg, T_GOOD, 900);
+            } else {
+                ui_toast("no signal", T_WARN, 900);
+            }
         }
         if (k == 'r' || k == 'R') { recorded = false; s_raw_len = 0; }
         if ((k == 's' || k == 'S') && recorded) {
