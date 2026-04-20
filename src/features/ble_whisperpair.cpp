@@ -664,7 +664,42 @@ void feat_ble_whisperpair(void)
                 delay(30);
             }
             scan->start(0, false);
-            ui_draw_footer(";/.=move  ENTER=probe  L=log  `=back");
+            ui_draw_footer(";/.=move  ENTER=probe  R=rescan  `=back");
         }
+    }
+}
+
+/* Entry from ble_scan's detail popup when the user pressed W. Skips the
+ * rescan phase entirely — builds a one-entry target from g_ble_target
+ * and runs the probe directly. */
+void feat_ble_whisperpair_from_target(void)
+{
+    if (!g_ble_target_valid) {
+        ui_toast("scan + select first", T_WARN, 1200);
+        return;
+    }
+    radio_switch(RADIO_BLE);
+    load_pubkeys();
+
+    /* Synthesize a wp_target_t from g_ble_target. Mode UNKNOWN because
+     * ble_scan doesn't classify FE2C service data — the probe still runs
+     * and the response tells us whether this is a Fast Pair accessory. */
+    wp_target_t t;
+    memcpy(t.addr, g_ble_target.addr, 6);
+    t.addr_type = g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM;
+    t.rssi      = g_ble_target.rssi;
+    t.mode      = WP_MODE_UNKNOWN;
+    t.model_id  = 0;
+    t.sd_len    = 0;
+
+    draw_probing(t);
+    wp_verdict_t v = run_probe(t);
+    log_verdict(t, v);
+    draw_verdict(t, v);
+    ui_draw_footer("any key = back");
+    while (true) {
+        uint16_t k = input_poll();
+        if (k != PK_NONE) break;
+        delay(30);
     }
 }

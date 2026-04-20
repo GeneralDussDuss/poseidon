@@ -16,9 +16,11 @@
 #include "input.h"
 #include "radio.h"
 #include "wifi_types.h"
+#include "sd_helper.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_heap_caps.h>
+#include <SD.h>
 
 #define MAX_APS 64
 
@@ -215,7 +217,7 @@ void feat_wifi_scan(void)
     s_filter_open_only = false;
 
     ui_draw_status(radio_name(), s_have_results ? "cached" : "scanning...");
-    ui_draw_footer("/=filter  O=open  ENTER=info  R=rescan  ESC=back");
+    ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
     draw_list(s_saved_cursor);
 
     if (!s_have_results) {
@@ -270,6 +272,34 @@ void feat_wifi_scan(void)
                 draw_list(cursor);
             }
             break;
+        case 's': case 'S': {
+            if (s_ap_count == 0) { ui_toast("no results", T_WARN, 800); break; }
+            if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1000); break; }
+            SD.mkdir("/poseidon");
+            char path[48];
+            snprintf(path, sizeof(path), "/poseidon/wifiscan-%lu.csv",
+                     (unsigned long)(millis() / 1000));
+            File f = SD.open(path, FILE_WRITE);
+            if (!f) { ui_toast("open failed", T_BAD, 1000); break; }
+            f.println("ssid,bssid,channel,rssi,auth");
+            int wrote = 0;
+            for (int i = 0; i < s_ap_count; ++i) {
+                if (!ap_matches_filter(s_aps[i])) continue;
+                const ap_t &a = s_aps[i];
+                f.printf("\"%s\",%02X:%02X:%02X:%02X:%02X:%02X,%u,%d,%s\n",
+                         a.ssid,
+                         a.bssid[0], a.bssid[1], a.bssid[2],
+                         a.bssid[3], a.bssid[4], a.bssid[5],
+                         (unsigned)a.channel, (int)a.rssi, auth_str(a.auth));
+                wrote++;
+            }
+            f.close();
+            char msg[32];
+            snprintf(msg, sizeof(msg), "saved %d APs", wrote);
+            ui_toast(msg, T_GOOD, 1000);
+            Serial.printf("[wifi_scan] saved %s (%d rows)\n", path, wrote);
+            break;
+        }
         case PK_ENTER: {
             /* Show details of selected item. */
             int idx[MAX_APS];
@@ -281,7 +311,7 @@ void feat_wifi_scan(void)
                 g_last_selected_valid = true;
                 show_details(g_last_selected_ap);
                 draw_list(cursor);
-                ui_draw_footer("/=filter  O=open  ENTER=info  R=rescan  ESC=back");
+                ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
             }
             break;
         }

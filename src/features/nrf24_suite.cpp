@@ -362,9 +362,14 @@ void feat_nrf24_mousejack(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (k == 't' || k == 'T') {
-            /* TODO: input_line for custom text */
-            strcpy(inject_buf, "cmd /c echo pwned");
-            inject_len = strlen(inject_buf);
+            char buf[64];
+            strncpy(buf, inject_buf, sizeof(buf));
+            buf[sizeof(buf) - 1] = '\0';
+            if (input_line("payload (Win cmd or shell):", buf, sizeof(buf))) {
+                strncpy(inject_buf, buf, sizeof(inject_buf));
+                inject_buf[sizeof(inject_buf) - 1] = '\0';
+                inject_len = strlen(inject_buf);
+            }
         }
         if (k == PK_ENTER) {
             /* Inject the string as HID keystrokes. */

@@ -19,7 +19,9 @@
 #include "radio.h"
 #include "ble_types.h"
 #include "ble_db.h"
+#include "sd_helper.h"
 #include <NimBLEDevice.h>
+#include <SD.h>
 
 /* Shared with other BLE features. */
 ble_target_t g_ble_target = {};
@@ -30,6 +32,7 @@ extern void feat_ble_hid(void);
 extern void feat_ble_clone(void);
 extern void feat_ble_gatt(void);
 extern void feat_ble_flood(void);
+extern void feat_ble_whisperpair_from_target(void);  /* skips own scan phase */
 
 struct ble_dev_t {
     uint8_t  addr[6];
@@ -226,7 +229,7 @@ void feat_ble_scan(void)
     s_filter[0] = '\0';
 
     ui_draw_status(radio_name(), "scan");
-    ui_draw_footer("/=filter  R=rescan  ENTER=info  `=back");
+    ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");
     draw_list(0);
 
     start_scan();
@@ -268,6 +271,34 @@ void feat_ble_scan(void)
                 s_filter[0] = '\0';
             draw_list(cursor);
             break;
+        case 's': case 'S': {
+            if (s_count == 0) { ui_toast("no results", T_WARN, 800); break; }
+            if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1000); break; }
+            SD.mkdir("/poseidon");
+            char path[48];
+            snprintf(path, sizeof(path), "/poseidon/blescan-%lu.csv",
+                     (unsigned long)(millis() / 1000));
+            File f = SD.open(path, FILE_WRITE);
+            if (!f) { ui_toast("open failed", T_BAD, 1000); break; }
+            f.println("mac,addr_type,type,name,rssi");
+            int wrote = 0;
+            for (int i = 0; i < s_count; ++i) {
+                if (!dev_matches_filter(s_devs[i])) continue;
+                const ble_dev_t &x = s_devs[i];
+                f.printf("%02X:%02X:%02X:%02X:%02X:%02X,%s,\"%s\",\"%s\",%d\n",
+                         x.addr[0], x.addr[1], x.addr[2],
+                         x.addr[3], x.addr[4], x.addr[5],
+                         x.is_public ? "public" : "random",
+                         x.type, x.name, (int)x.rssi);
+                wrote++;
+            }
+            f.close();
+            char msg[32];
+            snprintf(msg, sizeof(msg), "saved %d devs", wrote);
+            ui_toast(msg, T_GOOD, 1000);
+            Serial.printf("[ble_scan] saved %s (%d rows)\n", path, wrote);
+            break;
+        }
         case PK_ENTER: {
             int idx[BLE_MAX_DEVS];
             int n = 0;
@@ -312,7 +343,7 @@ void feat_ble_scan(void)
             uint16_t col = (x.rssi > -60) ? T_GOOD : (x.rssi > -80) ? T_WARN : T_BAD;
             d.fillRect(91, BODY_Y + 67, (bar_w - 2) * pct / 100, 5, col);
 
-            ui_draw_footer("G=gatt C=clone H=hid X=flood P=spam `=back");
+            ui_draw_footer("G=gatt C=clone H=hid X=flood P=spam W=whisper `=back");
             while (true) {
                 uint16_t k2 = input_poll();
                 if (k2 == PK_NONE) { delay(20); continue; }
@@ -323,9 +354,10 @@ void feat_ble_scan(void)
                 if (ch == 'h') { feat_ble_hid();   break; }
                 if (ch == 'x') { feat_ble_flood(); break; }
                 if (ch == 'p') { feat_ble_spam();  break; }
+                if (ch == 'w') { feat_ble_whisperpair_from_target(); break; }
             }
             draw_list(cursor);
-            ui_draw_footer("/=filter  R=rescan  ENTER=info  `=back");
+            ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");
             break;
         }
         default: break;

