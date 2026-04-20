@@ -54,6 +54,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "ble_types.h"
 #include "sd_helper.h"
 #include <NimBLEDevice.h>
@@ -647,6 +648,12 @@ void feat_ble_whisperpair(void)
             s_tgt_n = 0;
             s_adv_seen_total = 0;
             cursor = 0;
+            scan->start(0, false);
+        }
+        if (k == '?') {
+            scan->stop();
+            ui_show_current_help();
+            ui_draw_footer(";/.=move  ENTER=probe  R=rescan  `=back");
             scan->start(0, false);
         }
 

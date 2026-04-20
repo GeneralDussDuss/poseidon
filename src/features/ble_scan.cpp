@@ -17,6 +17,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "ble_types.h"
 #include "ble_db.h"
 #include "sd_helper.h"
@@ -265,6 +266,11 @@ void feat_ble_scan(void)
         case '.': case PK_DOWN:  cursor++;                                        draw_list(cursor); break;
         case 'r': case 'R':
             if (!s_scanning) { s_count = 0; start_scan(); }
+            break;
+        case '?':
+            ui_show_current_help();
+            draw_list(cursor);
+            ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");
             break;
         case '/':
             if (!input_line("Filter name/type:", s_filter, sizeof(s_filter)))

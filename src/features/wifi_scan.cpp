@@ -15,6 +15,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "menu.h"
 #include "wifi_types.h"
 #include "sd_helper.h"
 #include <WiFi.h>
@@ -259,6 +260,11 @@ void feat_wifi_scan(void)
                 s_have_results = false;
                 xTaskCreate(scan_task, "wifi_scan", 4096, nullptr, 4, nullptr);
             }
+            break;
+        case '?':
+            ui_show_current_help();
+            draw_list(cursor);
+            ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
             break;
         case 'o': case 'O':
             s_filter_open_only = !s_filter_open_only;

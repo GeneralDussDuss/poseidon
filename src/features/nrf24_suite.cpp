@@ -15,7 +15,11 @@
 #include "../input.h"
 #include "../radio.h"
 #include "../nrf24_hw.h"
+#include "../nrf24_types.h"
 #include <RF24.h>
+
+nrf24_target_t g_nrf24_last_device = {};
+bool           g_nrf24_last_valid = false;
 
 /* ---- Low-level register access ---- */
 
@@ -321,6 +325,15 @@ void feat_nrf24_mousejack(void)
     sniff_dev_t &tgt = s_devs[sel];
     uint64_t addr64 = 0;
     for (int i = 0; i < 5; i++) { addr64 <<= 8; addr64 |= tgt.addr[i]; }
+
+    /* Publish selected target globally so future features (HUNT bundle,
+     * TRIDENT handoff, etc.) can reference the last-picked device. */
+    memcpy(g_nrf24_last_device.addr, tgt.addr, 5);
+    g_nrf24_last_device.channel      = tgt.channel;
+    g_nrf24_last_device.packet_count = tgt.count;
+    strncpy(g_nrf24_last_device.type, tgt.type, sizeof(g_nrf24_last_device.type) - 1);
+    g_nrf24_last_device.type[sizeof(g_nrf24_last_device.type) - 1] = '\0';
+    g_nrf24_last_valid = true;
 
     rf.stopListening();
     rf.setAutoAck(true);

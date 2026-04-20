@@ -26,6 +26,7 @@
 #include "c5_cmd.h"
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
+#include "../wifi_wardrive.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -717,6 +718,24 @@ void feat_triton(void)
     triton_learn_load();
     s_pmk = 0; s_hs = 0; s_eapol = 0;
     s_bs_n = 0; s_m1_n = 0;
+
+    /* Seed BSSID→SSID cache from any prior wardrive session. Triton
+     * would otherwise emit hashcat lines with blank ESSID until it
+     * catches a beacon from scratch — often 15-30 seconds of captures
+     * wasted. Seeding closes that gap. */
+    if (g_wdr_ap_count > 0) {
+        int seeded = 0;
+        int limit = g_wdr_ap_count < BS_N ? g_wdr_ap_count : BS_N;
+        for (int i = 0; i < limit; ++i) {
+            memcpy(s_bs[i].bssid, g_wdr_aps[i].bssid, 6);
+            strncpy(s_bs[i].ssid, g_wdr_aps[i].ssid, sizeof(s_bs[i].ssid) - 1);
+            s_bs[i].ssid[sizeof(s_bs[i].ssid) - 1] = '\0';
+            seeded++;
+        }
+        s_bs_n = seeded;
+        Serial.printf("[triton] seeded %d BSSID->SSID from wardrive\n", seeded);
+    }
+
     s_ch = 1; s_alive = true;
     s_born = millis();
     s_last_catch = s_born;

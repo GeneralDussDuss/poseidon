@@ -689,6 +689,22 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     }
 }
 
+/* Set by run_submenu before invoking a feature's action, so the feature
+ * can look up its own long-form help via ui_show_current_help(). */
+const menu_node_t *g_current_feature_item = nullptr;
+
+/* Forward-decl so ui_show_current_help can delegate. */
+static void show_info(const menu_node_t *item);
+
+void ui_show_current_help(void)
+{
+    if (!g_current_feature_item) {
+        ui_toast("no help available", T_WARN, 800);
+        return;
+    }
+    show_info(g_current_feature_item);
+}
+
 /* Show detailed info for the selected item until any key pressed. */
 static void show_info(const menu_node_t *item)
 {
@@ -775,7 +791,9 @@ static void run_submenu(const menu_node_t *parent)
         if (k == PK_ENTER) {
             const menu_node_t *sel = &parent->children[cursor];
             if (sel->action) {
+                g_current_feature_item = sel;
                 sel->action();
+                g_current_feature_item = nullptr;
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
                 draw_menu(parent, cursor);
@@ -803,7 +821,9 @@ static void run_submenu(const menu_node_t *parent)
                     cursor = i;
                     draw_menu(parent, cursor);
                     if (ch->action) {
+                        g_current_feature_item = ch;
                         ch->action();
+                        g_current_feature_item = nullptr;
                         ui_draw_status(radio_name(), "");
                         ui_draw_footer(FOOTER_HINTS);
                         draw_menu(parent, cursor);

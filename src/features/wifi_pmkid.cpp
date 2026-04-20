@@ -20,6 +20,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include "../wifi_wardrive.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -448,7 +449,21 @@ void feat_wifi_pmkid(void)
     s_pmkids = 0;
     s_handshakes = 0;
     s_eapol_seen = 0;
+
+    /* Seed BSSID→SSID cache from any prior wardrive session so we emit
+     * hashcat lines with real ESSIDs from the first capture instead of
+     * waiting for beacons in-session. */
     s_cache_n = 0;
+    if (g_wdr_ap_count > 0) {
+        int limit = g_wdr_ap_count < BS_CACHE ? g_wdr_ap_count : BS_CACHE;
+        for (int i = 0; i < limit; ++i) {
+            memcpy(s_cache[i].bssid, g_wdr_aps[i].bssid, 6);
+            strncpy(s_cache[i].ssid, g_wdr_aps[i].ssid, sizeof(s_cache[i].ssid) - 1);
+            s_cache[i].ssid[sizeof(s_cache[i].ssid) - 1] = '\0';
+        }
+        s_cache_n = limit;
+        Serial.printf("[pmkid] seeded %d BSSID->SSID from wardrive\n", limit);
+    }
     s_m1_n = 0;
     s_current_ch = 1;
     s_running = true;

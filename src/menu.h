@@ -32,3 +32,14 @@ void menu_run(void);
 /* Push a named menu as an overlay (used by back-from-feature returns).
  * Not strictly needed in the MVP — menu_run's own stack handles it. */
 extern const menu_node_t MENU_ROOT;
+
+/* Set by the menu runtime right before it invokes a feature's action.
+ * Features can bind '?' to ui_show_current_help() to render their own
+ * long-form info paragraph on demand instead of making the user ESC out
+ * to the menu and press '=' there. */
+extern const menu_node_t *g_current_feature_item;
+
+/* Render the long-form help for the currently-running feature and wait
+ * for any key press. Safe to call even if g_current_feature_item is
+ * null — shows a generic "no help available" panel. */
+void ui_show_current_help(void);

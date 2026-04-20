@@ -12,6 +12,7 @@
 #include "../cc1101_hw.h"
 #include "../sd_helper.h"
 #include "../subghz_decode.h"
+#include "../subghz_types.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
 
@@ -42,6 +43,12 @@ static int16_t s_pulses[MAX_PULSES];
 static volatile int s_pulse_count = 0;
 static volatile uint32_t s_isr_edges = 0;
 static volatile uint32_t s_last_edge_us = 0;
+
+/* Published last-capture so replay/record features can offer "play the
+ * last thing you just caught" without forcing an SD save. Reset to
+ * empty whenever a new scan session starts. */
+subghz_capture_t g_subghz_last_cap = {};
+bool             g_subghz_last_valid = false;
 
 static const float COMMON_FREQS[] = {
     300.00, 303.875, 310.00, 315.00, 318.00,
@@ -159,6 +166,16 @@ void feat_subghz_scan(void)
                 has_capture = true;
                 decoded = subghz_decode(s_pulses, s_pulse_count);
                 last_draw = 0;
+                /* Publish to the shared global so replay/record can
+                 * consume it without needing an SD round-trip. */
+                int cap_n = s_pulse_count < SUBGHZ_MAX_PULSES
+                          ? s_pulse_count : SUBGHZ_MAX_PULSES;
+                memcpy(g_subghz_last_cap.pulses, s_pulses,
+                       cap_n * sizeof(int16_t));
+                g_subghz_last_cap.pulse_count = cap_n;
+                g_subghz_last_cap.freq_mhz    = freq;
+                g_subghz_last_cap.ts          = millis();
+                g_subghz_last_valid           = true;
             }
             /* Re-attach interrupt. */
             s_isr_edges = 0;

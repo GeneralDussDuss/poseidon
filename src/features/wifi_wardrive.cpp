@@ -15,6 +15,7 @@
 #include "input.h"
 #include "radio.h"
 #include "gps.h"
+#include "../wifi_wardrive.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -22,24 +23,15 @@
 
 static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
-#define WARDRIVE_MAX_APS 256
+/* Public AP table — persists across feature exits so Triton + others can
+ * seed themselves from what we've already catalogued in this session. */
+wdr_ap_t g_wdr_aps[WARDRIVE_MAX_APS];
+int      g_wdr_ap_count = 0;
 
-struct wdr_ap_t {
-    uint8_t  bssid[6];
-    char     ssid[33];
-    int8_t   rssi;
-    uint8_t  channel;
-    uint8_t  auth;
-    double   lat;
-    double   lon;
-    float    alt;
-    uint32_t first_seen;
-    uint32_t last_seen;
-    bool     dirty;
-};
-
-static wdr_ap_t  s_aps[WARDRIVE_MAX_APS];
-static int       s_ap_count = 0;
+/* File-scope aliases for the existing internal code — keeps the diff
+ * minimal. Both names refer to the same storage. */
+#define s_aps      g_wdr_aps
+#define s_ap_count g_wdr_ap_count
 static volatile bool s_running = false;
 static volatile uint32_t s_beacons = 0;
 static volatile uint8_t  s_current_ch = 1;
@@ -196,7 +188,9 @@ void feat_wifi_wardrive(void)
         return;
     }
 
-    s_ap_count = 0;
+    /* Keep accumulated AP table across sessions so Triton + wifi_scan can
+     * seed themselves from prior wardrive runs. Each session still writes
+     * a fresh CSV; only new sightings flip dirty=true for the new file. */
     s_beacons  = 0;
     s_current_ch = 1;
 
