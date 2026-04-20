@@ -139,13 +139,24 @@ void theme_init(void)
 void theme_set(theme_id_t id)
 {
     if (id >= THEME__COUNT) id = THEME_POSEIDON;
-    if (id == s_current) return;
     s_current = id;
+    /* Always write through on commit — s_current may have been shifted
+     * around by theme_preview() between the last NVS read and this call,
+     * so we can't elide based on the RAM copy. */
     Preferences p;
     if (p.begin("pui", false)) {  /* read-write */
         p.putUChar("theme", (uint8_t)id);
         p.end();
     }
+}
+
+/* Live-preview helper — changes the in-RAM theme without touching NVS.
+ * Used by the theme picker for per-frame swatch rendering and arrow-key
+ * browsing, which would otherwise thrash flash at ~300 writes/sec. */
+void theme_preview(theme_id_t id)
+{
+    if (id >= THEME__COUNT) id = THEME_POSEIDON;
+    s_current = id;
 }
 
 theme_id_t theme_current_id(void) { return s_current; }

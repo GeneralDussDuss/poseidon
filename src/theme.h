@@ -38,6 +38,7 @@ enum theme_id_t {
 
 void theme_init(void);               /* load from NVS on boot */
 void theme_set(theme_id_t id);       /* apply + persist to NVS */
+void theme_preview(theme_id_t id);   /* apply in RAM only — no NVS write */
 theme_id_t theme_current_id(void);
 const poseidon_theme_t &theme(void);
 

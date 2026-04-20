@@ -67,7 +67,8 @@
 #include <mbedtls/entropy.h>
 
 #define WP_MAX_TARGETS    24
-#define WP_FE2C_UUID      "0000fe2c-0000-1000-8000-00805f9b34fb"
+#define WP_FE2C_UUID16    ((uint16_t)0xFE2C)
+#define WP_FE2C_UUID128   "0000fe2c-0000-1000-8000-00805f9b34fb"
 #define WP_KBP_UUID       "fe2c1234-8366-4814-8eb0-01de32100bea"
 #define WP_PROBE_WAIT_MS  3000
 
@@ -116,12 +117,33 @@ static const char *model_name(uint32_t id)
     return nullptr;
 }
 
-/* --- Scan callback ----------------------------------------------------- */
+/* Counters the picker UI reads to show "scan alive / N seen / K Fast Pair". */
+static volatile uint32_t s_adv_seen_total = 0;
+
+/* --- Scan callback -----------------------------------------------------
+ * Walks every service-data entry and matches by 16-bit or 128-bit UUID
+ * form. NimBLE stores FP's SIG-assigned 16-bit UUID but internal equality
+ * against a 128-bit construction can miss — so iterate and compare each. */
 class wp_scan_cb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice *d) override {
+        s_adv_seen_total++;
         if (!d->haveServiceData()) return;
-        NimBLEUUID fp(WP_FE2C_UUID);
-        std::string sd = d->getServiceData(fp);
+
+        std::string sd;
+        NimBLEUUID fp16((uint16_t)WP_FE2C_UUID16);
+        NimBLEUUID fp128(WP_FE2C_UUID128);
+        int sdc = d->getServiceDataCount();
+        for (int i = 0; i < sdc; ++i) {
+            NimBLEUUID u = d->getServiceDataUUID(i);
+            if (u.equals(fp16) || u.equals(fp128)) {
+                sd = d->getServiceData(i);
+                break;
+            }
+        }
+        /* Also try the direct getters as a belt-and-braces fallback in
+         * case getServiceDataUUID iteration has a quirk. */
+        if (sd.empty()) sd = d->getServiceData(fp16);
+        if (sd.empty()) sd = d->getServiceData(fp128);
         if (sd.empty()) return;
 
         const uint8_t *a = d->getAddress().getBase()->val;
@@ -333,9 +355,11 @@ static wp_verdict_t run_probe(const wp_target_t &t)
         return WP_CONNECT_FAIL;
     }
 
-    NimBLEUUID svc_uuid(WP_FE2C_UUID);
+    NimBLEUUID svc16((uint16_t)WP_FE2C_UUID16);
+    NimBLEUUID svc128(WP_FE2C_UUID128);
     NimBLEUUID kbp_uuid(WP_KBP_UUID);
-    NimBLERemoteService *svc = c->getService(svc_uuid);
+    NimBLERemoteService *svc = c->getService(svc16);
+    if (!svc) svc = c->getService(svc128);
     if (!svc) { c->disconnect(); NimBLEDevice::deleteClient(c); return WP_NO_SERVICE; }
 
     NimBLERemoteCharacteristic *kbp = svc->getCharacteristic(kbp_uuid);
@@ -471,9 +495,16 @@ static void draw_picker(int cursor, bool scanning)
     if (s_tgt_n == 0) {
         d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 24);
-        d.print(scanning ? "scanning FE2C..." : "no Fast Pair devices");
-        d.setCursor(4, BODY_Y + 38); d.print("airpods / buds / cans");
-        d.setCursor(4, BODY_Y + 48); d.print("in range = shown here");
+        d.printf("scanning FE2C    %lu adv", (unsigned long)s_adv_seen_total);
+        d.setCursor(4, BODY_Y + 38);
+        d.print("Fast Pair is opt-in & only broadcasts");
+        d.setCursor(4, BODY_Y + 48);
+        d.print("when accessory is idle. Power-cycle");
+        d.setCursor(4, BODY_Y + 58);
+        d.print("or open the case — it'll advertise.");
+        d.setCursor(4, BODY_Y + 72);
+        d.setTextColor(T_ACCENT, T_BG);
+        d.print("R = rescan from zero");
         return;
     }
 
@@ -584,6 +615,7 @@ void feat_ble_whisperpair(void)
 {
     radio_switch(RADIO_BLE);
     s_tgt_n = 0;
+    s_adv_seen_total = 0;
 
     /* Load any pre-baked anti-spoofing pubkeys from SD. Without these we
      * fall back to bogus-ciphertext vulnerability detection only (can't
@@ -593,11 +625,13 @@ void feat_ble_whisperpair(void)
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(&s_cb, true);
     scan->setActiveScan(true);
-    scan->setInterval(45);
-    scan->setWindow(30);
+    /* Aggressive scan — match window to interval for full-duty scanning,
+     * increasing the odds of catching a low-duty Fast Pair advertisement. */
+    scan->setInterval(100);
+    scan->setWindow(99);
     scan->start(0, false);
 
-    ui_draw_footer(";/.=move  ENTER=probe  L=log  `=back");
+    ui_draw_footer(";/.=move  ENTER=probe  R=rescan  `=back");
     ui_draw_status(radio_name(), "whisper");
     int cursor = 0;
     uint32_t last = 0;
@@ -608,6 +642,13 @@ void feat_ble_whisperpair(void)
         if (k == PK_ESC) { scan->stop(); return; }
         if ((k == ';' || k == PK_UP)   && cursor > 0) cursor--;
         if ((k == '.' || k == PK_DOWN) && cursor + 1 < s_tgt_n) cursor++;
+        if (k == 'r' || k == 'R') {
+            scan->stop();
+            s_tgt_n = 0;
+            s_adv_seen_total = 0;
+            cursor = 0;
+            scan->start(0, false);
+        }
 
         if (k == PK_ENTER && s_tgt_n > 0) {
             scan->stop();

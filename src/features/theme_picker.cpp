@@ -14,11 +14,8 @@ void feat_theme_picker(void)
 
     int prev_sel = -1;
     while (true) {
-        /* Live-preview: update in-RAM only, don't write NVS on every
-         * arrow keypress. theme_set() elides writes when the id matches,
-         * but call order here can churn — so set s_current directly by
-         * going through the normal path but skipping persistence. */
-        theme_set((theme_id_t)sel);
+        /* Preview only — no NVS writes during browsing. */
+        theme_preview((theme_id_t)sel);
         if (sel != prev_sel) { ui_force_clear_body(); prev_sel = sel; }
         ui_draw_status("theme", "");
 
@@ -28,7 +25,9 @@ void feat_theme_picker(void)
 
         for (int i = 0; i < THEME__COUNT; i++) {
             int y = BODY_Y + 18 + i * 14;
-            theme_set((theme_id_t)i);
+            /* Flip palette just to render this row's swatches. Still
+             * RAM-only — cheap. */
+            theme_preview((theme_id_t)i);
             bool s = (i == sel);
             if (s) {
                 d.fillRoundRect(2, y - 2, SCR_W - 4, 13, 2, T_SEL_BG);
@@ -45,21 +44,22 @@ void feat_theme_picker(void)
             d.fillRect(182, y, 12, 8, T_BAD);
             d.fillRect(196, y, 12, 8, T_DIM);
         }
-        theme_set((theme_id_t)sel);
+        theme_preview((theme_id_t)sel);   /* back to browsed theme after swatch loop */
 
         ui_draw_footer(";/.=browse  ENTER=apply  ESC=back");
 
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) {
-            /* Restore original — user browsed away but didn't commit. */
-            theme_set(original);
+            /* Restore original in RAM — NVS still holds original, nothing
+             * to write. */
+            theme_preview(original);
             return;
         }
         if (k == ';' || k == PK_UP)   sel = (sel - 1 + THEME__COUNT) % THEME__COUNT;
         if (k == '.' || k == PK_DOWN) sel = (sel + 1) % THEME__COUNT;
         if (k == PK_ENTER) {
-            theme_set((theme_id_t)sel);    /* commits to NVS */
+            theme_set((theme_id_t)sel);    /* THE ONE NVS write — commit */
             d.fillScreen(T_BG);
             ui_toast("theme applied", T_GOOD, 600);
             return;
