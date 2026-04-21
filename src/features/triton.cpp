@@ -927,6 +927,7 @@ void feat_triton(void)
     uint32_t stoked_until = 0;
     uint32_t prev_total = 0;
 
+    uint32_t last_overlay_at = 0;
     while (true) {
         uint32_t now = millis();
         uint32_t total = s_pmk + s_hs;
@@ -934,21 +935,24 @@ void feat_triton(void)
             uint32_t diff = total - prev_total;
             prev_total = total;
             stoked_until = now + 5000;
-            /* Full-screen dramatic overlay. s_hs >= 1 means this was
-             * a handshake, otherwise it's a PMKID. */
             static uint32_t prev_hs = 0;
             bool was_hs = (s_hs > prev_hs);
             prev_hs = s_hs;
-            char sub[48];
-            snprintf(sub, sizeof(sub), "total: %lu", (unsigned long)total);
-            /* sfx_capture is the full POSEIDON "caught one" jingle —
-             * respects the global mute flag, so the [M] hotkey below
-             * silences it mid-session without losing the overlay. */
+            /* Rate-limit the full-screen overlay to once per 3 s.
+             * Without this, cascading captures stacked 1400 ms of
+             * blocking overlay each — UI task stuck, user pressed
+             * keys that never registered, looked like a freeze. SFX
+             * still fires so every catch gets its jingle. */
             sfx_capture();
-            if (was_hs) {
-                ui_action_overlay("HANDSHAKE!", sub, ACT_BG_WAVES, 0xF81F, 1400);
-            } else {
-                ui_action_overlay("PMKID", sub, ACT_BG_RADAR, 0x07FF, 900);
+            if (now - last_overlay_at > 3000) {
+                last_overlay_at = now;
+                char sub[48];
+                snprintf(sub, sizeof(sub), "total: %lu", (unsigned long)total);
+                if (was_hs) {
+                    ui_action_overlay("HANDSHAKE!", sub, ACT_BG_WAVES, 0xF81F, 900);
+                } else {
+                    ui_action_overlay("PMKID", sub, ACT_BG_RADAR, 0x07FF, 700);
+                }
             }
             (void)diff;
         }
@@ -1093,13 +1097,10 @@ void feat_triton(void)
                 wdr_append(hs[i].bssid, ssid, "EAPOL_HS_5G");
                 s_hs++;
             }
-            if (nh > 0) {
-                /* Clear only the HS portion — we re-use c5_aps results
-                 * for the 5G target list, so wiping everything would
-                 * nuke our scan cache. Re-fetching preserves dedup. */
-                c5_clear_results();
-                c5_cmd_scan_5g(400);
-            }
+            /* Don't auto-rescan on every HS drain. Frequent HS arrivals
+             * were firing c5_cmd_scan_5g 7+ times in 20 s, saturating
+             * ESP-NOW TX path. The normal rotation loop above refreshes
+             * the 5G AP list on its own cadence. */
         }
 
         uint16_t k = input_poll();
