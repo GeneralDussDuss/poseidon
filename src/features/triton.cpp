@@ -808,6 +808,21 @@ void feat_triton(void)
     if (!pick_mode()) return;
     if (s_mode == TM_SURGICAL && !pick_surgical_target()) return;
 
+    /* Explicit "waking up" screen — the setup (sd_mount + scanNetworks
+     * + gps_begin + promisc config) takes ~1-2 s and users were
+     * mashing ENTER again thinking the device froze. Spinner the
+     * delay so we look alive. */
+    ui_clear_body();
+    auto &dsp = M5Cardputer.Display;
+    dsp.setTextColor(T_ACCENT, T_BG);
+    dsp.setCursor(4, BODY_Y + 6);  dsp.print("TRITON");
+    dsp.setTextColor(T_FG, T_BG);
+    dsp.setCursor(4, BODY_Y + 22); dsp.print("waking up...");
+    dsp.setTextColor(T_DIM, T_BG);
+    dsp.setCursor(4, BODY_Y + 36); dsp.print("seeding APs + SD + GPS");
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);
+    ui_draw_footer("stand by");
+
     if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
     SD.mkdir("/poseidon");
     s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
