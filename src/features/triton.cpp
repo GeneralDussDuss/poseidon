@@ -753,15 +753,12 @@ static bool pick_mode(void)
     int sel = (int)s_mode;
     triton_mode_t modes[4] = { TM_HUNT, TM_STEALTH, TM_SURGICAL, TM_STORM };
     ui_draw_footer(";/. pick  ENTER=launch  `=back");
-    int prev_sel = -1;
+    int prev_sel = -1;   /* sentinel — forces first-iteration render */
     while (true) {
-        uint16_t k = input_poll();
-        if (k == PK_NONE) { delay(30); continue; }
-        if (k == PK_ESC) return false;
-        if (k == ';' || k == PK_UP)   { if (sel > 0) sel--; }
-        if (k == '.' || k == PK_DOWN) { if (sel < 3) sel++; }
-        if (k == PK_ENTER) { s_mode = modes[sel]; return true; }
-
+        /* Render FIRST if state dirty, THEN poll input. Previously the
+         * render was gated behind an input event, so the main menu
+         * stayed on-screen until the user pressed a key — looked like
+         * the device froze on Triton select. */
         if (sel != prev_sel || prev_sel < 0) {
             prev_sel = sel;
             ui_force_clear_body();
@@ -782,6 +779,13 @@ static bool pick_mode(void)
             }
             ui_draw_footer(";/. pick  ENTER=launch  `=back");
         }
+
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(30); continue; }
+        if (k == PK_ESC) return false;
+        if (k == ';' || k == PK_UP)   { if (sel > 0) sel--; }
+        if (k == '.' || k == PK_DOWN) { if (sel < 3) sel++; }
+        if (k == PK_ENTER) { s_mode = modes[sel]; return true; }
     }
 }
 
