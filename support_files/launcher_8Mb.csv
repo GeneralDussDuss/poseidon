@@ -1,0 +1,13 @@
+# Partition table matching bmorcelli/Launcher's expected layout for an
+# installed app. POSEIDON lives in app1 (ota_0) at 0x170000; the Launcher
+# itself occupies app0 (test) at 0x10000. Verbatim copy of
+# https://raw.githubusercontent.com/bmorcelli/Launcher/main/support_files/custom_8Mb.csv
+# so any bootloader and tooling compiled against that tree reads the
+# same offsets we linked to. Building at the wrong offset = boots garbage.
+# Name,   Type, SubType,  Offset,   Size,      Flags
+nvs,      data, nvs,      0x9000,   0x6000,
+app0,     app,  test,     0x10000,  0x160000,
+app1,     app,  ota_0,    0x170000, 0x4F0000,
+vfs,      data, fat,      0x670000, 0x80000,
+spiffs,   data, spiffs,   0x6F0000, 0x100000,
+coredump, data, coredump, 0x7F0000, 0x10000,

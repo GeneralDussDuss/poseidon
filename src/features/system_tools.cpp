@@ -11,6 +11,8 @@
 #include "../sd_helper.h"
 #include <Preferences.h>
 #include <time.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 
 /* ========== Saved WiFi ========== */
 
@@ -246,6 +248,7 @@ void feat_settings(void)
     d.setCursor(4, BODY_Y + 46); d.print("[F] format preferences");
     d.setCursor(4, BODY_Y + 58); d.print("[S] format SD card");
     d.setCursor(4, BODY_Y + 70); d.print("[R] reboot");
+    d.setCursor(4, BODY_Y + 82); d.print("[L] back to Launcher");
     ui_draw_footer("letter=go  `=back");
     while (true) {
         uint16_t k = input_poll();
@@ -268,5 +271,23 @@ void feat_settings(void)
             return;
         }
         if (k == 'r' || k == 'R') { ESP.restart(); }
+        if (k == 'l' || k == 'L') {
+            /* bmorcelli's Launcher uses a custom bootloader that decides
+             * which partition to run from the RTC reset-reason:
+             *   POWERON_RESET  -> app0/test (Launcher)
+             *   SW_CPU_RESET   -> app1/ota_0 (this app)
+             * Per the project's own wiki ("impossible to return to the
+             * Launcher unless you change the other application to it"),
+             * there is no software-only way to force POWERON_RESET, so
+             * we can't boot to Launcher from here. Tell the user what
+             * the actual escape is. Only show the hint when running
+             * under the Launcher partition scheme — otherwise it's
+             * nonsense. */
+            const esp_partition_t *p = esp_partition_find_first(
+                ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_TEST, NULL);
+            if (p) ui_toast("unplug USB to return", T_WARN, 1500);
+            else   ui_toast("no launcher slot",    T_BAD,  900);
+            return;
+        }
     }
 }
