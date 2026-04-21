@@ -445,22 +445,14 @@ static void hop_task(void *)
      * rc=257. Instead: 10 s of pure 2.4 work, 10 s of pure 5 GHz
      * C5 work. Promiscuous RX stays on either way so we still
      * capture EAPOL from dual-band clients cascading down to 2.4. */
-    /* 30 s time-slice: 2.4 GHz attack phase (softAP + local deauth
-     * bursts) alternates with 5 GHz phase (C5 commands fire via
-     * ESP-NOW, no local deauth TX). 30 s is long enough for each
-     * mode to actually land captures before switching; 10 s was too
-     * short and the transitions dominated. No c5_begin/stop toggling
-     * — ESP-NOW stays up the whole time, we just gate which TX path
-     * fires based on phase. */
-    uint32_t phase_start = millis();
+    /* Pure 2.4 GHz. Every attempt to time-slice with C5 commands or
+     * keep ESP-NOW running during softAP deauth bursts eventually
+     * deadlocked the WiFi driver on the ESP32-S3 / IDF 5.5 stack
+     * after a few minutes. Stability > dual-band. User can run the
+     * C5 menu's 5 GHz PMKID / Deauth / HS features separately. */
     s_phase_5g = false;
 
     while (s_alive) {
-        uint32_t ph_now = millis();
-        if (ph_now - phase_start > 30000) {
-            phase_start = ph_now;
-            s_phase_5g = !s_phase_5g;
-        }
         /* Channel selection per mode. */
         switch (s_mode) {
         case TM_SURGICAL:
@@ -897,18 +889,17 @@ void feat_triton(void)
     esp_wifi_set_promiscuous_rx_cb(cb);
     esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
 
-    xTaskCreate(hop_task, "triton", 4096, nullptr, 4, nullptr);
-
-    /* If a C5 is online, kick off a parallel 5 GHz scan so we have
-     * targets to deauth on the upper band. */
-    c5_begin();
-    bool c5_online = c5_any_online();
-    if (c5_online) {
-        c5_clear_results();
-        c5_cmd_scan_5g(400);
-    }
+    /* Stop ESP-NOW for the Triton session. Any concurrent ESP-NOW
+     * TX/RX path destabilises the softAP + promiscuous RX + active
+     * deauth combo we run here. C5 features still work standalone
+     * when user exits Triton and picks them from the C5 menu. */
+    c5_stop();
+    bool c5_online = false;   /* kept so existing branches compile */
     uint32_t last_c5_deauth = 0;
     int c5_target_idx = 0;
+    (void)last_c5_deauth; (void)c5_target_idx;
+
+    xTaskCreate(hop_task, "triton", 4096, nullptr, 4, nullptr);
 
     ui_draw_footer("autonomous  [M]=mute  [?]=help  `=back");
 
@@ -1110,14 +1101,14 @@ void feat_triton(void)
     }
 
     s_alive = false;
-    /* Let hop_task finish its current iteration before we tear down
-     * the softAP — closing it while a deauth burst is mid-flight can
-     * leave the driver wedged. */
     delay(100);
     esp_wifi_set_promiscuous(false);
     wifi_silent_ap_end();
     if (s_file)     { s_file.flush();     s_file.close(); }
     if (s_wdr_file) { s_wdr_file.flush(); s_wdr_file.close(); }
     gps_end();
+    /* Bring ESP-NOW back up so the global C5 status pill + C5 menu
+     * features work again after Triton exits. */
+    c5_begin();
     delay(200);
 }
