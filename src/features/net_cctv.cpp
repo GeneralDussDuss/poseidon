@@ -117,23 +117,33 @@ static void hit_add(const cctv_hit_t &h)
 static bool tcp_open(IPAddress ip, uint16_t port, uint32_t timeout_ms)
 {
     WiFiClient c;
-    c.setTimeout(1);
+    /* No setTimeout — we never read, and connect(...) already owns the
+     * timeout argument. Stacking a seconds-unit setTimeout on top made
+     * stalled RTSP handshakes block for longer than the caller expected. */
     if (!c.connect(ip, port, timeout_ms)) return false;
     c.stop();
     return true;
 }
 
-/* Basic auth header: "Authorization: Basic <base64(user:pass)>". */
-static void build_basic_auth(const char *user, const char *pass, char *out, size_t out_sz)
+/* Basic auth header: "Authorization: Basic <base64(user:pass)>". Bounded
+ * so a long user:pass can't overflow the output buffer — mbedtls returns
+ * MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL without null-terminating when the
+ * destination is undersized. We treat that as failure and blank the
+ * header. Output buffer is 128 B everywhere we call this. */
+static bool build_basic_auth(const char *user, const char *pass, char *out, size_t out_sz)
 {
     char up[64];
-    snprintf(up, sizeof(up), "%s:%s", user, pass);
+    int n = snprintf(up, sizeof(up), "%s:%s", user ? user : "", pass ? pass : "");
+    if (n < 0 || (size_t)n >= sizeof(up)) { out[0] = 0; return false; }
+
+    unsigned char b64[128];
     size_t olen = 0;
-    unsigned char b64[96];
-    mbedtls_base64_encode(b64, sizeof(b64), &olen,
-                          (const unsigned char *)up, strlen(up));
+    int rc = mbedtls_base64_encode(b64, sizeof(b64), &olen,
+                                   (const unsigned char *)up, (size_t)n);
+    if (rc != 0 || olen >= sizeof(b64)) { out[0] = 0; return false; }
     b64[olen] = 0;
     snprintf(out, out_sz, "Basic %s", (const char *)b64);
+    return true;
 }
 
 /* Fingerprint a brand from an HTTP response body. */
@@ -178,7 +188,10 @@ static bool http_get(IPAddress ip, uint16_t port, const char *path,
     out.headers = "";
     out.body = "";
     bool in_body = false;
-    while (c.connected() && millis() < deadline) {
+    /* Keep draining bytes even after the server closes — HTTP/1.0 cams
+     * routinely half-close before we've read the status line. Only bail
+     * when BOTH the socket is gone AND there's nothing buffered. */
+    while ((c.connected() || c.available()) && millis() < deadline) {
         if (!c.available()) { delay(5); continue; }
         String line = c.readStringUntil('\n');
         if (!in_body) {
@@ -200,20 +213,32 @@ static bool http_get(IPAddress ip, uint16_t port, const char *path,
     return out.code != 0;
 }
 
+/* Is this 2xx body actually authed content, or just a login page served
+ * to unauthenticated clients? Heuristic: known "please sign in" markers
+ * in the body. Cheap but kills most false positives. */
+static bool looks_like_login_page(const String &body)
+{
+    if (body.length() == 0) return false;
+    return body.indexOf("<title>Login") >= 0
+        || body.indexOf("name=\"password\"") >= 0
+        || body.indexOf("id=\"password\"") >= 0
+        || body.indexOf("type=\"password\"") >= 0
+        || body.indexOf("login-form") >= 0;
+}
+
 /* Try default credentials on a path that returned 401. Returns the
- * matching cred index, or -1. Stops on first 2xx. */
+ * matching cred index, or -1. Stops on the first 2xx whose body doesn't
+ * look like an unauthenticated login form. */
 static int try_creds(IPAddress ip, uint16_t port, const char *path)
 {
     for (int i = 0; i < CRED_N && !s_abort; ++i) {
-        char auth[96];
-        build_basic_auth(DEFAULT_CREDS[i].user, DEFAULT_CREDS[i].pass,
-                         auth, sizeof(auth));
+        char auth[128];
+        if (!build_basic_auth(DEFAULT_CREDS[i].user, DEFAULT_CREDS[i].pass,
+                              auth, sizeof(auth))) continue;
         http_result_t r;
         if (!http_get(ip, port, path, auth, r, 1500)) continue;
-        if (r.code >= 200 && r.code < 300) return i;
-        /* Some cameras return 200 on the login page but we need to
-         * detect actual auth-required endpoints — skip if body mentions
-         * "login" or "password". Cheap filter. */
+        if (r.code >= 200 && r.code < 300 && !looks_like_login_page(r.body))
+            return i;
     }
     return -1;
 }
@@ -223,8 +248,8 @@ static int try_creds(IPAddress ip, uint16_t port, const char *path)
 static bool rtsp_options(IPAddress ip, uint16_t port)
 {
     WiFiClient c;
-    c.setTimeout(2);
-    if (!c.connect(ip, port, 1500)) return false;
+    c.setTimeout(2);    /* read timeout: 2 s in seconds units (matches connect budget below) */
+    if (!c.connect(ip, port, 2000)) return false;
     c.print("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: poseidon\r\n\r\n");
     uint32_t deadline = millis() + 1500;
     String line;
@@ -245,7 +270,7 @@ static bool rtsp_describe(IPAddress ip, uint16_t port, const char *path,
 {
     WiFiClient c;
     c.setTimeout(2);
-    if (!c.connect(ip, port, 1500)) return false;
+    if (!c.connect(ip, port, 2000)) return false;
     char url[128];
     snprintf(url, sizeof(url), "rtsp://%s:%u%s", ip.toString().c_str(), port, path);
     c.printf("DESCRIBE %s RTSP/1.0\r\n", url);
@@ -363,7 +388,18 @@ static void close_log(void)
 
 /* ---- UI ---- */
 
-static void draw_progress(int done, int total, int hits, const char *phase)
+/* Track scan start so we can estimate remaining time. */
+static uint32_t s_scan_start_ms = 0;
+
+static void fmt_eta(uint32_t secs, char *out, size_t sz)
+{
+    if (secs >= 60) snprintf(out, sz, "%lum%02lus", (unsigned long)(secs / 60),
+                                                     (unsigned long)(secs % 60));
+    else            snprintf(out, sz, "%lus",       (unsigned long)secs);
+}
+
+static void draw_progress(int done, int total, int hits,
+                          const char *phase, const char *current)
 {
     auto &d = M5Cardputer.Display;
     ui_clear_body();
@@ -373,32 +409,47 @@ static void draw_progress(int done, int total, int hits, const char *phase)
     d.print("CCTV TOOLKIT");
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
 
+    /* Phase + current target IP, so the user knows we're actually working. */
     d.setTextColor(T_FG, T_BG);
-    d.setCursor(4, BODY_Y + 18);
-    d.printf("phase: %s", phase);
-    d.setCursor(4, BODY_Y + 30);
-    d.printf("scan %d/%d", done, total);
+    d.setCursor(4, BODY_Y + 16);
+    d.printf("%s", phase);
+    if (current && *current) {
+        d.setTextColor(T_DIM, T_BG);
+        d.setCursor(4, BODY_Y + 26);
+        d.printf("-> %s", current);
+    }
 
-    /* Progress bar. */
+    /* Progress bar + counts + ETA. */
     int bar_w = SCR_W - 12;
     int filled = total ? (bar_w * done / total) : 0;
-    d.drawRect(4, BODY_Y + 42, bar_w, 6, T_ACCENT);
-    d.fillRect(5, BODY_Y + 43, filled, 4, T_ACCENT2);
+    d.drawRect(4, BODY_Y + 38, bar_w, 5, T_ACCENT);
+    d.fillRect(5, BODY_Y + 39, filled, 3, T_ACCENT2);
+
+    char eta[16] = "";
+    if (s_scan_start_ms && done > 0 && done < total) {
+        uint32_t elapsed = (millis() - s_scan_start_ms) / 1000;
+        uint32_t remaining = (elapsed * (uint32_t)(total - done)) / (uint32_t)done;
+        fmt_eta(remaining, eta, sizeof(eta));
+    }
+
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 46);
+    d.printf("%d / %d   eta %s", done, total, eta);
 
     d.setTextColor(T_GOOD, T_BG);
-    d.setCursor(4, BODY_Y + 54);
-    d.printf("hits: %d", hits);
+    d.setCursor(4, BODY_Y + 56);
+    d.printf("hits %d", hits);
 
-    /* Most recent 4 hits so the user gets feedback as it scans. */
-    d.setTextColor(T_DIM, T_BG);
-    int first = s_hits_n > 4 ? s_hits_n - 4 : 0;
+    /* 3 most recent hits — the 4th row overlapped the footer. */
+    int first = s_hits_n > 3 ? s_hits_n - 3 : 0;
     for (int i = first; i < s_hits_n; ++i) {
-        int y = BODY_Y + 66 + (i - first) * 10;
+        int y = BODY_Y + 68 + (i - first) * 10;
         const cctv_hit_t &h = s_hits[i];
         uint16_t col = h.creds[0] ? T_BAD : (h.stream[0] ? T_WARN : T_GOOD);
         d.setTextColor(col, T_BG);
         d.setCursor(4, y);
-        d.printf("%s %.8s %.10s", h.ip, h.brand, h.creds[0] ? h.creds : h.stream);
+        d.printf("%s %.7s %.14s", h.ip, h.brand,
+                 h.creds[0] ? h.creds : (h.stream[0] ? h.stream : "ports"));
     }
     ui_draw_footer("`=abort");
 }
@@ -424,45 +475,51 @@ static void reset_state(void)
     memset(s_log_path, 0, sizeof(s_log_path));
 }
 
-static void scan_lan(void)
+static void wait_for_exit_key(void)
 {
-    if (WiFi.status() != WL_CONNECTED) {
-        ui_toast("need WiFi assoc", T_BAD, 1200);
-        return;
-    }
-    reset_state();
-    open_log();
-
-    IPAddress me  = WiFi.localIP();
-    IPAddress gw  = WiFi.gatewayIP();
-    IPAddress mask = WiFi.subnetMask();
-    uint32_t base = ((uint32_t)me[0] << 24) | ((uint32_t)me[1] << 16)
-                  | ((uint32_t)me[2] << 8);
-    (void)gw; (void)mask;   /* /24 sweep is fine for our purposes */
-
-    int total = 254;
-    for (int host = 1; host <= 254 && !s_abort; ++host) {
-        IPAddress ip((base >> 24) & 0xFF,
-                     (base >> 16) & 0xFF,
-                     (base >> 8)  & 0xFF, host);
-        if (ip == me) continue;   /* don't probe ourselves */
-        int before = s_hits_n;
-        scan_host(ip);
-        if (s_hits_n > before) log_hit(s_hits[s_hits_n - 1]);
-        if ((host % 4) == 0) draw_progress(host, total, s_hits_n, "lan /24");
-        uint16_t k = input_poll();
-        if (k == PK_ESC) { s_abort = true; break; }
-    }
-
-    close_log();
-    draw_progress(total, total, s_hits_n, "done");
-    ui_toast(s_log_path[0] ? s_log_path : "done", T_GOOD, 1500);
-    /* Hold the final screen until ESC. */
     while (true) {
         uint16_t k = input_poll();
         if (k == PK_ESC || k == PK_ENTER) break;
         delay(20);
     }
+}
+
+static void scan_lan(void)
+{
+    if (WiFi.status() != WL_CONNECTED) {
+        ui_toast("no WiFi", T_BAD, 1200);
+        return;
+    }
+    reset_state();
+    open_log();
+    s_scan_start_ms = millis();
+
+    IPAddress me  = WiFi.localIP();
+    uint32_t base = ((uint32_t)me[0] << 24) | ((uint32_t)me[1] << 16)
+                  | ((uint32_t)me[2] << 8);
+    int total = 254;
+    char cur[16] = "";
+
+    for (int host = 1; host <= 254 && !s_abort; ++host) {
+        IPAddress ip((base >> 24) & 0xFF,
+                     (base >> 16) & 0xFF,
+                     (base >> 8)  & 0xFF, host);
+        if (ip == me) continue;   /* don't probe ourselves */
+        snprintf(cur, sizeof(cur), "%s", ip.toString().c_str());
+        /* Redraw before each probe so the current IP is always visible. */
+        draw_progress(host, total, s_hits_n, "LAN /24 sweep", cur);
+        int before = s_hits_n;
+        scan_host(ip);
+        if (s_hits_n > before) log_hit(s_hits[s_hits_n - 1]);
+        uint16_t k = input_poll();
+        if (k == PK_ESC) { s_abort = true; break; }
+    }
+
+    close_log();
+    draw_progress(total, total, s_hits_n, "done", s_log_path);
+    ui_toast(s_hits_n ? "hits saved to SD" : "no cams found",
+             s_hits_n ? T_GOOD : T_WARN, 1500);
+    wait_for_exit_key();
 }
 
 static void scan_single(void)
@@ -471,33 +528,31 @@ static void scan_single(void)
     if (!input_line("Target IP:", buf, sizeof(buf))) return;
     IPAddress ip;
     if (!ip.fromString(buf)) {
-        ui_toast("bad ip", T_BAD, 900);
+        ui_toast("invalid IP", T_BAD, 900);
         return;
     }
     reset_state();
     open_log();
-    draw_progress(0, 1, 0, "single");
+    s_scan_start_ms = millis();
+    draw_progress(0, 1, 0, "single host", buf);
     scan_host(ip);
     if (s_hits_n) log_hit(s_hits[0]);
     close_log();
-    draw_progress(1, 1, s_hits_n, "done");
-    while (true) {
-        uint16_t k = input_poll();
-        if (k == PK_ESC || k == PK_ENTER) break;
-        delay(20);
-    }
+    draw_progress(1, 1, s_hits_n, "done", s_log_path);
+    wait_for_exit_key();
 }
 
 static void scan_file(void)
 {
-    if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1000); return; }
+    if (!sd_mount()) { ui_toast("no SD card", T_BAD, 1000); return; }
     File f = SD.open("/poseidon/cctv-targets.txt", FILE_READ);
     if (!f) {
-        ui_toast("/poseidon/cctv-targets.txt missing", T_BAD, 1800);
+        ui_toast("put IPs in /poseidon/cctv-targets.txt", T_BAD, 1800);
         return;
     }
     reset_state();
     open_log();
+    s_scan_start_ms = millis();
 
     /* Count lines first so progress bar is accurate. */
     int total = 0;
@@ -508,29 +563,27 @@ static void scan_file(void)
     f.seek(0);
 
     int done = 0;
+    char cur[16] = "";
     while (f.available() && !s_abort) {
         String l = f.readStringUntil('\n');
         l.trim();
         if (l.length() == 0 || l.startsWith("#")) { done++; continue; }
         IPAddress ip;
         if (ip.fromString(l)) {
+            snprintf(cur, sizeof(cur), "%s", l.c_str());
+            draw_progress(done, total, s_hits_n, "from file", cur);
             int before = s_hits_n;
             scan_host(ip);
             if (s_hits_n > before) log_hit(s_hits[s_hits_n - 1]);
         }
         done++;
-        if ((done & 1) == 0) draw_progress(done, total, s_hits_n, "from file");
         uint16_t k = input_poll();
         if (k == PK_ESC) { s_abort = true; break; }
     }
     f.close();
     close_log();
-    draw_progress(total, total, s_hits_n, "done");
-    while (true) {
-        uint16_t k = input_poll();
-        if (k == PK_ESC || k == PK_ENTER) break;
-        delay(20);
-    }
+    draw_progress(total, total, s_hits_n, "done", s_log_path);
+    wait_for_exit_key();
 }
 
 /* ---- top-level dispatcher ---- */
@@ -556,7 +609,7 @@ void feat_cctv_scan(void)
         d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
         d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 18);
-        d.print("Evil-M5 port - ports/brand/rtsp/creds");
+        d.print("WiFi required  LAN sweep ~3-5 min  ESC=abort");
 
         for (int i = 0; i < n; ++i) {
             int y = BODY_Y + 34 + i * 14;

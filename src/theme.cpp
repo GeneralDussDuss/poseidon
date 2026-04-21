@@ -118,6 +118,28 @@ static const poseidon_theme_t THEMES[] = {
         0x0109,             /* footer_bg: dark blue */
         0x04DF,             /* rule: electric blue */
     },
+    /* HI-CONTRAST — accessibility. Pure white on pure black, saturated
+     * semantic colours. "dim" is not dim; it's full white so low-vision
+     * users never see the grey hint text the other palettes use. Selected
+     * rows use a bright accent rather than a muted one so the focus point
+     * is unambiguous. */
+    {
+        "HI-CONTRAST",
+        0x0000,             /* bg: pure black */
+        0xFFFF,             /* fg: pure white */
+        0xFFE0,             /* accent: yellow — max chroma title */
+        0xFFFF,             /* accent2: white */
+        0xFD20,             /* warn: saturated orange */
+        0xF800,             /* bad: saturated red */
+        0x07E0,             /* good: saturated green */
+        0xFFFF,             /* dim: WHITE (not dim) so hints are legible */
+        0xFFE0,             /* sel_bg: yellow highlight */
+        0x0000,             /* sel_border: black border inside yellow = contrast */
+        0x0000,             /* status_bg: black */
+        0x0000,             /* status_bg2: black (no gradient smear) */
+        0x0000,             /* footer_bg: black */
+        0xFFFF,             /* rule: white */
+    },
 };
 
 static theme_id_t s_current = THEME_POSEIDON;

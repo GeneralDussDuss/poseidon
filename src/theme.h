@@ -33,6 +33,7 @@ enum theme_id_t {
     THEME_AMBER,          /* amber/orange on black (retro) */
     THEME_EINK,           /* black on white (paper) */
     THEME_TRON,           /* neon blue + cyan glow, circuit aesthetic */
+    THEME_HICONTRAST,     /* accessibility: pure white on black, bright accents */
     THEME__COUNT
 };
 
