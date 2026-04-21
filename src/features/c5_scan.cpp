@@ -666,13 +666,18 @@ void feat_c5_nuke_5g(void)
         ui_draw_footer("`=abort");
 
         c5_clear_results();
-        c5_cmd_scan_5g(1000);
+        /* duration_ms is PER-CHANNEL dwell on the C5 side. Across a
+         * full country-allowed dual-band sweep (~36 channels) that's
+         * duration * 36. Match feat_c5_scan_5g's 300 ms = ~11 s full
+         * sweep. 1000 ms / channel meant 36 s before the first RESP_AP
+         * even started streaming back — we were polling 4 s. */
+        c5_cmd_scan_5g(300);
 
-        /* Poll until 5G APs appear OR we hit a 4 s ceiling. Short
-         * polls so aborting with ESC is responsive. */
-        uint32_t deadline = millis() + 4000;
+        /* Poll until 5G APs appear OR the full sweep window passes.
+         * Short polls so ESC aborts responsively. */
+        uint32_t deadline = millis() + 15000;
         while (millis() < deadline && five_n == 0) {
-            delay(200);
+            delay(300);
             n = c5_aps(aps, 64);
             five_n = 0;
             for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
