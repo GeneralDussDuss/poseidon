@@ -10,6 +10,7 @@
 #include "input.h"
 #include "radio.h"
 #include "theme.h"
+#include "c5_cmd.h"
 
 /* ---- forward decls for feature entry points ---- */
 extern void feat_wifi_scan(void);
@@ -684,6 +685,20 @@ static void draw_menu(const menu_node_t *parent, int cursor)
     d.printf("%s", parent->label);
     int tw = d.textWidth(parent->label);
     d.drawFastHLine(4, BODY_Y + 12, tw + 6, T_ACCENT);
+
+    /* Root-menu-only C5/TRIDENT status panel. Larger + more prominent
+     * than the global status-bar badge so the user sees satellite
+     * pairing state the instant POSEIDON boots. */
+    if (parent == &MENU_ROOT) {
+        int n5 = c5_any_online() ? c5_peer_count() : 0;
+        int px = SCR_W - 72, py = BODY_Y + 1;
+        d.drawRoundRect(px, py, 68, 11, 2, n5 > 0 ? T_GOOD : T_DIM);
+        d.fillCircle(px + 5, py + 5, 2, n5 > 0 ? T_GOOD : 0x528A);
+        d.setTextColor(n5 > 0 ? T_GOOD : T_DIM, T_BG);
+        d.setCursor(px + 12, py + 2);
+        if (n5 > 0) d.printf("C5 x%d ONLINE", n5);
+        else        d.print("C5 not paired");
+    }
 
     int n = count_children(parent);
 
