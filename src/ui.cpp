@@ -5,6 +5,7 @@
 #include "ui.h"
 #include "theme.h"
 #include "input.h"
+#include "c5_cmd.h"
 #include <stdarg.h>
 #include <math.h>
 #include <esp_system.h>
@@ -138,6 +139,7 @@ static void vgradient(int x, int y, int w, int h, uint16_t top, uint16_t bot)
 static char     s_st_radio[24] = {0};
 static char     s_st_extra[24] = {0};
 static uint32_t s_st_heap_bucket = 0xFFFFFFFFu;
+static int      s_st_c5_n = -1;
 static bool     s_st_valid = false;
 
 void ui_draw_status(const char *radio, const char *extra)
@@ -147,11 +149,13 @@ void ui_draw_status(const char *radio, const char *extra)
     const char *rr = radio ? radio : "idle";
     const char *ee = (extra && *extra) ? extra : "";
     uint32_t heap_bucket = (esp_get_free_heap_size() / 1024) / 4; /* 4 KB bucket */
+    int c5_n = c5_any_online() ? c5_peer_count() : 0;
 
     bool changed = !s_st_valid
                 || strncmp(rr, s_st_radio, sizeof(s_st_radio)) != 0
                 || strncmp(ee, s_st_extra, sizeof(s_st_extra)) != 0
-                || heap_bucket != s_st_heap_bucket;
+                || heap_bucket != s_st_heap_bucket
+                || c5_n != s_st_c5_n;
 
     /* Pulse dot animates independently. Only the 5x5 rect repaints. */
     uint32_t now = millis();
@@ -185,11 +189,29 @@ void ui_draw_status(const char *radio, const char *extra)
     d.setCursor(SCR_W - w - 4, 2);
     d.print(buf);
 
+    /* C5/TRIDENT satellite indicator — 6x8 "C5 xN" badge + green dot
+     * at the far right of the status bar when one or more C5 satellites
+     * are paired over ESP-NOW. Sits inside the gradient; re-drawn as
+     * part of the cached state so flicker is zero. */
+    if (c5_n > 0) {
+        char badge[12];
+        snprintf(badge, sizeof(badge), "C5 x%d", c5_n);
+        int bw = d.textWidth(badge);
+        int bx = SCR_W - w - bw - 12;
+        if (bx > 80) {
+            d.fillCircle(bx - 5, 6, 2, T_GOOD);
+            d.setTextColor(T_GOOD, 0);
+            d.setCursor(bx, 2);
+            d.print(badge);
+        }
+    }
+
     d.drawFastHLine(0, STATUS_H - 1, SCR_W, T_ACCENT);
 
     strncpy(s_st_radio, rr, sizeof(s_st_radio) - 1); s_st_radio[sizeof(s_st_radio) - 1] = 0;
     strncpy(s_st_extra, ee, sizeof(s_st_extra) - 1); s_st_extra[sizeof(s_st_extra) - 1] = 0;
     s_st_heap_bucket = heap_bucket;
+    s_st_c5_n        = c5_n;
     s_st_valid = true;
 }
 
