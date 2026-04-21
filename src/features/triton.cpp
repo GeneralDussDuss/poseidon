@@ -881,9 +881,12 @@ void feat_triton(void)
      * MGMT+DATA only (drops CTRL), which frees enough RX buffer budget
      * for ESP-NOW + concurrent softAP TX to coexist. */
     wifi_silent_ap_begin(1);
+    /* FILTER_MASK_ALL is the safe default. Narrowing to MGMT|DATA
+     * (0x05) silently dropped DATA_MPDU (0x10) + DATA_AMPDU (0x20),
+     * which is how modern APs aggregate EAPOL frames — Triton's
+     * handshake yield collapsed to zero. */
     wifi_promiscuous_filter_t filter = {
-        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
-                       WIFI_PROMIS_FILTER_MASK_DATA
+        .filter_mask = WIFI_PROMIS_FILTER_MASK_ALL
     };
     esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous_rx_cb(cb);
