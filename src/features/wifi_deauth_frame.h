@@ -74,7 +74,13 @@ static inline esp_err_t wifi_silent_ap_begin(uint8_t channel)
 {
     if (!channel) channel = 1;
 
-    WiFi.mode(WIFI_AP);
+    /* APSTA instead of AP-only. Reason: c5_begin() at boot brings up
+     * ESP-NOW on the STA interface for the TRIDENT HELLO listener. If
+     * we switch to AP-only the STA interface is destroyed and ESP-NOW
+     * TX starts returning ESP_ERR_NO_MEM (257) because its internal
+     * buffer pool can't find an egress interface. APSTA keeps both
+     * active — AP for our deauth bursts, STA for ESP-NOW. */
+    WiFi.mode(WIFI_AP_STA);
     delay(10);
 
     /* Spoof the AP's MAC to the target BSSID so addr2 in our frames

