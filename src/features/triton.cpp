@@ -425,6 +425,20 @@ static void hop_task(void *)
     uint16_t seq = (uint16_t)(esp_random() & 0x0FFF);
     uint32_t last_hunt = 0;
     uint32_t last_save = millis();
+
+    /* Session-scoped softAP. Per-hop silent_ap_begin/end cycles starved
+     * the WiFi TX buffer pool after a few minutes — softAP start would
+     * fail, every 80211_tx would return rc=257 (ESP_ERR_NO_MEM), and
+     * the UI task would stall waiting on the deadlocked WiFi task.
+     * Open once here, hop channels via esp_wifi_set_channel below,
+     * close once at task exit. Same pattern NUKE-ALL uses. */
+    bool ap_up = (wifi_silent_ap_begin(1) == ESP_OK);
+    if (!ap_up) {
+        Serial.println("[triton] initial softAP begin failed — continuing without TX");
+    }
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_promiscuous_rx_cb(cb);
+
     while (s_alive) {
         /* Channel selection per mode. */
         switch (s_mode) {
@@ -455,18 +469,11 @@ static void hop_task(void *)
         case TM_STEALTH:  hunt_period = 0;    break;
         }
 
-        if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
+        if (ap_up && hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
-            /* Previous rev did wifi_silent_ap_set_source_mac + begin +
-             * end + clear per hop. On IDF 5.5 that cycle internally
-             * calls esp_wifi_stop()/set_mac()/start() and after a few
-             * minutes it deadlocks the WiFi task, freezing the device
-             * or forcing a watchdog reset. Back to the battle-tested
-             * session-wide softAP: one begin at the start of each
-             * deauth phase, one end when the burst finishes, no MAC
-             * spoofing. Frame addr2 stays = our AP MAC which some
-             * modern routers will drop, but Triton stays alive. */
-            wifi_silent_ap_begin(s_ch);
+            /* SoftAP stays up for the whole session. We just fire the
+             * bursts on whatever channel s_ch is pointing to (already
+             * set by esp_wifi_set_channel above). */
             if (s_mode == TM_SURGICAL) {
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
@@ -492,16 +499,6 @@ static void hop_task(void *)
                     }
                 }
             }
-            wifi_silent_ap_end();
-            /* wifi_silent_ap_end() disables promiscuous as part of
-             * cleanup (it's meant to fully exit the mode). Triton
-             * NEEDS the promisc sniffer back up for the dwell window
-             * to catch beacons / EAPOL / PMKID — re-arm right here.
-             * Without this Triton only captures during the 20 ms TX
-             * phase of each hop and PMKID yield drops to ~zero. */
-            esp_wifi_set_promiscuous(true);
-            esp_wifi_set_promiscuous_rx_cb(cb);
-            esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
         }
 
         /* Drain any PMKID/handshake captures that the Wi-Fi callback
@@ -530,6 +527,7 @@ static void hop_task(void *)
     }
     capture_flush();       /* flush any trailing captures before exit */
     triton_learn_save();
+    if (ap_up) wifi_silent_ap_end();
     vTaskDelete(nullptr);
 }
 
