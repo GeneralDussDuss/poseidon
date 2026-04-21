@@ -10,6 +10,7 @@
 #include "gps.h"
 #include "sfx.h"
 #include "theme.h"
+#include "c5_cmd.h"
 #include "version.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 
@@ -83,6 +84,13 @@ void setup()
     xTaskCreate(gps_task, "gps", 3072, nullptr, 2, nullptr);
 
     ui_init();
+
+    /* Bring up ESP-NOW + the C5/TRIDENT HELLO listener at boot so the
+     * global status-bar satellite badge lights up as soon as a C5 is
+     * powered on — without the user having to open a C5 feature first.
+     * c5_begin is idempotent; features that need ESP-NOW for their own
+     * commands still call it. */
+    c5_begin();
 
     ui_splash();  /* animates, then waits for a key press internally */
 }
