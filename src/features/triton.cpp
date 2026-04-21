@@ -434,12 +434,23 @@ static void hop_task(void *)
      * capture EAPOL from dual-band clients cascading down to 2.4. */
     uint32_t phase_start = millis();
     s_phase_5g = false;
+    /* Start in 2.4 GHz phase → ESP-NOW off so local softAP deauth TX
+     * doesn't compete for WiFi buffers. The HELLO listener pauses
+     * during this phase; peer state is kept. */
+    c5_stop();
 
     while (s_alive) {
         uint32_t ph_now = millis();
         if (ph_now - phase_start > 10000) {
             phase_start = ph_now;
             s_phase_5g = !s_phase_5g;
+            /* Phase transition: bring ESP-NOW up for 5G, down for 2.4.
+             * c5_begin()/c5_stop() are idempotent so even-number
+             * toggles from boot state are safe. */
+            if (s_phase_5g) c5_begin();
+            else            c5_stop();
+            /* Let the WiFi driver settle after mode transitions. */
+            vTaskDelay(pdMS_TO_TICKS(120));
         }
         /* Channel selection per mode. */
         switch (s_mode) {
