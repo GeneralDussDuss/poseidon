@@ -645,16 +645,42 @@ void feat_c5_nuke_5g(void)
     c5_begin();
     if (!c5_any_online()) { ui_toast("no C5 online", T_BAD, 1500); return; }
 
-    /* Initial scan to populate the 5G target list. */
-    c5_clear_results();
-    c5_cmd_scan_5g(800);
-    ui_toast("scanning 5 GHz...", T_ACCENT, 1200);
-    delay(1800);
-
     c5_ap_t aps[64];
     int n = c5_aps(aps, 64);
     int five_n = 0;
     for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+
+    /* Only kick a fresh scan if no 5G APs are already cached. Previous
+     * rev wiped the cache + forced a 1.8 s scan regardless, which often
+     * wasn't enough time for RESP_AP frames to stream back so it
+     * bailed with "no APs" right after the user had scanned the band
+     * themselves a second ago. */
+    if (five_n == 0) {
+        ui_clear_body();
+        auto &dsp = M5Cardputer.Display;
+        dsp.setTextColor(T_ACCENT, T_BG);
+        dsp.setCursor(4, BODY_Y + 18); dsp.print("scanning 5 GHz...");
+        dsp.setTextColor(T_DIM, T_BG);
+        dsp.setCursor(4, BODY_Y + 32); dsp.print("up to 4 s — stand by");
+        ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);
+        ui_draw_footer("`=abort");
+
+        c5_clear_results();
+        c5_cmd_scan_5g(1000);
+
+        /* Poll until 5G APs appear OR we hit a 4 s ceiling. Short
+         * polls so aborting with ESC is responsive. */
+        uint32_t deadline = millis() + 4000;
+        while (millis() < deadline && five_n == 0) {
+            delay(200);
+            n = c5_aps(aps, 64);
+            five_n = 0;
+            for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+            uint16_t k = input_poll();
+            if (k == PK_ESC) return;
+        }
+    }
+
     if (five_n == 0) { ui_toast("no 5 GHz APs found", T_WARN, 1500); return; }
 
     auto &d = M5Cardputer.Display;
