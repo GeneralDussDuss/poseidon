@@ -52,6 +52,7 @@ extern void feat_c5_scan_5g(void);
 extern void feat_c5_scan_zb(void);
 extern void feat_c5_deauth_5g(void);
 extern void feat_c5_pmkid_5g(void);
+extern void feat_c5_nuke_5g(void);
 extern void feat_tool_sd_format(void);
 extern void feat_tool_flashlight(void);
 extern void feat_tool_screen_test(void);
@@ -223,6 +224,14 @@ static const menu_node_t MENU_C5[] = {
       "over ESP-NOW and write directly to /poseidon/hashcat.22000 in WPA*01* "
       "format for offline cracking. Pair with Deauth 5G to force clients to "
       "reconnect and cough up a fresh M1." },
+    { 'n', "Nuke 5G + HS", "Deauth-all + handshake capture, 5 GHz", nullptr, feat_c5_nuke_5g,
+      "The 5 GHz equivalent of the WiFi -> Deauth all feature. Scans 5 GHz, "
+      "then rotates every 6 s through every AP found: C5 fires a 4-second "
+      "broadcast deauth AND starts a 5-second HS capture listening on the "
+      "same channel. Clients that get kicked re-auth right into the capture "
+      "window. Both handshakes (WPA*02*) and PMKIDs (WPA*01*) that land go "
+      "straight to /poseidon/hashcat.22000. Runs until ESC. Glitch splash "
+      "aesthetic — live target + hit counts on-screen." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

