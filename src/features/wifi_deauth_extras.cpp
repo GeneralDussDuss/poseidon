@@ -92,56 +92,92 @@ void feat_wifi_deauth_broadcast(void)
     s_b_running = true;
     xTaskCreate(broad_task, "deauth_all", 3072, nullptr, 4, nullptr);
 
-    /* Dramatic intro. */
-    ui_action_overlay("NUKE LAUNCHED", "jamming every AP in sight",
-                      ACT_BG_GLITCH, T_ACCENT2, 900);
-
-    ui_clear_body();
-    ui_clear_body();  /* one-time entry clear; no per-frame wipe */
-    ui_draw_footer("`=stop");
+    /* Permanent NUKE dashboard — the intro splash aesthetic kept as the
+     * live view. Glitch field + scan lines + 3x halo headline + bottom
+     * stats ribbon. Updates every 200 ms while frames fly. No more
+     * boring text-on-gradient dashboard under the splash. */
     uint32_t last = 0;
-    int last_cur = -1;
     uint32_t last_sent = 0;
+    uint16_t color = T_ACCENT2;
+
     while (true) {
         uint32_t now = millis();
 
-        int cur = s_b_target_n ? (s_b_cursor % s_b_target_n) : 0;
-        bool rotated = (cur != last_cur);
-        last_cur = cur;
-
         if (now - last > 200) {
             last = now;
-            ui_dashboard_chrome(">> DEAUTH ALL <<", rotated);
-            /* Wipe status text region only. */
-            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
+            int cur = s_b_target_n ? (s_b_cursor % s_b_target_n) : 0;
 
-            d.setTextColor(T_FG, T_BG);
-            d.setCursor(4, BODY_Y + 16);
-            d.printf("targets: %d", s_b_target_n);
-            d.setCursor(4, BODY_Y + 26);
-            d.printf("frames : %lu", (unsigned long)s_b_sent);
+            /* Full redraw — cheap at 5 Hz and lets the glitch field
+             * actually flicker. */
+            d.fillScreen(0x0000);
+            ui_glitch(0, 0, SCR_W, SCR_H);
+            for (int y = 0; y < SCR_H; y += 4) {
+                d.drawFastHLine(0, y, SCR_W, 0x0020);
+            }
+
+            /* Big halo headline — same draw as ui_action_overlay. */
+            const char *headline = "NUKE LAUNCHED";
+            d.setTextSize(3);
+            int hw = d.textWidth(headline) * 3;
+            int hx = (SCR_W - hw) / 2;
+            int hy = 22;
+            d.setTextColor(0xF81F, 0);
+            d.setCursor(hx - 2, hy); d.print(headline);
+            d.setCursor(hx + 2, hy); d.print(headline);
+            d.setCursor(hx, hy - 2); d.print(headline);
+            d.setCursor(hx, hy + 2); d.print(headline);
+            d.setTextColor(0xFFFF, 0);
+            d.setCursor(hx, hy); d.print(headline);
+            d.setTextSize(1);
+
+            /* Animated side brackets. */
+            int bl = 10 + (int)(sinf(now * 0.01f) * 4);
+            d.drawFastHLine(4, hy - 6, bl, color);
+            d.drawFastVLine(4, hy - 6, 4, color);
+            d.drawFastHLine(4, hy + 28, bl, color);
+            d.drawFastVLine(4, hy + 25, 4, color);
+            d.drawFastHLine(SCR_W - 4 - bl, hy - 6, bl, color);
+            d.drawFastVLine(SCR_W - 5, hy - 6, 4, color);
+            d.drawFastHLine(SCR_W - 4 - bl, hy + 28, bl, color);
+            d.drawFastVLine(SCR_W - 5, hy + 25, 4, color);
+
+            /* Live stats ribbon — bottom third of the screen. */
             uint32_t fps = (s_b_sent - last_sent) * 5;
             last_sent = s_b_sent;
-            d.setTextColor(fps > 40 ? T_ACCENT : T_WARN, T_BG);
-            d.setCursor(4, BODY_Y + 36);
-            d.printf("rate   : %lu/s  drop:%lu",
-                     (unsigned long)fps, (unsigned long)s_b_errs);
 
-            ui_freq_bars(SCR_W - 70, BODY_Y + 16, 4, 28);
-
+            /* Target line (big). */
             const db_target_t &t = s_b_targets[cur];
-            d.setTextColor(T_ACCENT2, T_BG);
-            d.setCursor(4, BODY_Y + 50);
-            d.printf("> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
-            d.setTextColor(T_DIM, T_BG);
-            d.setCursor(4, BODY_Y + 62);
-            d.printf("ch%u  %02X:%02X:%02X:%02X:%02X:%02X",
+            d.setTextColor(T_ACCENT2, 0);
+            d.setCursor(4, SCR_H - 44);
+            d.printf("-> %.20s", t.ssid[0] ? t.ssid : "<hidden>");
+
+            /* Target detail line (dim). */
+            d.setTextColor(0x8410, 0);   /* mid gray, readable on glitch */
+            d.setCursor(4, SCR_H - 34);
+            d.printf("ch%u %02X:%02X:%02X:%02X:%02X:%02X",
                      t.channel,
                      t.bssid[0], t.bssid[1], t.bssid[2],
                      t.bssid[3], t.bssid[4], t.bssid[5]);
 
-            ui_draw_status(radio_name(), "NUKE-ALL");
+            /* Frames + rate (big, bright). */
+            char stats[48];
+            snprintf(stats, sizeof(stats), "%lu frames  %lu/s",
+                     (unsigned long)s_b_sent, (unsigned long)fps);
+            d.setTextColor(fps > 40 ? 0x07E0 : 0xFFE0, 0);
+            int sw = d.textWidth(stats);
+            d.setCursor((SCR_W - sw) / 2, SCR_H - 22);
+            d.print(stats);
+
+            /* Target count + drops. */
+            char meta[32];
+            snprintf(meta, sizeof(meta), "%d APs  %lu drop",
+                     s_b_target_n, (unsigned long)s_b_errs);
+            d.setTextColor(0xFFFF, 0);
+            int mw = d.textWidth(meta);
+            d.setCursor((SCR_W - mw) / 2, SCR_H - 10);
+            d.print(meta);
         }
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
