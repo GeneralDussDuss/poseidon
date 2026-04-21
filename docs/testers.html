@@ -81,17 +81,16 @@
     </div>
 
     <div class="test-card p3 reveal">
-      <div class="test-prio">Priority 3 · TRIDENT companion</div>
-      <h3>PC bridge after protocol fixes</h3>
-      <p>TRIDENT mirrors the Cardputer screen to a PyQt6 desktop and forwards keystrokes over USB-CDC. v0.4 audit caught an arrow-key translation mismap + an unexpected-disconnect state leak; both are now fixed — confirm.</p>
+      <div class="test-prio">Priority 3 · TRIDENT (ESP32-C5 satellite)</div>
+      <h3>End-to-end ESP-NOW with the C5 node</h3>
+      <p>TRIDENT is the ESP32-C5 plug-in satellite that gives POSEIDON 5 GHz deauth, Zigbee sniff, and PMKID capture over ESP-NOW on channel 1. v0.5 is the first release where the whole path works — pairing, scan, attack, and return-to-channel-1 so POSEIDON keeps hearing HELLOs.</p>
       <ul class="test-steps">
-        <li>Clone <code>GeneralDussDuss/trident</code>, <code>pip install -e .</code>, launch <code>trident</code></li>
-        <li>Connect to COM port, confirm framebuffer streams at ~10 fps</li>
-        <li>Press arrow keys on your PC → menus scroll on Cardputer (regression: they didn't before)</li>
-        <li>Unplug USB mid-stream → button should flip back to "Connect" within 2s</li>
-        <li>Replug + reconnect works without app restart</li>
+        <li>Flash TRIDENT via the <a href="install.html">install page</a> web flasher (Chrome/Edge)</li>
+        <li>Power it on — <code>Radio → C5 → Status</code> should show "C5 x1" within a few seconds</li>
+        <li>Run <code>C5 → Scan</code> — expect both 2.4 + 5 GHz APs with auth type column; WPA3 rows show red</li>
+        <li>Run <code>C5 → Deauth → broadcast</code> on a channel you own — watch frames counter tick</li>
+        <li>File any issue where TRIDENT drops off after scan/deauth (should always return to ch 1)</li>
       </ul>
-      <div class="test-note">Record-mode (imageio-ffmpeg) is optional; ignore if you didn't install the <code>[record]</code> extra.</div>
     </div>
 
     <div class="test-card p4 reveal">

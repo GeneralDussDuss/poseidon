@@ -80,9 +80,6 @@ TV-B-Gone · Samsung Remote
 ### BadUSB (1)
 USB-HID payload runner with DuckyScript-lite
 
-### MIMIR Drop-Box Client (1)
-USB-C control client for BPI-M4 Zero pentest drop-box. Scan, 5 attack modes, pocket-mode MAC randomization. Hand-rolled JSON protocol, no heap allocation.
-
 ### Triton — Autonomous Gotchi
 Cyberpunk helmet face with visor + trident crown. Hunts handshakes autonomously. RL channel picker persisted to SD. 4 modes: HUNT, STEALTH, SURGICAL, STORM. Bordered speech bubble, RL sparkline, TX indicator, HS flash.
 
@@ -125,9 +122,9 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 | PINGEQUA Hydra RF Cap 424 | CC1101 + nRF24L01+ | Sub-GHz 300-928 MHz + 2.4 GHz |
 | ESP32-C5 (custom node) | ESP32-C5 | 5 GHz WiFi + 802.15.4 |
 
-### Future Integration: MIMIR Drop-Box
+### Planned: MIMIR Drop-Box (future)
 
-**MIMIR** is a companion pentest drop-box running on a **Banana Pi BPI-M4 Zero** (Allwinner H618, 4GB RAM). POSEIDON connects via USB-C as the pocket-mode control client — no wireless link, pure opsec. MIMIR runs autonomous handshake hunting, cracking, and post-exploitation. The Cardputer is the interactive UI.
+**MIMIR** is a companion pentest drop-box targeting a **Banana Pi BPI-M4 Zero** (Allwinner H618, 4GB RAM). Design goal: POSEIDON connects via USB-C as the pocket-mode control client — no wireless link, pure opsec. MIMIR would run autonomous handshake hunting, cracking, and post-exploitation while the Cardputer stays the interactive UI. **Not implemented yet — aspirational roadmap item, no client code in POSEIDON today.**
 
 | MIMIR Component | Detail |
 |---|---|
@@ -172,7 +169,6 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 | CIW Zeroclick | 157 payloads | none | yes | none | none |
 | Gotchi/Pet | Triton (RL brain) | Dolphin | none | none | none |
 | Themes | 6 palettes | 1 | 1 | 1 | 1 |
-| Drop-box Client | MIMIR USB-C | none | none | none | none |
 
 ## Massive Shoutouts
 
@@ -194,47 +190,9 @@ Flashlight · Stopwatch · Dice/Coin/8-Ball · Morse · MAC Randomizer · Calcul
 
 ## Roadmap
 
-### v0.3 — Meshtastic Node + Platform Fork
+Full release history in [CHANGELOG.md](CHANGELOG.md). Current shipped version is **v0.5.0** (TRIDENT + LoRa + flicker fixes + M5 Launcher support). What's next:
 
-POSEIDON becomes a full Meshtastic participant (not just a listener) — can send, receive, page specific nodes. Plus the esp_wifi platform fork so spoofed-addr2 frames fully land on-air.
-
-- [ ] Hand-rolled minimal protobuf for MeshPacket / Data / User / Position
-- [ ] AES-CTR via mbedtls with default LongFast channel PSK
-- [ ] Send broadcast text messages to the mesh
-- [ ] Send direct messages (page specific node by ID)
-- [ ] Live node roster with long/short names, SNR, hops, last-seen
-- [ ] Optional position reporting — POSEIDON appears as a pin on Meshtastic apps when GPS has fix
-- [ ] ESP32 Arduino core fork with patched `libnet80211.a` / `libpp.a` so spoofed-addr2 mgmt frames bypass the TX-FIFO sanity check (Marauder / Ghost ESP parity)
-- [ ] CAD-based channel busy-check before LoRa TX (be a polite mesh citizen)
-
-### v0.4 — ESP32-C5 Full Integration
-The C5 companion node already does basic 5 GHz scan + deauth over ESP-NOW. v0.3 makes it a first-class citizen.
-
-- [ ] C5 auto-flash from Cardputer SD (OTA over ESP-NOW)
-- [ ] 5 GHz client hunting + targeted deauth (per-STA, not just per-AP)
-- [ ] 5 GHz PMKID + handshake capture (relay EAPOL frames over ESP-NOW)
-- [ ] 802.15.4 Zigbee full packet capture + Wireshark-compatible PCAP export
-- [ ] Thread network discovery + device enumeration
-- [ ] Zigbee replay attacks (stored frames on SD)
-- [ ] Multi-C5 coordination — deploy multiple nodes, control all from one Cardputer
-- [ ] C5 NeoPixel status: color-coded by activity (scan/attack/idle/capture)
-- [ ] C5 power management — deep sleep between commands, wake on ESP-NOW
-
-### v0.5 — MIMIR Drop-Box (BPI-M4 Zero)
-The MIMIR client module exists. v0.4 makes the server side real.
-
-- [ ] MIMIR daemon: `hcxdumptool` wrapper for real scan events (replacing placeholders)
-- [ ] On-device WPA2 dictionary cracker (dual-core PBKDF2-SHA1, wordlist from SD)
-- [ ] Bjorn orchestrator port — handshake → crack → auto-exploit pivot
-- [ ] Pwnagotchi plugin compat shim (pisugarx/gps/wigle/wpa-sec)
-- [ ] FENRIR RL policy head — autonomous exploit strategy selection
-- [ ] Armbian H618 image recipe (one-flash deploy)
-- [ ] MIMIR ↔ POSEIDON file transfer (pull captured .pcap/.22000 to Cardputer SD)
-- [ ] Live MIMIR dashboard on Cardputer e-ink–style screen (for long-running ops)
-- [ ] GPS-tagged attack logging with WiGLE integration
-- [ ] Pocket-mode auto-start on cable connect
-
-### v0.6 — nRF52840 Integration
+### v0.6 — nRF52840 Integration (planned)
 The nRF52840 is the real BLE chip — full BLE 5.0 with long range, coded PHY, and direction finding. Adding it as a USB-connected sniffer module.
 
 - [ ] nRF52840 dongle as BLE sniffer (USB-CDC bridge from Cardputer)
@@ -242,10 +200,21 @@ The nRF52840 is the real BLE chip — full BLE 5.0 with long range, coded PHY, a
 - [ ] BLE connection hijacking (MITM via nRF52 + NimBLE coordination)
 - [ ] BLE direction finding (AoA/AoD with multi-antenna nRF52)
 - [ ] BLE long-range attacks (Coded PHY S=8, 4x range)
-- [ ] Zigbee via nRF52840's 802.15.4 radio (alternative to C5)
+- [ ] Zigbee via nRF52840's 802.15.4 radio (alternative to TRIDENT)
 - [ ] Thread border router attack surface enumeration
 - [ ] nRF52840 firmware flasher from Cardputer SD
 - [ ] Combined attack: nRF24 MouseJack + nRF52 BLE MITM simultaneously
+
+### Aspirational — MIMIR Drop-Box (BPI-M4 Zero)
+**Not started.** A future companion pentest drop-box on a Banana Pi BPI-M4 Zero running `hcxdumptool` + on-device cracker + Bjorn orchestrator. POSEIDON would act as the pocket-mode USB-C control client. No code exists today.
+
+- [ ] MIMIR daemon: `hcxdumptool` wrapper
+- [ ] On-device WPA2 dictionary cracker (dual-core PBKDF2-SHA1)
+- [ ] Bjorn orchestrator port — handshake → crack → auto-exploit pivot
+- [ ] FENRIR RL policy head — autonomous exploit strategy selection
+- [ ] Armbian H618 image recipe (one-flash deploy)
+- [ ] MIMIR ↔ POSEIDON file transfer
+- [ ] GPS-tagged attack logging with WiGLE integration
 
 ### v0.7 — On-Device Intelligence
 - [ ] On-device WPA2 cracker (handshake → PBKDF2-SHA1, dual-core ESP32-S3)

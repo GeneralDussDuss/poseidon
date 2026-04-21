@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Roadmap — POSEIDON</title>
-<meta name="description" content="POSEIDON release history and what's coming. v0.1 foundations through v0.6 MIMIR drop-box.">
+<meta name="description" content="POSEIDON release history and what's coming. v0.1 foundations through v0.5 TRIDENT, with v0.6 nRF52 BLE + OTA queued next.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -35,7 +35,7 @@
 <header class="page-head">
   <div class="kicker">03 // ROADMAP</div>
   <h1>Where we've been. Where we're going.</h1>
-  <p class="lede">Five tagged releases so far, two landed companions (TRIDENT + MIMIR control), one WIP megadrop (v0.4). Below is everything shipped and the next two releases planned.</p>
+  <p class="lede">Six tagged releases, one landed companion (TRIDENT — the ESP32-C5 satellite over ESP-NOW). Below is everything shipped and what's queued next.</p>
 </header>
 
 <div class="console-strip">
@@ -43,8 +43,8 @@
     <span class="ck">[TIMELINE]</span>
     <span>shipped=<span class="nm">v0.1 → v0.5.0</span></span>
     <span>current=<span class="ck">v0.5.0</span></span>
-    <span>next=<span class="vk">v0.6 nRF52 / OTA / MIMIR hook</span></span>
-    <span>after=<span class="vk">v0.7 FENRIR policy head</span></span>
+    <span>next=<span class="vk">v0.6 nRF52 BLE sniffer / OTA</span></span>
+    <span>after=<span class="vk">v0.7 on-device WPA2 crack</span></span>
     <span class="blink">▸</span>
   </div>
 </div>
@@ -61,7 +61,7 @@
         </div>
         <div class="rm-title">First tagged release — the foundation</div>
         <div class="rm-body">
-          Every radio band brought online. Full menu shell with slide transitions. Hokusai splash. 90+ features across WiFi, BLE, sub-GHz, LoRa, nRF24, IR, net attacks, BadUSB, theme engine, Triton gotchi, C5 companion, TRIDENT PC bridge, MIMIR remote.
+          Every radio band brought online. Full menu shell with slide transitions. Hokusai splash. 90+ features across WiFi, BLE, sub-GHz, LoRa, nRF24, IR, net attacks, BadUSB, theme engine, Triton gotchi. Initial C5 satellite scaffolding (not yet end-to-end — that lands in v0.5).
         </div>
       </div>
     </div>
@@ -161,22 +161,23 @@
       </div>
     </div>
 
+
     <div class="rm-item planned reveal-left">
       <div class="rm-card">
         <div class="rm-head">
-          <span class="rm-ver">v0.5.0</span>
-          <span class="rm-date">Q3 2026</span>
+          <span class="rm-ver">v0.6.0</span>
+          <span class="rm-date">TBD</span>
           <span class="rm-tag planned">Planned</span>
         </div>
-        <div class="rm-title">ESP32-C5 full integration</div>
+        <div class="rm-title">nRF52840 BLE sniffer + OTA</div>
         <div class="rm-body">
+          Real BLE 5.0 via an nRF52840 dongle over USB-CDC (full advertisement decode, Coded PHY long-range, direction finding). OTA updates for POSEIDON so firmware drops don't need a re-flash. TRIDENT OTA piggybacks on the same path over ESP-NOW.
           <ul>
-            <li>C5 OTA auto-flash from Cardputer SD over ESP-NOW</li>
-            <li>5 GHz client hunting + targeted per-STA deauth (not just per-AP)</li>
-            <li>5 GHz PMKID + handshake capture with EAPOL relay over ESP-NOW</li>
-            <li>802.15.4 Zigbee full packet capture + Wireshark PCAP export</li>
-            <li>Thread network discovery + device enumeration</li>
-            <li>Multi-C5 coordination — deploy satellites, control all from one Cardputer</li>
+            <li>nRF52840 dongle as USB-CDC BLE sniffer</li>
+            <li>BLE connection hijacking via nRF52 + NimBLE coordination</li>
+            <li>Coded PHY S=8 long-range attacks</li>
+            <li>POSEIDON OTA from SD / WebUI</li>
+            <li>TRIDENT OTA over ESP-NOW from the Cardputer</li>
           </ul>
         </div>
       </div>
@@ -185,21 +186,19 @@
     <div class="rm-item planned reveal-left">
       <div class="rm-card">
         <div class="rm-head">
-          <span class="rm-ver">v0.6.0</span>
-          <span class="rm-date">Q4 2026</span>
-          <span class="rm-tag planned">Planned</span>
+          <span class="rm-ver">aspirational</span>
+          <span class="rm-date">no ETA</span>
+          <span class="rm-tag planned">Idea</span>
         </div>
-        <div class="rm-title">MIMIR drop-box live</div>
+        <div class="rm-title">MIMIR drop-box — companion SBC</div>
         <div class="rm-body">
-          The MIMIR client module exists in POSEIDON today. v0.6 makes the BPI-M4 Zero server side real.
+          Unimplemented today. Future companion pentest drop-box on a Banana Pi BPI-M4 Zero running <code>hcxdumptool</code>, an on-device WPA2 cracker, and a Bjorn-style action DAG. POSEIDON would act as the USB-C control client — no wireless link, pure opsec. No code exists yet; listed here so the design intent is on record.
           <ul>
-            <li><code>hcxdumptool</code> wrapper for real scan events (replacing placeholders)</li>
+            <li><code>hcxdumptool</code> wrapper for real scan events</li>
             <li>On-device WPA2 cracker (dual-core PBKDF2-SHA1)</li>
-            <li>Bjorn-style action DAG — auto-exploit cracked networks</li>
             <li>FENRIR RL policy head selecting exploit strategy</li>
             <li>Armbian H618 one-flash image</li>
             <li>Pull captured pcap / .22000 back to Cardputer SD over USB-CDC</li>
-            <li>GPS-tagged attack logging with WiGLE integration</li>
           </ul>
         </div>
       </div>

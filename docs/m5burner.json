@@ -3,7 +3,7 @@
   "author": "GeneralDussDuss",
   "homepage": "https://generaldussduss.github.io/poseidon/",
   "repo": "https://github.com/GeneralDussDuss/poseidon",
-  "description": "Commander of the Deep — keyboard-first pentesting firmware for M5Stack Cardputer-Adv. 96+ features across WiFi / BLE / sub-GHz / 2.4 GHz / LoRa / IR / RJ45. SaltyJack LAN arsenal (DHCP starve, Responder, WPAD, on-device NTLMv2 cracker). MIMIR drop-box control. TRIDENT PC bridge.",
+  "description": "Commander of the Deep — keyboard-first pentesting firmware for M5Stack Cardputer-Adv. 90+ features across WiFi / BLE / sub-GHz / 2.4 GHz / LoRa / IR / RJ45. SaltyJack LAN arsenal (DHCP starve, Responder, WPAD, on-device NTLMv2 cracker). TRIDENT (ESP32-C5 satellite over ESP-NOW) adds 5 GHz deauth, Zigbee sniff, and PMKID capture.",
   "icon": "https://generaldussduss.github.io/poseidon/assets/icon.png",
   "firmware": [
     {
