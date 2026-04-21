@@ -244,31 +244,84 @@ static void hexcat(char *dst, const uint8_t *src, int n)
     for (int i = 0; i < n; ++i) o += sprintf(dst + o, "%02x", src[i]);
 }
 
-/* Append a wardrive-compatible row for this capture if GPS has a fix.
- * Column layout matches wifi_wardrive.cpp so post-processing tooling
- * only has to know one format. Type is EAPOL_PMKID or EAPOL_HS to
- * distinguish from wardrive's beacon-based BEACON rows. */
+/* Pending wardrive row. Produced inside the promisc cb, drained on
+ * hop_task in capture_flush() so SD I/O never runs from the WiFi
+ * callback context — WiFi RX + SD HSPI from the same task eventually
+ * deadlocks the driver under sustained capture load. Fields captured
+ * by-value because gps_fix_t + channel + names can all mutate by the
+ * time the drain runs. */
+struct wdr_row_t {
+    uint8_t  bssid[6];
+    char     ssid[33];
+    char     type[16];
+    uint8_t  channel;
+    double   lat_deg;
+    double   lon_deg;
+    float    alt_m;
+    float    hdop;
+    char     utc[12];
+    bool     pending;
+};
+#define WDR_Q 8
+static wdr_row_t s_wdr_q[WDR_Q];
+static volatile int s_wdr_head = 0;
+static volatile int s_wdr_tail = 0;
+static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
+
 static void wdr_append(const uint8_t *bssid, const char *ssid,
                        const char *type)
 {
+    /* In-cb: snapshot GPS + channel, enqueue row. No SD I/O here. */
     gps_fix_t g;
     if (!gps_snapshot(&g) || !g.valid || g.sats == 0) return;
-    if (!s_wdr_file) {
-        s_wdr_file = sdlog_open("triton-wardrive",
-            "MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,"
-            "CurrentLatitude,CurrentLongitude,AltitudeMeters,"
-            "AccuracyMeters,Type", nullptr, 0);
-        if (!s_wdr_file) return;
+    portENTER_CRITICAL(&s_wdr_mux);
+    int next = (s_wdr_head + 1) % WDR_Q;
+    if (next != s_wdr_tail) {
+        wdr_row_t &r = s_wdr_q[s_wdr_head];
+        memcpy(r.bssid, bssid, 6);
+        strncpy(r.ssid, ssid, sizeof(r.ssid) - 1); r.ssid[sizeof(r.ssid) - 1] = 0;
+        strncpy(r.type, type, sizeof(r.type) - 1); r.type[sizeof(r.type) - 1] = 0;
+        r.channel = s_ch;
+        r.lat_deg = g.lat_deg;
+        r.lon_deg = g.lon_deg;
+        r.alt_m   = g.alt_m;
+        r.hdop    = g.hdop;
+        strncpy(r.utc, g.utc, sizeof(r.utc) - 1); r.utc[sizeof(r.utc) - 1] = 0;
+        r.pending = true;
+        s_wdr_head = next;
     }
-    s_wdr_file.printf("%02X:%02X:%02X:%02X:%02X:%02X,\"%s\",WPA2,%s,%u,0,"
-                      "%.7f,%.7f,%.1f,%.1f,%s\n",
-                      bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
-                      ssid, g.utc, s_ch,
-                      g.lat_deg, g.lon_deg, g.alt_m, g.hdop, type);
-    /* No per-row flush — same HSPI thrash risk that deadlocked the
-     * main hashcat file. Capture writes are buffered by FatFS in RAM
-     * and committed at session exit (feat_triton epilogue closes the
-     * file with a final flush). */
+    portEXIT_CRITICAL(&s_wdr_mux);
+}
+
+/* Called from hop_task context — safe to touch SD. */
+static void wdr_flush(void)
+{
+    while (true) {
+        wdr_row_t row;
+        bool have = false;
+        portENTER_CRITICAL(&s_wdr_mux);
+        if (s_wdr_tail != s_wdr_head) {
+            row = s_wdr_q[s_wdr_tail];
+            s_wdr_tail = (s_wdr_tail + 1) % WDR_Q;
+            have = true;
+        }
+        portEXIT_CRITICAL(&s_wdr_mux);
+        if (!have) break;
+        if (!s_wdr_file) {
+            s_wdr_file = sdlog_open("triton-wardrive",
+                "MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,"
+                "CurrentLatitude,CurrentLongitude,AltitudeMeters,"
+                "AccuracyMeters,Type", nullptr, 0);
+            if (!s_wdr_file) continue;
+        }
+        s_wdr_file.printf("%02X:%02X:%02X:%02X:%02X:%02X,\"%s\",WPA2,%s,%u,0,"
+                          "%.7f,%.7f,%.1f,%.1f,%s\n",
+                          row.bssid[0], row.bssid[1], row.bssid[2],
+                          row.bssid[3], row.bssid[4], row.bssid[5],
+                          row.ssid, row.utc, row.channel,
+                          row.lat_deg, row.lon_deg, row.alt_m, row.hdop,
+                          row.type);
+    }
 }
 
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
@@ -524,6 +577,7 @@ static void hop_task(void *)
          * enqueued since the last pass. Running this here keeps SD SPI
          * off the promiscuous RX task. */
         capture_flush();
+        wdr_flush();
 
         /* Dwell per mode. STORM bumped from 200 → 450 so each channel
          * actually sees a couple of beacon cycles (typical cadence is
@@ -545,6 +599,7 @@ static void hop_task(void *)
         }
     }
     capture_flush();       /* flush any trailing captures before exit */
+    wdr_flush();
     triton_learn_save();
     vTaskDelete(nullptr);
 }
