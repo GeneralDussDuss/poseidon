@@ -69,6 +69,7 @@ extern void feat_net_dns(void);
 extern void feat_net_responder(void);
 extern void feat_net_ssdp(void);
 extern void feat_net_lanrecon(void);
+extern void feat_cctv_scan(void);
 extern void feat_clock(void);
 extern void feat_lora_scan(void);
 extern void feat_lora_beacon(void);
@@ -342,6 +343,17 @@ static const menu_node_t MENU_NET[] = {
       "Fetches each device's XML description to pull friendlyName + modelName. "
       "Great for mapping internal IoT: routers, printers, smart TVs, cameras, "
       "NAS, Sonos, Chromecasts. Saves to /poseidon/ssdp.csv." },
+    { 'v', "CCTV Toolkit", "IP camera recon: ports/brand/rtsp/creds", nullptr, feat_cctv_scan,
+      "Credit: @7h30th3r0n3's Evil-M5Project. Scans targets for open camera "
+      "ports (80 / 554 / 8080-83 / 8443 / 8554), HTTP-fingerprints the "
+      "brand (Hikvision, Dahua, Axis, Vivotek, Panasonic, CPPlus), sprays "
+      "a 10-entry default-cred list on 401 responses (admin/admin, "
+      "admin/12345, admin/888888, root/root, etc.), and walks RTSP "
+      "OPTIONS + DESCRIBE against common vendor stream paths "
+      "(/Streaming/Channels/1, /cam/realmonitor, /live, etc.). "
+      "Three modes: LAN /24 sweep, single IP, or read targets from "
+      "/poseidon/cctv-targets.txt. Hits go to /poseidon/cctv-<ts>.csv "
+      "with ports mask / brand / cred / stream URL." },
     { 'x', "Attacks", "UART / TCP / honeypot / printer / SSDP", MENU_NET_ATTACKS, nullptr,
       "Offensive network features: UART shell bridge, reverse TCP tunnel, "
       "telnet honeypot, WiFi dead drop, printer detection + print, "
