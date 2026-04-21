@@ -20,6 +20,9 @@ void ui_init(void);
 void ui_clear_body(void);
 void ui_force_clear_body(void);
 void ui_draw_status(const char *radio, const char *extra);
+/* Invalidate the ui_draw_status cache (e.g. after ui_clear_body or a
+ * full-screen rebuild). Next ui_draw_status call repaints unconditionally. */
+void ui_status_invalidate(void);
 void ui_draw_footer(const char *hints);
 void ui_toast(const char *msg, uint16_t color, uint32_t ms);
 

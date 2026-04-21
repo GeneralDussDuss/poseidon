@@ -48,11 +48,14 @@ void ui_clear_body(void)
     s_last_clear = now;
 }
 
-/* Force a real clear — use for screen transitions, menu entry/exit. */
+/* Force a real clear — use for screen transitions, menu entry/exit.
+ * Also invalidates the ui_draw_status cache because some screen
+ * transitions follow a full-screen fill that wipes the status bar too. */
 void ui_force_clear_body(void)
 {
     M5Cardputer.Display.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
     s_last_clear = millis();
+    ui_status_invalidate();
 }
 
 void ui_text(int x, int y, uint16_t fg, const char *fmt, ...)
@@ -97,36 +100,74 @@ static void vgradient(int x, int y, int w, int h, uint16_t top, uint16_t bot)
     }
 }
 
+/* Cache: redraw the status bar only when something visibly changed.
+ * Every feature screen calls ui_draw_status() on its render tick (every
+ * 250 ms or so), and the vgradient + text repaint was the single biggest
+ * source of flicker. Heap is quantised to 4 KB so natural minor churn
+ * doesn't force a redraw. The pulse dot still animates by redrawing
+ * just its own 5x5 rect when toggled. */
+static char     s_st_radio[24] = {0};
+static char     s_st_extra[24] = {0};
+static uint32_t s_st_heap_bucket = 0xFFFFFFFFu;
+static bool     s_st_valid = false;
+
 void ui_draw_status(const char *radio, const char *extra)
 {
     auto &d = M5Cardputer.Display;
-    vgradient(0, 0, SCR_W, STATUS_H - 1, theme().status_bg, theme().status_bg2);
 
+    const char *rr = radio ? radio : "idle";
+    const char *ee = (extra && *extra) ? extra : "";
+    uint32_t heap_bucket = (esp_get_free_heap_size() / 1024) / 4; /* 4 KB bucket */
+
+    bool changed = !s_st_valid
+                || strncmp(rr, s_st_radio, sizeof(s_st_radio)) != 0
+                || strncmp(ee, s_st_extra, sizeof(s_st_extra)) != 0
+                || heap_bucket != s_st_heap_bucket;
+
+    /* Pulse dot animates independently. Only the 5x5 rect repaints. */
     uint32_t now = millis();
-    if (now - s_pulse_at > 400) { s_pulse_at = now; s_pulse_on = !s_pulse_on; }
+    if (now - s_pulse_at > 400) {
+        s_pulse_at = now;
+        s_pulse_on = !s_pulse_on;
+        if (!changed) {
+            d.fillCircle(5, 6, 2, s_pulse_on ? T_ACCENT : T_DIM);
+        }
+    }
+
+    if (!changed) return;
+
+    vgradient(0, 0, SCR_W, STATUS_H - 1, theme().status_bg, theme().status_bg2);
     d.fillCircle(5, 6, 2, s_pulse_on ? T_ACCENT : T_DIM);
 
     d.setTextColor(T_ACCENT, 0);
     d.setCursor(12, 2);
     d.print("POSEIDON");
     d.setTextColor(T_FG, 0);
-    d.printf("  %s", radio ? radio : "idle");
+    d.printf("  %s", rr);
 
-    /* Right-aligned heap + extra status. */
     d.setTextColor(T_DIM, 0);
     char buf[32];
-    uint32_t heap_kb = esp_get_free_heap_size() / 1024;
+    uint32_t heap_kb = heap_bucket * 4;   /* quantised label */
     snprintf(buf, sizeof(buf), "%luK%s%s",
              (unsigned long)heap_kb,
-             (extra && *extra) ? "  " : "",
-             (extra && *extra) ? extra : "");
+             *ee ? "  " : "",
+             *ee ? ee : "");
     int w = d.textWidth(buf);
     d.setCursor(SCR_W - w - 4, 2);
     d.print(buf);
 
-    /* Accent rule. */
     d.drawFastHLine(0, STATUS_H - 1, SCR_W, T_ACCENT);
+
+    strncpy(s_st_radio, rr, sizeof(s_st_radio) - 1); s_st_radio[sizeof(s_st_radio) - 1] = 0;
+    strncpy(s_st_extra, ee, sizeof(s_st_extra) - 1); s_st_extra[sizeof(s_st_extra) - 1] = 0;
+    s_st_heap_bucket = heap_bucket;
+    s_st_valid = true;
 }
+
+/* Invalidate the ui_draw_status cache — call this when navigating to a
+ * new screen or whenever the status bar was overwritten by a full-body
+ * redraw, so the next ui_draw_status() forces a fresh paint. */
+void ui_status_invalidate(void) { s_st_valid = false; }
 
 void ui_draw_footer(const char *hints)
 {
@@ -577,8 +618,11 @@ void ui_dashboard_chrome(const char *title, bool flash_now)
         s_dash_last_flash  = now;
     }
 
-    /* Hex storm backdrop. */
-    ui_hexstream(0, BODY_Y + 4, SCR_W, BODY_H - 8, 0x4809);
+    /* Hex storm backdrop disabled — it repainted hex digits across the
+     * whole body every frame, which made the dashboard visibly flash
+     * every time a feature redrew its status text. Static chrome is
+     * easier on the eyes and faster. Re-enable via ui_hexstream() in a
+     * specific feature if you want it back in a smaller strip. */
 
     /* Smooth fade: peak at t=0, fades to nothing over 500 ms. */
     uint32_t dt = now - s_dash_flash_start;
@@ -595,7 +639,7 @@ void ui_dashboard_chrome(const char *title, bool flash_now)
     d.print(title);
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
 
-    /* Corner radar. */
+    /* Corner radar (static sweep animation, self-clearing). */
     ui_radar(SCR_W - 14, BODY_Y + BODY_H - 14, 9, T_ACCENT2);
 }
 

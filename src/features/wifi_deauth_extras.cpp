@@ -97,6 +97,7 @@ void feat_wifi_deauth_broadcast(void)
                       ACT_BG_GLITCH, T_ACCENT2, 900);
 
     ui_clear_body();
+    ui_clear_body();  /* one-time entry clear; no per-frame wipe */
     ui_draw_footer("`=stop");
     uint32_t last = 0;
     int last_cur = -1;
@@ -110,8 +111,9 @@ void feat_wifi_deauth_broadcast(void)
 
         if (now - last > 200) {
             last = now;
-            ui_clear_body();
             ui_dashboard_chrome(">> DEAUTH ALL <<", rotated);
+            /* Wipe status text region only. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
 
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);

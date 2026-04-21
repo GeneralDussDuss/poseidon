@@ -228,12 +228,27 @@ void feat_wifi_scan(void)
 
     int cursor = s_saved_cursor;
     uint32_t last_redraw = 0;
+    /* Track the last-painted state so we only redraw the list when
+     * something actually changed. Redrawing 9 identical rows every 400ms
+     * was the visible flicker on this screen. */
+    int  last_count   = -1;
+    int  last_cursor  = -1;
+    bool last_running = !s_scan_running;      /* force first paint */
     while (true) {
-        /* Keep status fresh while scan runs. */
-        if (s_scan_running || (millis() - last_redraw > 400)) {
+        bool state_changed = (s_ap_count != last_count)
+                          || (cursor != last_cursor)
+                          || (s_scan_running != last_running);
+
+        /* Status bar updates itself (cached). Redraw the list only on
+         * actual state change, or every 2 s as a cheap refresh while
+         * the scan task is still discovering new APs. */
+        if (state_changed || (s_scan_running && millis() - last_redraw > 2000)) {
             ui_draw_status(radio_name(), s_scan_running ? "..." : "done");
             draw_list(cursor);
             last_redraw = millis();
+            last_count   = s_ap_count;
+            last_cursor  = cursor;
+            last_running = s_scan_running;
         }
         /* Radar sweep in top-right while scanning. */
         if (s_scan_running) ui_radar(SCR_W - 16, BODY_Y + 8, 7, 0x07FF);
@@ -250,10 +265,13 @@ void feat_wifi_scan(void)
         if (k == PK_ESC) { s_saved_cursor = cursor; break; }
 
         switch (k) {
+        /* Key handlers only update state — the state-change gate at the
+         * top of the loop draws exactly once per change. Direct draw_list
+         * calls here would double-paint. */
         case ';': case PK_UP:
-            cursor--; if (cursor < 0) cursor = 0; draw_list(cursor); break;
+            cursor--; if (cursor < 0) cursor = 0; break;
         case '.': case PK_DOWN:
-            cursor++; draw_list(cursor); break;
+            cursor++; break;
         case 'r': case 'R':
             if (!s_scan_running) {
                 s_ap_count = 0;
@@ -263,20 +281,18 @@ void feat_wifi_scan(void)
             break;
         case '?':
             ui_show_current_help();
-            draw_list(cursor);
+            last_count = -1;    /* force redraw of list after help modal */
             ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
             break;
         case 'o': case 'O':
             s_filter_open_only = !s_filter_open_only;
-            draw_list(cursor);
+            last_count = -1;    /* filter toggle — force redraw */
             break;
         case '/':
-            if (input_line("Filter SSID contains:", s_filter, sizeof(s_filter))) {
-                draw_list(cursor);
-            } else {
+            if (!input_line("Filter SSID contains:", s_filter, sizeof(s_filter))) {
                 s_filter[0] = '\0';
-                draw_list(cursor);
             }
+            last_count = -1;    /* filter changed — force redraw */
             break;
         case 's': case 'S': {
             if (s_ap_count == 0) { ui_toast("no results", T_WARN, 800); break; }

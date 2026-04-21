@@ -237,6 +237,10 @@ void feat_ble_scan(void)
 
     int cursor = 0;
     uint32_t last_redraw = 0;
+    /* Track last painted state — only redraw the list on actual change. */
+    int  last_count   = -1;
+    int  last_cursor  = -1;
+    bool last_running = !s_scanning;
     while (true) {
         /* NimBLE 2.x has no scan-completed callback — poll isScanning()
          * and run the qsort when the scan finishes. */
@@ -248,11 +252,19 @@ void feat_ble_scan(void)
             }
         }
 
-        uint32_t now = millis();
-        if (now - last_redraw > 350) {
-            last_redraw = now;
+        bool state_changed = (s_count != last_count)
+                          || (cursor != last_cursor)
+                          || (s_scanning != last_running);
+
+        /* Only redraw on state change — or every 2 s while scanning, in
+         * case new devices were discovered without us otherwise noticing. */
+        if (state_changed || (s_scanning && millis() - last_redraw > 2000)) {
+            last_redraw = millis();
             ui_draw_status(radio_name(), s_scanning ? "scan..." : "done");
             draw_list(cursor);
+            last_count   = s_count;
+            last_cursor  = cursor;
+            last_running = s_scanning;
         }
         /* Tiny radar sweep in the top-right corner while scanning. */
         if (s_scanning) ui_radar(SCR_W - 18, BODY_Y + 10, 8, 0x07FF);
@@ -262,20 +274,21 @@ void feat_ble_scan(void)
         if (k == PK_ESC) break;
 
         switch (k) {
-        case ';': case PK_UP:    cursor = (cursor > 0) ? cursor - 1 : 0;          draw_list(cursor); break;
-        case '.': case PK_DOWN:  cursor++;                                        draw_list(cursor); break;
+        /* Handlers only update state — gate at top of loop redraws once. */
+        case ';': case PK_UP:    cursor = (cursor > 0) ? cursor - 1 : 0; break;
+        case '.': case PK_DOWN:  cursor++; break;
         case 'r': case 'R':
             if (!s_scanning) { s_count = 0; start_scan(); }
             break;
         case '?':
             ui_show_current_help();
-            draw_list(cursor);
+            last_count = -1;     /* force redraw after help modal */
             ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");
             break;
         case '/':
             if (!input_line("Filter name/type:", s_filter, sizeof(s_filter)))
                 s_filter[0] = '\0';
-            draw_list(cursor);
+            last_count = -1;     /* filter changed — force redraw */
             break;
         case 's': case 'S': {
             if (s_count == 0) { ui_toast("no results", T_WARN, 800); break; }
@@ -362,7 +375,7 @@ void feat_ble_scan(void)
                 if (ch == 'p') { feat_ble_spam();  break; }
                 if (ch == 'w') { feat_ble_whisperpair_from_target(); break; }
             }
-            draw_list(cursor);
+            last_count = -1;  /* returning from sub-feature — force fresh paint */
             ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");
             break;
         }

@@ -122,9 +122,19 @@ void feat_wifi_clients(void)
     int cursor = s_saved_cursor;
     ui_draw_footer(";/.=move  D=deauth one  `=back");
     uint32_t last = 0;
+    /* Only redraw when the client list or cursor actually changed. The
+     * promiscuous callback bumps s_count as new MACs appear, so watching
+     * s_count is sufficient. RSSI/frames update inside the row but those
+     * change often enough that a full periodic sweep once per second is
+     * cheap — just not once every 300 ms like before. */
+    int last_count  = -1;
+    int last_cursor = -1;
     while (true) {
-        if (millis() - last > 300) {
+        bool changed = (s_count != last_count) || (cursor != last_cursor);
+        if (changed || millis() - last > 1000) {
             last = millis();
+            last_count  = s_count;
+            last_cursor = cursor;
             auto &d = M5Cardputer.Display;
             ui_clear_body();
             d.setTextColor(T_ACCENT, T_BG);
@@ -201,6 +211,7 @@ void feat_wifi_clients(void)
             esp_wifi_set_promiscuous_rx_cb(client_cb);
             esp_wifi_set_channel(s_target_ch, WIFI_SECOND_CHAN_NONE);
             ui_toast("deauth sent", T_BAD, 600);
+            last_count = -1;  /* toast covered screen — force next-iter redraw */
         }
     }
 

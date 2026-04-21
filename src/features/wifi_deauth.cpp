@@ -241,14 +241,17 @@ void feat_wifi_deauth(void)
     uint32_t last = 0;
     uint32_t last_sent = 0;
     bool paused = false;
+    ui_clear_body();  /* one-time entry clear; avoid per-frame wipe to
+                         stop the body-region flash during the attack */
     bool state_changed = true;
     while (true) {
         uint32_t now = millis();
         if (now - last > 250) {
             last = now;
-            ui_clear_body();
             ui_dashboard_chrome(">> DEAUTH <<", state_changed);
             state_changed = false;
+            /* Wipe only the status text region; hex stream is self-clearing. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
 
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);
