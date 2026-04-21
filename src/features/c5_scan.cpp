@@ -652,6 +652,11 @@ void feat_c5_nuke_5g(void)
 
     /* Only kick a fresh scan if no 5G APs are already cached. */
     if (five_n == 0) {
+        /* Clear any lingering scan / attack state on the C5 side —
+         * s_scan_running can stick across sessions and cause the next
+         * SCAN command to be dropped as "busy". 300 ms settle. */
+        c5_cmd_stop();
+        delay(300);
         c5_clear_results();
         /* duration_ms is PER-CHANNEL dwell. Match feat_c5_scan_5g's
          * 300 ms = ~11 s full dual-band sweep. */
