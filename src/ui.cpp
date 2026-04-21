@@ -17,6 +17,35 @@
 #define COL_RULE       (theme().rule)
 #define COL_SEL_BG     (theme().sel_bg)
 
+#include <Preferences.h>
+
+static bool s_big_text_loaded = false;
+static bool s_big_text = false;
+
+bool ui_big_text(void)
+{
+    if (!s_big_text_loaded) {
+        Preferences p;
+        if (p.begin("pui", true)) {
+            s_big_text = p.getBool("bigtxt", false);
+            p.end();
+        }
+        s_big_text_loaded = true;
+    }
+    return s_big_text;
+}
+
+void ui_big_text_set(bool on)
+{
+    s_big_text = on;
+    s_big_text_loaded = true;
+    Preferences p;
+    if (p.begin("pui", false)) {
+        p.putBool("bigtxt", on);
+        p.end();
+    }
+}
+
 static uint32_t s_pulse_at = 0;
 static bool     s_pulse_on = false;
 
@@ -182,9 +211,16 @@ void ui_draw_footer(const char *hints)
 void ui_toast(const char *msg, uint16_t color, uint32_t ms)
 {
     auto &d = M5Cardputer.Display;
-    int tw = d.textWidth(msg);
+    uint8_t scale = ui_big_text() ? 2 : 1;
+    /* Glyph base is 6x8 in the default font. At scale 2 it's 12x16.
+     * Don't use d.textWidth() here because the size setter after the
+     * width call would make the stored width stale. */
+    int gw = 6 * scale, gh = 8 * scale;
+    int tw = (int)strlen(msg) * gw;
+    /* Clamp width so a long toast at 2x still fits the 240-wide screen. */
     int w = tw + 16;
-    int h = 20;
+    if (w > SCR_W - 4) w = SCR_W - 4;
+    int h = gh + 12;
     int x = (SCR_W - w) / 2;
     int y = (SCR_H - h) / 2;
     d.fillRoundRect(x, y, w, h, 3, T_BG);
@@ -193,8 +229,10 @@ void ui_toast(const char *msg, uint16_t color, uint32_t ms)
     d.drawFastHLine(x + 2, y + h, w, 0x18C3);
     d.drawFastVLine(x + w, y + 2, h, 0x18C3);
     d.setTextColor(color, T_BG);
-    d.setCursor(x + (w - tw) / 2, y + 6);
+    d.setTextSize(scale);
+    d.setCursor(x + (w - tw) / 2, y + (h - gh) / 2);
     d.print(msg);
+    d.setTextSize(1);     /* restore — every other path assumes scale 1 */
     delay(ms);
 }
 

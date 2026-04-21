@@ -49,12 +49,15 @@ static void draw_screen(void)
     d.setTextColor(T_GOOD, T_BG);
     d.setCursor(4, BODY_Y + 64); d.print("[H] apply HI-CONTRAST");
     d.setTextColor(T_FG, T_BG);
-    d.setCursor(4, BODY_Y + 76); d.print("[P] reset to POSEIDON");
-    d.setCursor(4, BODY_Y + 88); d.print("[T] open theme picker");
+    d.setCursor(4, BODY_Y + 74); d.print("[P] reset to POSEIDON");
+    d.setCursor(4, BODY_Y + 84); d.print("[T] open theme picker");
+    d.setTextColor(ui_big_text() ? T_GOOD : T_FG, T_BG);
+    d.setCursor(4, BODY_Y + 94);
+    d.printf("[B] Big toasts: %s", ui_big_text() ? "ON" : "off");
 
     /* Current theme label — shows what's active now. */
     d.setTextColor(T_WARN, T_BG);
-    d.setCursor(4, BODY_Y + 102);
+    d.setCursor(4, BODY_Y + 106);
     d.printf("now: %s", theme().name);
 
     ui_draw_footer("letter=go  `=back");
@@ -80,6 +83,13 @@ void feat_ux_accessibility(void)
         if (k == 't' || k == 'T') {
             feat_theme_picker();
             draw_screen();
+        }
+        if (k == 'b' || k == 'B') {
+            bool on = !ui_big_text();
+            ui_big_text_set(on);
+            draw_screen();
+            ui_toast(on ? "big toasts on" : "toasts normal",
+                     T_GOOD, 900);
         }
     }
 }

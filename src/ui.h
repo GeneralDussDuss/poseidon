@@ -24,6 +24,13 @@ void ui_draw_status(const char *radio, const char *extra);
  * full-screen rebuild). Next ui_draw_status call repaints unconditionally. */
 void ui_status_invalidate(void);
 void ui_draw_footer(const char *hints);
+
+/* Accessibility: "big text" toast flag. When true, ui_toast paints its
+ * message at 2x glyph scale so users who can't read the default 6x8
+ * font see errors/confirmations clearly. Persists to NVS (pui/bigtxt)
+ * and is loaded once in ui_init(). */
+bool ui_big_text(void);
+void ui_big_text_set(bool on);
 void ui_toast(const char *msg, uint16_t color, uint32_t ms);
 
 /* Flicker-free text helper. Prints text at (x,y) padded to pad_w pixels
