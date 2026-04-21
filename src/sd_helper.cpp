@@ -99,6 +99,28 @@ bool sd_mount(void)
     return false;
 }
 
+File sdlog_open(const char *stem, const char *header_line,
+                char *out_path, size_t out_path_sz)
+{
+    File empty;
+    if (!stem || !*stem) return empty;
+    if (!sd_mount()) return empty;
+    SD.mkdir("/poseidon");
+    char path[64];
+    snprintf(path, sizeof(path), "/poseidon/%s-%lu.csv",
+             stem, (unsigned long)(millis() / 1000));
+    File f = SD.open(path, FILE_WRITE);
+    if (!f) return empty;
+    if (header_line && *header_line) {
+        f.println(header_line);
+    }
+    if (out_path && out_path_sz) {
+        strncpy(out_path, path, out_path_sz - 1);
+        out_path[out_path_sz - 1] = '\0';
+    }
+    return f;
+}
+
 bool sd_format(void)
 {
     /* SD must be known to the FAT layer. Mount with format-on-fail =

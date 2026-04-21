@@ -292,14 +292,10 @@ void feat_ble_scan(void)
             break;
         case 's': case 'S': {
             if (s_count == 0) { ui_toast("no results", T_WARN, 800); break; }
-            if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1000); break; }
-            SD.mkdir("/poseidon");
-            char path[48];
-            snprintf(path, sizeof(path), "/poseidon/blescan-%lu.csv",
-                     (unsigned long)(millis() / 1000));
-            File f = SD.open(path, FILE_WRITE);
-            if (!f) { ui_toast("open failed", T_BAD, 1000); break; }
-            f.println("mac,addr_type,type,name,rssi");
+            char path[64];
+            File f = sdlog_open("blescan", "mac,addr_type,type,name,rssi",
+                                path, sizeof(path));
+            if (!f) { ui_toast("SD open failed", T_BAD, 1000); break; }
             int wrote = 0;
             for (int i = 0; i < s_count; ++i) {
                 if (!dev_matches_filter(s_devs[i])) continue;

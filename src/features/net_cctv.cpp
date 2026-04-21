@@ -42,9 +42,9 @@
 #include "radio.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include <HTTPClient.h>
 #include <SD.h>
 #include "../sd_helper.h"
+#include "../net_helpers.h"
 #include <mbedtls/base64.h>
 
 /* ---- probe tables (PROGMEM-ish; the compiler'll put them in flash) ---- */
@@ -114,17 +114,6 @@ static void hit_add(const cctv_hit_t &h)
     if (s_hits_n < CCTV_MAX_HITS) s_hits[s_hits_n++] = h;
 }
 
-static bool tcp_open(IPAddress ip, uint16_t port, uint32_t timeout_ms)
-{
-    WiFiClient c;
-    /* No setTimeout — we never read, and connect(...) already owns the
-     * timeout argument. Stacking a seconds-unit setTimeout on top made
-     * stalled RTSP handshakes block for longer than the caller expected. */
-    if (!c.connect(ip, port, timeout_ms)) return false;
-    c.stop();
-    return true;
-}
-
 /* Basic auth header: "Authorization: Basic <base64(user:pass)>". Bounded
  * so a long user:pass can't overflow the output buffer — mbedtls returns
  * MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL without null-terminating when the
@@ -169,47 +158,12 @@ static bool http_get(IPAddress ip, uint16_t port, const char *path,
                      const char *auth_header, http_result_t &out,
                      uint32_t timeout_ms)
 {
-    WiFiClient c;
-    c.setTimeout((timeout_ms + 999) / 1000);
-    if (!c.connect(ip, port, timeout_ms)) return false;
-
-    c.printf("GET %s HTTP/1.0\r\n", path);
-    c.printf("Host: %s\r\n", ip.toString().c_str());
-    c.print("User-Agent: Mozilla/5.0 (poseidon-cctv)\r\n");
-    c.print("Accept: */*\r\n");
-    c.print("Connection: close\r\n");
-    if (auth_header && *auth_header) {
-        c.printf("Authorization: %s\r\n", auth_header);
-    }
-    c.print("\r\n");
-
-    uint32_t deadline = millis() + timeout_ms;
-    out.code = 0;
-    out.headers = "";
-    out.body = "";
-    bool in_body = false;
-    /* Keep draining bytes even after the server closes — HTTP/1.0 cams
-     * routinely half-close before we've read the status line. Only bail
-     * when BOTH the socket is gone AND there's nothing buffered. */
-    while ((c.connected() || c.available()) && millis() < deadline) {
-        if (!c.available()) { delay(5); continue; }
-        String line = c.readStringUntil('\n');
-        if (!in_body) {
-            if (line.startsWith("HTTP/")) {
-                int sp = line.indexOf(' ');
-                if (sp > 0) out.code = line.substring(sp + 1, sp + 4).toInt();
-            }
-            if (line.length() <= 1) {
-                in_body = true;
-                continue;
-            }
-            if (out.headers.length() < 512) out.headers += line;
-        } else {
-            if (out.body.length() < 512) out.body += line;
-        }
-        if (out.body.length() >= 512) break;
-    }
-    c.stop();
+    /* Forwards to the canonical net_http_get so the status-line + body
+     * parsing lives in one place. Keep this thin wrapper because the
+     * struct return-by-ref + .code=0-on-fail convention is used by the
+     * cred-spray loop. */
+    out.code = net_http_get(ip, port, path, auth_header,
+                            &out.body, &out.headers, timeout_ms);
     return out.code != 0;
 }
 
@@ -311,7 +265,7 @@ static void scan_host(IPAddress ip)
 
     /* 1. Port probe (stop early once we find enough). */
     for (int i = 0; i < CAM_PORTS_N && !s_abort; ++i) {
-        if (tcp_open(ip, CAM_PORTS[i], 350)) {
+        if (net_tcp_open(ip, CAM_PORTS[i], 350)) {
             h.ports_mask |= (1u << i);
             any_open = true;
         }
@@ -365,12 +319,9 @@ static File s_log;
 
 static void open_log(void)
 {
-    if (!sd_mount()) return;
-    SD.mkdir("/poseidon");
-    snprintf(s_log_path, sizeof(s_log_path),
-             "/poseidon/cctv-%lu.csv", (unsigned long)(millis() / 1000));
-    s_log = SD.open(s_log_path, FILE_WRITE);
-    if (s_log) s_log.println("ip,ports_mask,brand,creds,stream");
+    s_log = sdlog_open("cctv",
+                       "ip,ports_mask,brand,creds,stream",
+                       s_log_path, sizeof(s_log_path));
 }
 
 static void log_hit(const cctv_hit_t &h)

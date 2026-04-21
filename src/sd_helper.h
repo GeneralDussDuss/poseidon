@@ -25,3 +25,28 @@ SPIClass &sd_get_spi(void);
 /* Force a fresh remount — use after another SPI peripheral (CC1101)
  * has stolen the GPIO matrix from HSPI. */
 bool sd_remount(void);
+
+#include <FS.h>
+
+/*
+ * sdlog_open — canonical POSEIDON logger bootstrap.
+ *
+ * Opens /poseidon/<stem>-<uptime_s>.csv for write, creating the
+ * /poseidon directory if missing and writing the optional CSV header
+ * line as the first record. Returns an open File the caller writes
+ * rows to directly, and (optionally) fills `out_path` with the exact
+ * path used so the feature can toast it back to the user.
+ *
+ * Returns an invalid File (! operator returns true) if:
+ *   - SD isn't mountable,
+ *   - /poseidon/<stem>-<ts>.csv couldn't be opened for write.
+ *
+ * Caller owns the File — call .close() when done.
+ *
+ *   File f = sdlog_open("wifiscan", "ssid,bssid,channel,rssi,auth");
+ *   if (f) { f.printf("...\n"); f.close(); }
+ */
+File sdlog_open(const char *stem,
+                const char *header_line = nullptr,
+                char *out_path = nullptr,
+                size_t out_path_sz = 0);
