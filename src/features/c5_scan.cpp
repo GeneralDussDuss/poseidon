@@ -650,39 +650,54 @@ void feat_c5_nuke_5g(void)
     int five_n = 0;
     for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
 
-    /* Only kick a fresh scan if no 5G APs are already cached. Previous
-     * rev wiped the cache + forced a 1.8 s scan regardless, which often
-     * wasn't enough time for RESP_AP frames to stream back so it
-     * bailed with "no APs" right after the user had scanned the band
-     * themselves a second ago. */
+    /* Only kick a fresh scan if no 5G APs are already cached. */
     if (five_n == 0) {
-        ui_clear_body();
-        auto &dsp = M5Cardputer.Display;
-        dsp.setTextColor(T_ACCENT, T_BG);
-        dsp.setCursor(4, BODY_Y + 18); dsp.print("scanning 5 GHz...");
-        dsp.setTextColor(T_DIM, T_BG);
-        dsp.setCursor(4, BODY_Y + 32); dsp.print("up to 4 s — stand by");
-        ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);
-        ui_draw_footer("`=abort");
-
         c5_clear_results();
-        /* duration_ms is PER-CHANNEL dwell on the C5 side. Across a
-         * full country-allowed dual-band sweep (~36 channels) that's
-         * duration * 36. Match feat_c5_scan_5g's 300 ms = ~11 s full
-         * sweep. 1000 ms / channel meant 36 s before the first RESP_AP
-         * even started streaming back — we were polling 4 s. */
+        /* duration_ms is PER-CHANNEL dwell. Match feat_c5_scan_5g's
+         * 300 ms = ~11 s full dual-band sweep. */
         c5_cmd_scan_5g(300);
 
-        /* Poll until 5G APs appear OR the full sweep window passes.
-         * Short polls so ESC aborts responsively. */
+        auto &dsp = M5Cardputer.Display;
         uint32_t deadline = millis() + 15000;
+        uint32_t frame = 0;
         while (millis() < deadline && five_n == 0) {
-            delay(300);
-            n = c5_aps(aps, 64);
-            five_n = 0;
-            for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
+            /* Re-render every 120 ms so the user sees the sweep is
+             * actually working (animated radar + live AP counter). */
+            frame++;
+            ui_clear_body();
+            dsp.setTextColor(T_ACCENT, T_BG);
+            dsp.setCursor(4, BODY_Y + 2); dsp.print("5 GHz SWEEP");
+            dsp.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
+
+            int total_n = c5_aps(aps, 64);
+            int cur_2g = 0, cur_5g = 0;
+            for (int i = 0; i < total_n; ++i) {
+                if (aps[i].is_5g) cur_5g++; else cur_2g++;
+            }
+            dsp.setTextColor(T_FG, T_BG);
+            dsp.setCursor(4, BODY_Y + 20);  dsp.printf("total APs: %d", total_n);
+            dsp.setTextColor(T_DIM, T_BG);
+            dsp.setCursor(4, BODY_Y + 32);  dsp.printf("2.4G: %d", cur_2g);
+            dsp.setTextColor(cur_5g ? T_GOOD : T_DIM, T_BG);
+            dsp.setCursor(4, BODY_Y + 44);  dsp.printf("5G  : %d", cur_5g);
+
+            dsp.setTextColor(T_DIM, T_BG);
+            uint32_t el = (millis() - (deadline - 15000)) / 1000;
+            dsp.setCursor(4, BODY_Y + 60);  dsp.printf("elapsed %lu s / 15", (unsigned long)el);
+            ui_radar(SCR_W - 24, BODY_Y + 44, 14, T_ACCENT);
+            ui_draw_footer("`=abort");
+
+            delay(120);
+            n = total_n;
+            five_n = cur_5g;
             uint16_t k = input_poll();
             if (k == PK_ESC) return;
+        }
+        /* If we actually have 5G APs now, repack into aps[] top of list. */
+        if (five_n > 0) {
+            int tmp_n = 0;
+            for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[tmp_n++] = aps[i];
+            five_n = tmp_n;
         }
     }
 
