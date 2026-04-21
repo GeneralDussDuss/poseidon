@@ -324,19 +324,31 @@ static void wdr_flush(void)
     }
 }
 
+/* Line buffers are FILE-SCOPE STATIC, not stack locals.
+ *
+ * emit_hs and emit_pmkid run inside the WiFi promiscuous RX callback,
+ * i.e. the WiFi task's stack which IDF 5.5 ships at ~3.5 KB. A
+ * 1024-byte stack buffer + call frames + hexcat scratch was walking
+ * off the end in heavy-capture bursts — "froze after N captures" was
+ * silent stack overflow clobbering adjacent task state. The WiFi task
+ * is single-threaded so a file-scope static is safe; no reentrance
+ * on the cb callsite. Same reasoning for the 300-byte pmkid buffer. */
+static char s_emit_line[1024];
+static char s_emit_pmk[300];
+
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
 {
     char ssid[33]; ssid_of(bssid, ssid, sizeof(ssid));
-    char line[300] = "WPA*01*";
-    hexcat(line, pmkid, 16); strcat(line, "*");
-    hexcat(line, bssid, 6);  strcat(line, "*");
-    hexcat(line, sta, 6);    strcat(line, "*");
+    strcpy(s_emit_pmk, "WPA*01*");
+    hexcat(s_emit_pmk, pmkid, 16); strcat(s_emit_pmk, "*");
+    hexcat(s_emit_pmk, bssid, 6);  strcat(s_emit_pmk, "*");
+    hexcat(s_emit_pmk, sta, 6);    strcat(s_emit_pmk, "*");
     for (size_t i = 0; i < strlen(ssid); ++i) {
         char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[i]);
-        strcat(line, h);
+        strcat(s_emit_pmk, h);
     }
-    strcat(line, "***\n");
-    capture_enqueue(line);
+    strcat(s_emit_pmk, "***\n");
+    capture_enqueue(s_emit_pmk);
     wdr_append(bssid, ssid, "EAPOL_PMKID");
     s_pmk++;
     s_last_catch = millis();
@@ -347,14 +359,12 @@ static void emit_hs(const uint8_t *bssid, const uint8_t *sta,
                     const uint8_t *mic, const uint8_t *anonce,
                     const uint8_t *m2, int m2_len)
 {
-    /* A real EAPOL M2 is ~121 bytes. Cap defensively so a malformed
-     * frame (sig_len up to ~2300) can't smash the 1024-byte stack line
-     * buffer via hexcat(m2, m2_len) which writes m2_len*2 hex chars. */
     if (m2_len > 256) m2_len = 256;
     if (m2_len < 0)   m2_len = 0;
 
     char ssid[33]; ssid_of(bssid, ssid, sizeof(ssid));
-    char line[1024] = "WPA*02*";
+    strcpy(s_emit_line, "WPA*02*");
+    char *line = s_emit_line;   /* alias so the rest of the fn reads as before */
     hexcat(line, mic, 16);    strcat(line, "*");
     hexcat(line, bssid, 6);   strcat(line, "*");
     hexcat(line, sta, 6);     strcat(line, "*");
