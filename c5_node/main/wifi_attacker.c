@@ -44,17 +44,26 @@ static uint8_t s_frame[26] = {
     0x07, 0x00,                               /* reason code */
 };
 
+/* attack_ch is the channel we're currently attacking on (e.g. 157 for
+ * 5 GHz). POSEIDON (ESP32-S3) physically cannot tune to 5 GHz channels,
+ * so it stays pinned to ch 1. If we send RESP_STATUS while on attack_ch,
+ * POSEIDON never hears it. So hop to ch 1 briefly, send, hop back.
+ * ~2-5ms per call, negligible against a 250 ms status cadence. */
 static void send_status(const uint8_t *requester, uint16_t seq,
-                        uint32_t frames_sent, uint8_t channel)
+                        uint32_t frames_sent, uint8_t attack_ch)
 {
     posei_msg_t m;
     proto_init_msg(&m, POSEI_TYPE_RESP_STATUS);
     m.seq = seq;
-    /* Status payload: u32 frame count + u8 channel. */
     memcpy(m.payload, &frames_sent, 4);
-    m.payload[4] = channel;
+    m.payload[4] = attack_ch;
     m.payload_len = 5;
+
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     proto_send_to(requester, &m);
+    /* Tiny wait so the TX actually goes out before we hop back. */
+    vTaskDelay(pdMS_TO_TICKS(2));
+    esp_wifi_set_channel(attack_ch, WIFI_SECOND_CHAN_NONE);
 }
 
 static void deauth_targeted_task(void *arg)
@@ -89,6 +98,8 @@ static void deauth_targeted_task(void *arg)
     send_status(r->requester, r->seq, sent, r->channel);
 
     esp_wifi_set_promiscuous(false);
+    /* Restore ch 1 so subsequent HELLOs / cmd-acks reach POSEIDON. */
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     led_fx_set(LED_MODE_IDLE);
     free(r);
     vTaskDelete(NULL);
@@ -162,6 +173,7 @@ static void deauth_bcast_task(void *arg)
     send_status(r->requester, r->seq, sent, r->channel);
 
     esp_wifi_set_promiscuous(false);
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     led_fx_set(LED_MODE_IDLE);
     free(r);
     vTaskDelete(NULL);

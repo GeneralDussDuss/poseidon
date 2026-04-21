@@ -115,6 +115,12 @@ void zb_sniffer_start(const uint8_t requester[6], uint8_t channel, uint16_t seq)
 
 void zb_sniffer_stop(void)
 {
+    /* Guard: if we're not running, don't touch the radio. Calling
+     * esp_ieee802154_disable() twice drops the modem-clock refcount
+     * below zero and panics the chip (assert at modem_clock.c:280).
+     * This path is hit when ESP-NOW delivers a duplicate CMD_STOP,
+     * which happens often enough to matter. */
+    if (!s_running) return;
     s_running = false;
     s_hop = false;
     esp_ieee802154_disable();

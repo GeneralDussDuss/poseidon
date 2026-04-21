@@ -1,8 +1,17 @@
 /*
  * wifi_scanner.c — dual-band WiFi scan for the C5.
  *
- * C5 supports 802.11ax on BOTH 2.4 GHz AND 5 GHz. A standard
- * esp_wifi_scan_start() without band filtering will sweep both.
+ * On ESP32-C5 with band_mode=AUTO + country=US + per-STA protocols
+ * 11B|G|N|AX (2.4) and 11A|N|AC|AX (5), a single esp_wifi_scan_start
+ * with channel=0 sweeps every country-allowed channel across 2.4 GHz
+ * AND 5 GHz in one pass. The channel_bitmap fields don't actually
+ * restrict which BAND gets scanned — the driver hits both regardless.
+ *
+ * We previously did a 3-phase split (2G active + 5G active + 5G
+ * passive) because early runs returned 5G=0. That turned out to be
+ * a duplicate-command race, not a scan-config issue. Single pass
+ * is ~2 seconds and catches the same APs the 3-phase version did in
+ * ~25 seconds.
  */
 #include "proto.h"
 #include "esp_wifi.h"
@@ -14,27 +23,29 @@
 
 static const char *TAG = "wifi_scanner";
 
-/* Call from any task. Sends one or more RESP_AP frames to the mac
- * that requested the scan. */
 void wifi_scanner_run(const uint8_t requester[6],
                       uint16_t duration_ms,
                       uint16_t seq)
 {
-    /* Active scan, all channels, generous dwell. Active is what works
-     * — passive missed everything in our environment. Default IDF
-     * behavior: channel=0 scans every channel the country code allows
-     * on every enabled band. */
-    uint16_t dwell = duration_ms ? duration_ms : 600;
+    uint16_t dwell = duration_ms ? duration_ms : 400;
     if (dwell < 300) dwell = 300;
+
     wifi_scan_config_t cfg = {
         .ssid = NULL, .bssid = NULL,
-        .channel = 0,
+        .channel = 0,                    /* 0 = all country-allowed */
         .show_hidden = true,
         .scan_type = WIFI_SCAN_TYPE_ACTIVE,
         .scan_time = { .active = { .min = 120, .max = dwell } },
     };
-    ESP_LOGI(TAG, "scan active dwell=%ums", (unsigned)dwell);
+    ESP_LOGI(TAG, "dual-band scan, dwell=%ums", (unsigned)dwell);
     esp_err_t err = esp_wifi_scan_start(&cfg, true);
+
+    /* Scanner leaves the radio on whatever channel it last dwelled on
+     * (usually 5 GHz). ESP-NOW results MUST go out on ch 1 or POSEIDON
+     * (pinned to ch 1 for RX) never hears them. Restore before any
+     * posei_msg_t proto_send_to(). */
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "scan_start: %s", esp_err_to_name(err));
         return;
@@ -42,20 +53,20 @@ void wifi_scanner_run(const uint8_t requester[6],
 
     uint16_t n = 0;
     esp_wifi_scan_get_ap_num(&n);
-    ESP_LOGI(TAG, "scan done, %u APs", (unsigned)n);
-    if (n == 0) return;
+    if (n == 0) { ESP_LOGI(TAG, "scan done, 0 APs"); return; }
 
     wifi_ap_record_t *records = malloc(sizeof(wifi_ap_record_t) * n);
     if (!records) return;
     esp_wifi_scan_get_ap_records(&n, records);
-    /* Log every AP found so we can see what the C5 actually heard. */
-    for (int i = 0; i < n; ++i) {
-        ESP_LOGI(TAG, "AP[%d] ch=%u rssi=%d %s",
-                 i, records[i].primary, records[i].rssi,
-                 records[i].ssid[0] ? (const char *)records[i].ssid : "<hidden>");
-    }
 
-    /* Stream 4 APs per frame. */
+    int n_2g = 0, n_5g = 0;
+    for (int i = 0; i < n; ++i) {
+        if (records[i].primary > 14) n_5g++;
+        else                         n_2g++;
+    }
+    ESP_LOGI(TAG, "scan done, %u APs (%u 2G + %u 5G)",
+             (unsigned)n, (unsigned)n_2g, (unsigned)n_5g);
+
     posei_msg_t msg;
     for (uint16_t i = 0; i < n; ) {
         proto_init_msg(&msg, POSEI_TYPE_RESP_AP);
@@ -77,6 +88,5 @@ void wifi_scanner_run(const uint8_t requester[6],
         i += batch;
         vTaskDelay(pdMS_TO_TICKS(30));
     }
-    ESP_LOGI(TAG, "streamed %u records", (unsigned)n);
     free(records);
 }

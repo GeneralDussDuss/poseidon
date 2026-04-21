@@ -65,19 +65,33 @@ volatile bool g_pause_hello = false;
 
 static void hello_task(void *_)
 {
+    uint32_t n = 0;
     while (1) {
-        if (!g_pause_hello) send_hello();
+        if (!g_pause_hello) {
+            send_hello();
+            if ((n & 1) == 0) {
+                uint8_t pc = 0;
+                wifi_second_chan_t sc;
+                esp_wifi_get_channel(&pc, &sc);
+                ESP_LOGI(TAG, "hello #%lu ch=%u", (unsigned long)n, pc);
+            }
+            n++;
+        }
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 
 struct scan_req_t { uint8_t mac[6]; uint16_t dur; uint16_t seq; };
+static volatile bool s_scan_running = false;
+static volatile uint16_t s_last_scan_seq = 0xFFFF;
+
 static void scan_task(void *arg)
 {
     struct scan_req_t *sr = (struct scan_req_t *)arg;
     g_pause_hello = true;       /* freeze ESP-NOW so scan can hop */
     wifi_scanner_run(sr->mac, sr->dur, sr->seq);
     g_pause_hello = false;
+    s_scan_running = false;
     free(sr);
     vTaskDelete(NULL);
 }
@@ -115,6 +129,15 @@ static void on_recv(const esp_now_recv_info_t *info,
     }
     case POSEI_TYPE_CMD_SCAN_5G:
     case POSEI_TYPE_CMD_SCAN_2G: {
+        /* De-dup: ESP-NOW occasionally delivers the same cmd twice.
+         * Same seq → ignore the retransmit. Also refuse to stack scan
+         * tasks — the driver rejects back-to-back esp_wifi_scan_start
+         * calls with ESP_ERR_WIFI_STATE and the second task returns 0
+         * APs instantly, hiding real results. */
+        if (s_scan_running) { ESP_LOGW(TAG, "scan busy, drop seq=%u", m->seq); break; }
+        if (m->seq == s_last_scan_seq) { ESP_LOGW(TAG, "dup seq=%u, drop", m->seq); break; }
+        s_last_scan_seq = m->seq;
+        s_scan_running  = true;
         led_fx_set(LED_MODE_SCAN);
         uint16_t dur = 150;
         if (m->payload_len >= sizeof(posei_scan_req_t)) {
@@ -127,6 +150,8 @@ static void on_recv(const esp_now_recv_info_t *info,
             sr->dur = dur;
             sr->seq = m->seq;
             xTaskCreate(scan_task, "scan", 4096, sr, 4, NULL);
+        } else {
+            s_scan_running = false;
         }
         break;
     }
@@ -175,30 +200,63 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-    /* THE big one: enable dual-band on the C5. Without this the
-     * driver only scans 2.4 GHz even on this dual-band chip. */
-    esp_err_t bm_err = esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
-    ESP_LOGI(TAG, "set_band_mode AUTO: %s", esp_err_to_name(bm_err));
-    wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
-    esp_wifi_get_band_mode(&bm);
-    ESP_LOGI(TAG, "band_mode is now: %d (0=AUTO 1=2G 2=5G)", (int)bm);
-
-    /* Country = US opens up the full 5 GHz band (UNII-1/2A/3) for
-     * active scanning. Default '01' worldwide restricts most 5 GHz
-     * channels to passive-only which makes the dual-band scan miss
-     * almost everything above 2.4. */
-    /* Use cc='01' (worldwide) with nchan=13 to allow scanning every
-     * 2.4 GHz channel a neighbor might be on. US-only nchan=11 was
-     * silently dropping channels 12-13 which are common abroad. */
+    /* Country code drives which channels the driver will scan and whether
+     * 5 GHz is active or passive. 'US' enables full UNII-1 / UNII-2A /
+     * UNII-3 active scanning (channels 36-48, 52-64 DFS, 100-144 DFS,
+     * 149-165) — that's what we need to actually see 5 GHz APs in a
+     * 600ms dwell. POLICY_AUTO means if a beacon announces a different
+     * country, the driver will adapt to the local rules.
+     *
+     * Prior version used cc='01' for nchan=13 on 2.4 GHz (channels 12/13
+     * used outside US), but '01' forces passive-only on 5 GHz which
+     * silently dropped most 5G APs. Net: 'US' is the right default for
+     * a pentest scanner — we see EVERYTHING the attacker needs. */
     wifi_country_t country = {
-        .cc = "01",
+        .cc = "US",
         .schan = 1,
-        .nchan = 13,
-        .policy = WIFI_COUNTRY_POLICY_MANUAL,
+        .nchan = 11,
+        .policy = WIFI_COUNTRY_POLICY_AUTO,
     };
     esp_wifi_set_country(&country);
 
     ESP_ERROR_CHECK(esp_wifi_start());
+
+    /* Lock the C5 to 2.4 GHz channel 1 so ESP-NOW has a real channel
+     * to transmit on. Without this, a not-connected STA in AUTO band
+     * mode sits at channel=0 → esp_wifi_get_channel returns 0 → HELLOs
+     * never reach POSEIDON. POSEIDON defaults to channel 1 when it's
+     * also unassociated, so this gives us a shared channel for
+     * discovery. Scans override this temporarily while sweeping and
+     * restore it when done. */
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+
+    /* NOW we can set band mode — the call fails with WIFI_NOT_STARTED
+     * if called before esp_wifi_start(). Setting AUTO explicitly in
+     * case the chip booted in a restricted default. */
+    esp_err_t bm_err = esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+    ESP_LOGI(TAG, "set_band_mode AUTO: %s", esp_err_to_name(bm_err));
+    wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
+    esp_wifi_get_band_mode(&bm);
+    ESP_LOGI(TAG, "band_mode is now: %d (1=2G_ONLY 2=5G_ONLY 3=AUTO)", (int)bm);
+
+    /* Force per-band protocol sets. esp_wifi_set_protocol() can't be
+     * used under band_mode AUTO — you get WIFI_ERR_NOT_SUPPORTED. Must
+     * go through the per-band wifi_protocols_t struct via
+     * esp_wifi_set_protocols(). Without this the 5 GHz RX path may stay
+     * cold even though channel_bitmap allows scanning there; symptom is
+     * "5G scan done, 0 APs" while 2.4 GHz returns normally. */
+    wifi_protocols_t protos = {
+        .ghz_2g = WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
+                  WIFI_PROTOCOL_11N | WIFI_PROTOCOL_11AX,
+        .ghz_5g = WIFI_PROTOCOL_11A | WIFI_PROTOCOL_11N |
+                  WIFI_PROTOCOL_11AC | WIFI_PROTOCOL_11AX,
+    };
+    esp_err_t proto_err = esp_wifi_set_protocols(WIFI_IF_STA, &protos);
+    ESP_LOGI(TAG, "set_protocols 2g=0x%02x 5g=0x%02x: %s",
+             protos.ghz_2g, protos.ghz_5g, esp_err_to_name(proto_err));
+    wifi_protocols_t got = { 0 };
+    esp_wifi_get_protocols(WIFI_IF_STA, &got);
+    ESP_LOGI(TAG, "protocols now: 2g=0x%02x 5g=0x%02x", got.ghz_2g, got.ghz_5g);
 
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(on_recv));

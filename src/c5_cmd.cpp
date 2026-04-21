@@ -197,6 +197,8 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
             memcpy(&f, m->payload, 4);
             s_last_status_frames  = f;
             s_last_status_channel = m->payload[4];
+            Serial.printf("[c5] RESP_STATUS frames=%lu ch=%u\n",
+                          (unsigned long)f, (unsigned)m->payload[4]);
         }
         break;
     }
@@ -206,9 +208,17 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
 
 bool c5_begin(void)
 {
-    if (s_started) return true;
     /* ESP-NOW requires WiFi up in STA mode. */
     if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
+
+    /* Pin to channel 1 so ESP-NOW RX matches the C5's broadcast channel.
+     * A prior WiFi scan / attack can leave the driver on any channel 1-13;
+     * without forcing the lock we'd silently miss HELLOs from the C5.
+     * C5 also pins to channel 1 on boot. Always re-apply even if already
+     * started — entering the C5 menu from another WiFi feature needs this. */
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+
+    if (s_started) return true;
     if (esp_now_init() != ESP_OK) return false;
     esp_now_register_recv_cb(on_recv);
 

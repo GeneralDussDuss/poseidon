@@ -11,15 +11,52 @@
 #include "ble_db.h"
 #include "sd_helper.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <SD.h>
+
+/* Short 4-char auth string for list rendering. Matches ESP-IDF's
+ * wifi_auth_mode_t enum ordering. PMF-implying modes (WPA3, W23, W3X)
+ * mean deauth frames will be ignored by the client — visible cue that
+ * the attack won't land. */
+static const char *auth_short(uint8_t a)
+{
+    switch (a) {
+    case 0:  return "OPN ";   /* WIFI_AUTH_OPEN */
+    case 1:  return "WEP ";
+    case 2:  return "WPA ";
+    case 3:  return "WPA2";
+    case 4:  return "W12 ";   /* WPA/WPA2 mixed */
+    case 5:  return "EAP ";
+    case 6:  return "WPA3";   /* PMF mandatory */
+    case 7:  return "W23 ";   /* WPA2/WPA3 mixed, PMF optional */
+    case 8:  return "WAPI";
+    case 9:  return "OWE ";
+    case 10: return "EAP3";
+    case 11: return "W3X ";
+    case 12: return "W3M ";
+    default: return "??  ";
+    }
+}
 
 static void draw_status_header(void)
 {
+    /* Called from every C5 feature's render tick (300–500 ms). Without
+     * this cache the status dot + peer count text repaints every frame
+     * even when the peer count hasn't changed — visible as a flash on
+     * every live screen. Invalidate by passing -1 / resetting last_n
+     * when transitioning to a new C5 screen. */
+    static int     last_n = -1;
+    static uint16_t last_col = 0;
     auto &d = M5Cardputer.Display;
     int n = c5_peer_count();
     uint16_t col = n > 0 ? T_GOOD : T_BAD;
+    if (n == last_n && col == last_col) return;
+    last_n = n; last_col = col;
+
     d.fillCircle(SCR_W - 10, 6, 3, col);  /* status dot */
     d.setTextColor(col, 0x0841);
+    /* Clear the text band first so old digits don't shadow through. */
+    d.fillRect(SCR_W - 60, 2, 45, 8, 0x0841);
     d.setCursor(SCR_W - 60, 2);
     if (n == 0) d.print("no C5");
     else        d.printf("C5 x%d", n);
@@ -102,6 +139,7 @@ void feat_c5_scan_5g(void)
     c5_cmd_scan_5g(300);
 
     auto &d = M5Cardputer.Display;
+    ui_clear_body();  /* one-time entry clear */
     ui_draw_footer(";/. move  R=rescan  `=back");
     int cursor = 0;
     int last_n = -1;
@@ -112,13 +150,15 @@ void feat_c5_scan_5g(void)
             int n_now = c5_aps(nullptr, 0);
             bool new_result = (n_now != last_n);
             last_n = n_now;
-            ui_clear_body();
             char title[40];
             snprintf(title, sizeof(title), "DUAL-BAND %d (raw %lu/%lu)",
                      n_now,
                      (unsigned long)c5_dbg_raw_ap_records(),
                      (unsigned long)c5_dbg_resp_ap_frames());
             ui_dashboard_chrome(title, new_result);
+            /* Wipe only the AP-list region so the rows redraw clean
+             * without flashing the whole body. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
             draw_status_header();
             ui_freq_bars(SCR_W - 58, BODY_Y + 2, 3, 10);
 
@@ -151,18 +191,28 @@ void feat_c5_scan_5g(void)
                     int y = BODY_Y + 18 + r * 12;
                     bool sel = (i == cursor);
                     if (sel) d.fillRect(0, y - 1, SCR_W, 12, 0x3007);
+                    uint16_t rowbg = sel ? 0x3007 : T_BG;
                     /* Band badge. */
-                    d.setTextColor(a.is_5g ? 0xF81F : T_ACCENT, sel ? 0x3007 : T_BG);
+                    d.setTextColor(a.is_5g ? 0xF81F : T_ACCENT, rowbg);
                     d.setCursor(2, y);
                     d.print(a.is_5g ? "5G" : "2G");
-                    d.setTextColor(sel ? 0xFFFF : T_FG, sel ? 0x3007 : T_BG);
-                    d.setCursor(22, y);
+                    /* RSSI */
+                    d.setTextColor(sel ? 0xFFFF : T_FG, rowbg);
+                    d.setCursor(20, y);
                     d.printf("%4d", a.rssi);
-                    d.setTextColor(T_DIM, sel ? 0x3007 : T_BG);
-                    d.setCursor(54, y);
-                    d.printf("ch%u", a.channel);
-                    d.setTextColor(sel ? T_ACCENT : T_FG, sel ? 0x3007 : T_BG);
-                    d.setCursor(84, y);
+                    /* Auth — highlight PMF-implying modes in red so
+                     * the operator sees at a glance deauth won't work. */
+                    bool pmf = (a.auth == 6 || a.auth == 10 || a.auth == 11);
+                    d.setTextColor(pmf ? T_BAD : T_WARN, rowbg);
+                    d.setCursor(48, y);
+                    d.print(auth_short(a.auth));
+                    /* Channel */
+                    d.setTextColor(T_DIM, rowbg);
+                    d.setCursor(78, y);
+                    d.printf("%u", a.channel);
+                    /* SSID */
+                    d.setTextColor(sel ? T_ACCENT : T_FG, rowbg);
+                    d.setCursor(100, y);
                     d.printf("%.22s", a.ssid[0] ? a.ssid : "<hidden>");
                 }
             }
@@ -249,14 +299,22 @@ void feat_c5_deauth_5g(void)
 
     /* Live attack dashboard. */
     uint16_t dur = 8000;
+    uint8_t attack_ch = (chosen == -2) ? aps[cursor].channel : aps[chosen].channel;
     if (chosen >= 0) {
         c5_cmd_deauth(aps[chosen].bssid, aps[chosen].channel, 0, dur);
     }
+    /* ESP32-S3 radio cannot tune to 5 GHz channels — esp_wifi_set_channel
+     * returns ESP_ERR_WIFI_IF (258). We can't follow the C5 to its attack
+     * channel. Instead, C5 hops to ch 1 briefly to send each RESP_STATUS
+     * (see wifi_attacker.c:send_status), so POSEIDON on ch 1 receives
+     * them normally. No channel switch here. */
     const char *mode = (chosen == -2) ? "5G NUKE-CH" : "5G DEAUTH";
     uint32_t end = millis() + dur + 1500;
     uint32_t last = 0;
     uint32_t last_frames = 0;
-    ui_clear_body();
+    ui_clear_body();  /* ONE-TIME wipe on entry — after this, only the
+                         status region gets redrawn. No per-frame full
+                         clear → no flashing. */
     ui_draw_footer("`=stop");
     while (millis() < end) {
         if (millis() - last > 200) {
@@ -264,8 +322,11 @@ void feat_c5_deauth_5g(void)
             uint32_t now_frames = c5_status_frames();
             bool tick = (now_frames != last_frames);
             last_frames = now_frames;
-            ui_clear_body();
             ui_dashboard_chrome(mode, tick);
+            /* Wipe ONLY the status text region so changing values don't
+             * leave leftover glyphs behind. Hex stream above + below
+             * animates smoothly underneath. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 16);
             if (chosen == -2) {
@@ -280,9 +341,17 @@ void feat_c5_deauth_5g(void)
                          a.bssid[0], a.bssid[1], a.bssid[2],
                          a.bssid[3], a.bssid[4], a.bssid[5]);
             }
+            /* While C5 is hammering TX on the attack channel, its
+             * RESP_STATUS packets get squeezed by the TX queue and
+             * arrive in bursts, not smoothly. Show "LIVE" until we
+             * actually receive a non-zero count so the operator doesn't
+             * think nothing's happening. */
             d.setTextColor(T_ACCENT, T_BG);
             d.setCursor(4, BODY_Y + 44);
-            d.printf("frames: %lu", (unsigned long)now_frames);
+            if (now_frames > 0)
+                d.printf("frames: %lu", (unsigned long)now_frames);
+            else
+                d.print("ATTACK LIVE (count lags)");
             d.setCursor(4, BODY_Y + 56);
             uint32_t left = (end - millis()) / 1000;
             d.printf("time  : %lus", (unsigned long)left);
@@ -305,6 +374,7 @@ void feat_c5_scan_zb(void)
     c5_cmd_scan_zb(0xFF);  /* hop all channels 11-26 */
 
     auto &d = M5Cardputer.Display;
+    ui_clear_body();
     ui_draw_footer("`=back");
     int last_n = -1;
     uint32_t last = 0;
@@ -315,8 +385,9 @@ void feat_c5_scan_zb(void)
             int n_now = c5_zbs(probe, 0);
             bool new_frame = (n_now != last_n);
             last_n = n_now;
-            ui_clear_body();
             ui_dashboard_chrome("C5 ZIGBEE SNIFF", new_frame);
+            /* Wipe only the frames/status zone — hex stream self-clears. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
             draw_status_header();
             ui_freq_bars(SCR_W - 58, BODY_Y + 2, 3, 10);
 
@@ -484,8 +555,9 @@ void feat_c5_pmkid_5g(void)
                 written++;
             }
 
-            ui_clear_body();
             ui_dashboard_chrome("C5 PMKID 5G", tick);
+            /* Wipe only the status region — hex stream self-clears. */
+            d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 28, T_BG);
             draw_status_header();
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 18);

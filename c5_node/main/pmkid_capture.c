@@ -200,6 +200,8 @@ static void pmkid_task(void *arg)
 
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
+    /* Restore ch 1 so subsequent HELLOs reach POSEIDON. */
+    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
     s_ctx = NULL;
     led_fx_set(LED_MODE_IDLE);
     g_pause_hello = false;
