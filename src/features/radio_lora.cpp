@@ -13,8 +13,6 @@
 #include "../radio.h"
 #include "../gps.h"
 #include "../lora_hw.h"
-#include "../sd_helper.h"
-#include <SD.h>
 
 /* ---- shared band picker ---------------------------------------------- */
 
@@ -47,6 +45,12 @@ static lora_band_t pick_band(const char *title)
 
 /* ---- R-s  Scan ------------------------------------------------------- */
 
+/* DIO1 ISR sets this flag; main loop polls it. Avoids per-frame SPI
+ * getPacketLength() calls that can wedge the SX1262 when the chip is
+ * in a transition state (seen as a hard hang on 915 MHz scan). */
+static volatile bool s_lora_rx_flag = false;
+static void IRAM_ATTR lora_rx_isr(void) { s_lora_rx_flag = true; }
+
 void feat_lora_scan(void)
 {
     lora_band_t b = pick_band("LoRa SCAN");
@@ -62,22 +66,20 @@ void feat_lora_scan(void)
         return;
     }
 
-    File log;
-    bool have_sd = sd_mount();
-    if (have_sd) {
-        SD.mkdir("/poseidon");
-        char path[64];
-        snprintf(path, sizeof(path), "/poseidon/lora-%lu.log",
-                 (unsigned long)(millis() / 1000));
-        log = SD.open(path, FILE_WRITE);
-        if (log) log.printf("# LoRa scan %.3f MHz SF%u BW%.0f\n",
-                            cfg.freq_mhz, cfg.sf, cfg.bw_khz);
-    }
+    /* No SD logging here: SD (HSPI) and LoRa share the HSPI bus on the
+     * same pins 40/39/14 (CS=12 vs NSS=5). Opening a file between LoRa
+     * transactions is safe in theory, but the raw SPI contention made
+     * the scan unreliable. If logging is wanted later, gate writes
+     * behind the lora_rx_flag so they only happen between frames. */
 
     auto &radio = lora_radio();
+    s_lora_rx_flag = false;
+    radio.setPacketReceivedAction(lora_rx_isr);
     int st = radio.startReceive();
     if (st != RADIOLIB_ERR_NONE) {
-        ui_toast("RX start fail", T_BAD, 1500);
+        char msg[32]; snprintf(msg, sizeof(msg), "RX start %d", st);
+        ui_toast(msg, T_BAD, 1500);
+        radio.clearPacketReceivedAction();
         lora_end();
         radio_switch(RADIO_NONE);
         return;
@@ -91,27 +93,26 @@ void feat_lora_scan(void)
     auto &d = M5Cardputer.Display;
     uint32_t last_draw = 0;
     while (true) {
-        /* Poll for a packet via availability check — RadioLib IRQ. */
-        if (radio.getPacketLength() > 0 || digitalRead(4) /* DIO1 */) {
-            uint8_t buf[256];
-            int n = radio.readData(buf, 0);
-            int len = (n == RADIOLIB_ERR_NONE) ? radio.getPacketLength(false) : 0;
-            if (n == RADIOLIB_ERR_NONE && len > 0) {
-                pkts++;
-                last_rssi = (int)radio.getRSSI();
-                last_snr  = radio.getSNR();
-                int hex_n = (len < 32) ? len : 32;
-                for (int i = 0; i < hex_n; ++i)
-                    snprintf(last_hex + i * 3, 4, "%02X ", buf[i]);
-                if (log) {
-                    log.printf("[%lu] rssi=%d snr=%.1f len=%d ",
-                               (unsigned long)millis(), last_rssi, last_snr, len);
-                    for (int i = 0; i < len; ++i) log.printf("%02X", buf[i]);
-                    log.println();
-                    log.flush();
+        if (s_lora_rx_flag) {
+            s_lora_rx_flag = false;
+            int len = radio.getPacketLength();
+            if (len > 0 && len <= 256) {
+                uint8_t buf[256];
+                int n = radio.readData(buf, len);
+                if (n == RADIOLIB_ERR_NONE) {
+                    pkts++;
+                    last_rssi = (int)radio.getRSSI();
+                    last_snr  = radio.getSNR();
+                    int hex_n = (len < 32) ? len : 32;
+                    for (int i = 0; i < hex_n; ++i)
+                        snprintf(last_hex + i * 3, 4, "%02X ", buf[i]);
                 }
             }
-            radio.startReceive();
+            /* Re-arm RX for next packet. If startReceive returns non-OK,
+             * log + keep going — one bad rearm shouldn't kill the scan. */
+            int rx_err = radio.startReceive();
+            if (rx_err != RADIOLIB_ERR_NONE)
+                Serial.printf("[lora] rearm err %d\n", rx_err);
         }
 
         uint32_t now = millis();
@@ -138,7 +139,7 @@ void feat_lora_scan(void)
         delay(10);
     }
 
-    if (log) log.close();
+    radio.clearPacketReceivedAction();
     lora_end();
     radio_switch(RADIO_NONE);
 }
@@ -222,7 +223,17 @@ void feat_lora_meshtastic(void)
         return;
     }
     auto &radio = lora_radio();
-    radio.startReceive();
+    s_lora_rx_flag = false;
+    radio.setPacketReceivedAction(lora_rx_isr);
+    int rx_st = radio.startReceive();
+    if (rx_st != RADIOLIB_ERR_NONE) {
+        char msg[32]; snprintf(msg, sizeof(msg), "RX start %d", rx_st);
+        ui_toast(msg, T_BAD, 1500);
+        radio.clearPacketReceivedAction();
+        lora_end();
+        radio_switch(RADIO_NONE);
+        return;
+    }
 
     uint32_t pkts = 0;
     uint32_t last_from = 0, last_to = 0, last_id = 0;
@@ -232,10 +243,13 @@ void feat_lora_meshtastic(void)
     auto &d = M5Cardputer.Display;
     uint32_t last_draw = 0;
     while (true) {
-        if (digitalRead(4) /* DIO1 */) {
+        if (s_lora_rx_flag) {
+            s_lora_rx_flag = false;
+            int len = radio.getPacketLength();
             uint8_t buf[256];
-            int n = radio.readData(buf, 0);
-            int len = (n == RADIOLIB_ERR_NONE) ? radio.getPacketLength(false) : 0;
+            int n = (len > 0 && len <= 256) ? radio.readData(buf, len) : RADIOLIB_ERR_RX_TIMEOUT;
+            Serial.printf("[mesh] rx len=%d readData=%d rssi=%d snr=%.1f\n",
+                          len, n, (int)radio.getRSSI(), radio.getSNR());
             if (n == RADIOLIB_ERR_NONE && len >= 16) {
                 /* Meshtastic packet header (little-endian):
                  *   0..3  dest nodeId
@@ -253,8 +267,16 @@ void feat_lora_meshtastic(void)
                 last_rssi = (int)radio.getRSSI();
                 last_snr  = radio.getSNR();
                 pkts++;
+                Serial.printf("[mesh] pkt#%lu to=0x%08lx from=0x%08lx id=0x%08lx\n",
+                              (unsigned long)pkts,
+                              (unsigned long)last_to,
+                              (unsigned long)last_from,
+                              (unsigned long)last_id);
             }
-            radio.startReceive();
+            /* Re-arm. One bad rearm shouldn't stop the scan. */
+            int rearm_err = radio.startReceive();
+            if (rearm_err != RADIOLIB_ERR_NONE)
+                Serial.printf("[mesh] rearm err %d\n", rearm_err);
         }
 
         uint32_t now = millis();
@@ -280,6 +302,7 @@ void feat_lora_meshtastic(void)
         delay(10);
     }
 
+    radio.clearPacketReceivedAction();
     lora_end();
     radio_switch(RADIO_NONE);
 }

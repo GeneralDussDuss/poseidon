@@ -17,7 +17,13 @@
 #define LORA_DIO1  4
 #define LORA_BUSY  6
 
-static SPIClass loraSpi(FSPI);  /* dedicated FSPI instance for RadioLib */
+/* No custom SPIClass. M5Stack's CAP-LoRa1262 reference and d4rkmen/plai's
+ * Cardputer-Adv Meshtastic port both rely on the global Arduino SPI object
+ * that M5Unified sets up during M5.begin() — the hat's bus is already
+ * correctly pinned via M5Unified's board pinmap. Creating a second
+ * SPIClass(FSPI) hijacks SPI2 from M5GFX (display freezes). HSPI also
+ * fails because RadioLib's Module without a BUSY pin spins on startReceive.
+ * The fix is to do neither: use RadioLib's default SPI + pass BUSY. */
 static SX1262 *s_radio = nullptr;
 static Module *s_mod   = nullptr;
 static bool    s_up    = false;
@@ -95,6 +101,14 @@ int lora_begin(const lora_config_t &cfg)
 {
     if (s_up) lora_end();
 
+    /* Make sure the shared HSPI bus is actually up before we hand
+     * sd_get_spi() to RadioLib. sd_mount() is idempotent — if SD was
+     * already mounted at boot this is a no-op; if boot-time mount was
+     * skipped (or failed and left sd_spi in a partial state) this
+     * guarantees sd_spi.begin(40,39,14,-1) has been run, which is
+     * what RadioLib needs to talk to the SX1262. */
+    sd_mount();
+
     /* Park other CS lines. */
     pinMode(12, OUTPUT); digitalWrite(12, HIGH);  /* SD */
     pinMode(13, OUTPUT); digitalWrite(13, HIGH);  /* CC1101 if present */
@@ -104,21 +118,30 @@ int lora_begin(const lora_config_t &cfg)
     pinMode(LORA_RST, OUTPUT); digitalWrite(LORA_RST, HIGH);
     delay(20);
 
-    /* Init FSPI for RadioLib. Don't touch SD's HSPI — let both
-     * coexist on the same pins. RadioLib manages CS via digitalWrite. */
-    loraSpi.begin(40, 39, 14, -1);
-    delay(10);
+    /* Antenna switch ON before radio.begin — per M5Stack + plai reference,
+     * RF front-end enable must be high before the chip is initialised. */
+    lora_rf_switch(true);
 
-    s_mod   = new Module(LORA_NSS, LORA_DIO1, LORA_RST, RADIOLIB_NC, loraSpi);
+    /* 5-arg Module: (cs, irq=DIO1, rst, busy, spi). BUSY is MANDATORY —
+     * leaving it RADIOLIB_NC makes RadioLib spin on startReceive.
+     *
+     * SPI bus: share the SD helper's HSPI (SPI3), already initialized
+     * during boot on the correct pins 40/39/14. The two peripherals
+     * share the bus and are selected by their independent CS lines
+     * (SD CS=12, LoRa NSS=5). This avoids two problems we hit:
+     *   a) Default global Arduino `SPI` isn't pinned to 40/39/14 on
+     *      Cardputer-Adv, so radio.begin() returns CHIP_NOT_FOUND (-2).
+     *   b) Creating our own SPIClass(FSPI) hijacks SPI2 from M5GFX and
+     *      freezes the TFT on the next draw. */
+    s_mod   = new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY, sd_get_spi());
     s_radio = new SX1262(s_mod);
 
-    /* Single-param begin — RadioLib handles oscillator auto-detect. */
     int st = s_radio->begin(cfg.freq_mhz);
     if (st != RADIOLIB_ERR_NONE) {
         Serial.printf("[lora] begin(%.3f) err %d\n", cfg.freq_mhz, st);
         delete s_radio; s_radio = nullptr;
         delete s_mod;   s_mod   = nullptr;
-        loraSpi.end();
+        lora_rf_switch(false);
         return st;
     }
 
@@ -143,7 +166,8 @@ int lora_begin(const lora_config_t &cfg)
     log_if_err("setOutputPower",     s_radio->setOutputPower(cfg.power));
     log_if_err("setPreambleLength",  s_radio->setPreambleLength(8));
     log_if_err("setDio2AsRfSwitch",  s_radio->setDio2AsRfSwitch(true));
-    lora_rf_switch(true);
+    /* Current limit per M5 reference — protects PA on the CAP-LoRa1262. */
+    log_if_err("setCurrentLimit",    s_radio->setCurrentLimit(140));
 
     s_up = true;
     Serial.printf("[lora] up @ %.3f MHz SF%u BW%.0f\n",
@@ -160,7 +184,6 @@ void lora_end(void)
     digitalWrite(LORA_RST, LOW);
     delete s_radio; s_radio = nullptr;
     delete s_mod;   s_mod   = nullptr;
-    loraSpi.end();
     /* Release BUSY / DIO1 back to high-Z so the next radio domain
      * (or the Hydra hat's nRF24 which shares G4+G6) doesn't fight
      * an output-driven pin. SPI-claimed NSS (G5) is left; the next
