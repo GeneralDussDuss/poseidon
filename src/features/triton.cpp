@@ -177,8 +177,16 @@ static void capture_enqueue(const char *line)
     portEXIT_CRITICAL(&s_capq_mux);
 }
 
+/* Throttled SD commit. Drain the queue to the file object every call
+ * (cheap — FatFS buffers in RAM), but only call flush() to push bytes
+ * to the card every ~3 s. Previously flushing per line thrashed HSPI
+ * concurrent with softAP TX + ESP-NOW RX and deadlocked the driver
+ * ~20 s into a hunt. Session exit still does a final flush + close. */
+static uint32_t s_last_flush_ms = 0;
+
 static void capture_flush(void)
 {
+    bool wrote = false;
     while (true) {
         char line[1024];
         bool have = false;
@@ -193,8 +201,13 @@ static void capture_flush(void)
         if (!have) break;
         if (s_file) {
             s_file.print(line);
-            s_file.flush();
+            wrote = true;
         }
+    }
+    uint32_t now = millis();
+    if (wrote && s_file && now - s_last_flush_ms > 3000) {
+        s_file.flush();
+        s_last_flush_ms = now;
     }
 }
 
