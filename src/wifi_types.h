@@ -13,6 +13,7 @@ struct ap_t {
     int8_t   rssi;
     uint8_t  channel;
     uint8_t  auth;
+    bool     is_5g;   /* source: local S3 scan = false, C5 satellite = true */
 };
 
 /* The last AP the user highlighted in the scan screen. */

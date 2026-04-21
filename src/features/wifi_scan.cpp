@@ -17,6 +17,7 @@
 #include "radio.h"
 #include "menu.h"
 #include "wifi_types.h"
+#include "c5_cmd.h"
 #include "sd_helper.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
@@ -87,9 +88,49 @@ static void scan_task(void *)
             a.rssi    = WiFi.RSSI(i);
             a.channel = WiFi.channel(i);
             a.auth    = (uint8_t)WiFi.encryptionType(i);
+            a.is_5g   = false;
         }
     }
     WiFi.scanDelete();
+
+    /* If a C5/TRIDENT satellite is paired, fire a 5 GHz scan over
+     * ESP-NOW and merge the results. Without this the user's scan
+     * list would be 2.4 GHz only even when the C5 could see the
+     * missing upper-band APs. Targets landed this way are flagged
+     * is_5g=true so downstream features (deauth, clients) know to
+     * route commands to the C5 instead of trying to TX locally. */
+    if (c5_any_online()) {
+        c5_clear_results();
+        c5_cmd_scan_5g(600);
+        uint32_t deadline = millis() + 2000;
+        int      last_n   = 0;
+        uint32_t last_chk = 0;
+        while (millis() < deadline) {
+            if (millis() - last_chk > 150) {
+                last_chk = millis();
+                c5_ap_t tmp[4];
+                int cur = c5_aps(tmp, 4);
+                if (cur == last_n && cur > 0) break;   /* quiesced */
+                last_n = cur;
+            }
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        c5_ap_t c5aps[64];
+        int c5n = c5_aps(c5aps, 64);
+        for (int i = 0; i < c5n && s_ap_count < MAX_APS; ++i) {
+            if (!c5aps[i].is_5g) continue;
+            ap_t &a = s_aps[s_ap_count++];
+            strncpy(a.ssid, c5aps[i].ssid, sizeof(a.ssid) - 1);
+            a.ssid[sizeof(a.ssid) - 1] = '\0';
+            memcpy(a.bssid, c5aps[i].bssid, 6);
+            a.rssi    = c5aps[i].rssi;
+            a.channel = c5aps[i].channel;
+            a.auth    = c5aps[i].auth;
+            a.is_5g   = true;
+        }
+        Serial.printf("[wifi_scan] merged %d 5G APs from C5\n", c5n);
+    }
+
     s_scan_running = false;
     s_scan_done = true;
     vTaskDelete(nullptr);
@@ -152,18 +193,21 @@ static void draw_list(int cursor)
         uint16_t fg = sel ? T_ACCENT : T_FG;
         if (sel) d.fillRect(0, y - 1, SCR_W, 11, bg);
 
-        /* ch | rssi | auth | ssid */
-        d.setTextColor(T_DIM, bg);
+        /* band tag | ch | rssi | auth | ssid */
+        d.setTextColor(a.is_5g ? T_ACCENT : T_DIM, bg);
         d.setCursor(2, y);
-        d.printf("%2u", a.channel);
+        d.print(a.is_5g ? "5G" : "2G");
+        d.setTextColor(T_DIM, bg);
+        d.setCursor(16, y);
+        d.printf("%3u", a.channel);
         d.setTextColor(fg, bg);
-        d.setCursor(18, y);
+        d.setCursor(32, y);
         d.printf("%4d", a.rssi);
         d.setTextColor(a.auth == WIFI_AUTH_OPEN ? T_BAD : T_GOOD, bg);
-        d.setCursor(44, y);
+        d.setCursor(58, y);
         d.printf("%-5s", auth_str(a.auth));
         d.setTextColor(fg, bg);
-        d.setCursor(82, y);
+        d.setCursor(94, y);
         d.print(a.ssid);
     }
 }
@@ -184,6 +228,10 @@ static void show_details(const ap_t &a)
     auto &d = M5Cardputer.Display;
     d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);  d.print("AP DETAILS");
+    if (a.is_5g) {
+        d.setTextColor(T_GOOD, T_BG);
+        d.setCursor(SCR_W - 24, BODY_Y + 2); d.print("[5G]");
+    }
     d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
     d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 18); d.printf("SSID : %.24s", a.ssid);
@@ -192,7 +240,14 @@ static void show_details(const ap_t &a)
     d.setCursor(4, BODY_Y + 42); d.printf("CH   : %u", a.channel);
     d.setCursor(4, BODY_Y + 54); d.printf("RSSI : %d dBm", a.rssi);
     d.setCursor(4, BODY_Y + 66); d.printf("AUTH : %s", auth_str(a.auth));
-    ui_draw_footer("D=dth X=bcast L=clnt C=clone P=portal `=back");
+    /* Actions that require a local softAP (clone/portal) or local
+     * promiscuous RX (clients) can't reach a 5 GHz target — the S3
+     * just can't tune there. Show a compact footer hint so the user
+     * knows what actually works for this AP. */
+    if (a.is_5g)
+        ui_draw_footer("D=deauth (via C5)  `=back  (2.4 actions unavailable)");
+    else
+        ui_draw_footer("D=dth X=bcast L=clnt C=clone P=portal `=back");
 
     while (true) {
         uint16_t k = input_poll();
@@ -200,11 +255,30 @@ static void show_details(const ap_t &a)
         if (k == PK_ESC) return;
 
         switch ((char)tolower((int)k)) {
-        case 'd': feat_wifi_deauth();           return;
+        case 'd':
+            if (a.is_5g) {
+                /* Route to the C5 satellite — S3 can't TX on the 5 GHz
+                 * channel this AP lives on. Targeted burst, 4 s. */
+                if (!c5_any_online()) {
+                    ui_toast("no C5 paired", T_BAD, 1200);
+                    break;
+                }
+                c5_cmd_deauth(a.bssid, a.channel, 0, 4000);
+                ui_toast("5G deauth sent to C5", T_GOOD, 1000);
+            } else {
+                feat_wifi_deauth();
+            }
+            return;
         case 'x': feat_wifi_deauth_broadcast(); return;
-        case 'l': feat_wifi_clients();          return;
-        case 'c': feat_wifi_apclone();          return;
-        case 'p': feat_wifi_portal();           return;
+        case 'l':
+            if (a.is_5g) { ui_toast("clients: 2.4G only", T_WARN, 1000); break; }
+            feat_wifi_clients(); return;
+        case 'c':
+            if (a.is_5g) { ui_toast("clone: 2.4G only", T_WARN, 1000); break; }
+            feat_wifi_apclone(); return;
+        case 'p':
+            if (a.is_5g) { ui_toast("portal: 2.4G only", T_WARN, 1000); break; }
+            feat_wifi_portal();  return;
         }
     }
 }
