@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<!-- esp-web-tools 10.2.0+ is the first release to understand ESP32-C5 via
+     esptool-js 0.5.6. Pin explicitly so unpkg can't resolve us onto an
+     older v10.x tag that silently rejects the TRIDENT manifest. -->
+<script type="module" src="https://unpkg.com/esp-web-tools@10.2.0/dist/web/install-button.js?module"></script>
 </head>
 <body data-matrix>
 
@@ -51,6 +55,48 @@
 
 <section style="padding-top:1rem;">
 
+  <!-- ── Route 0: TRIDENT (C5 satellite) flash paths ── -->
+  <div class="reveal frame" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(52,211,153,.25);border-radius:18px;background:linear-gradient(135deg,rgba(52,211,153,.08) 0%,rgba(6,10,22,.4) 100%);position:relative;overflow:hidden;margin-bottom:2.5rem;">
+    <div style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;color:#34d399;margin-bottom:.5rem;">00 · TRIDENT · ESP32-C5 SATELLITE</div>
+    <h2 style="font-family:var(--font-display);font-size:clamp(1.6rem,3vw,2.2rem);color:#34d399;letter-spacing:.04em;margin-bottom:1rem;">TRIDENT — Web Flasher or esptool</h2>
+    <p style="color:#cbd5e1;line-height:1.6;margin-bottom:1.2rem;">TRIDENT is the ESP32-C5 satellite that gives POSEIDON 5 GHz deauth, Zigbee sniffing, and PMKID capture over ESP-NOW. M5Burner doesn't support ESP32-C5 yet, so use the web flasher below (Chrome/Edge/Opera) or the esptool command block. POSEIDON itself installs via M5Burner further down.</p>
+
+    <div style="padding:1.1rem 1.2rem;border:1px solid rgba(52,211,153,.2);border-radius:12px;background:rgba(6,10,22,.3);margin-bottom:1.2rem;max-width:520px;">
+      <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.18em;color:#34d399;margin-bottom:.4rem;">ONE-CLICK · BROWSER</div>
+      <div style="color:#94a3b8;font-size:.88rem;margin-bottom:.9rem;">Plug the C5 in via USB-C, hit the button, pick the COM port, wait ~15 s.</div>
+      <esp-web-install-button manifest="manifest-trident.json">
+        <button slot="activate" style="font-family:var(--font-mono);background:#34d399;color:#041a11;border:none;padding:.7rem 1.2rem;border-radius:8px;font-weight:700;letter-spacing:.08em;cursor:pointer;">▸ FLASH TRIDENT</button>
+        <span slot="unsupported" style="color:#f87171;font-size:.85rem;">Browser not supported — use Chrome/Edge/Opera.</span>
+        <span slot="not-allowed" style="color:#f87171;font-size:.85rem;">Web flashing needs HTTPS.</span>
+      </esp-web-install-button>
+    </div>
+
+    <h3 style="font-family:var(--font-display);font-size:1rem;color:#34d399;letter-spacing:.05em;margin-bottom:.6rem;">Manual flash — esptool</h3>
+    <p style="color:#cbd5e1;line-height:1.6;font-size:.92rem;margin-bottom:.8rem;">If the browser flasher can't reach your port (Linux udev, Windows driver issues, etc.), grab <code style="background:rgba(52,211,153,.12);padding:.1rem .3rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">trident-factory.bin</code> from the <a href="https://github.com/GeneralDussDuss/poseidon/releases/latest" target="_blank" rel="noopener" style="color:#34d399;">latest release</a> and flash it yourself. The factory image already contains bootloader + partition table + app merged at offset 0x0.</p>
+
+    <div class="stream-panel" style="margin-bottom:1rem;">
+      <div class="head"><span class="led" style="background:#34d399;box-shadow:0 0 6px #34d399"></span>SHELL · ESP32-C5 one-liner</div>
+      <div class="dim"># install esptool if you haven't</div>
+      <div><span class="ocean">$</span> pip install esptool</div>
+      <div style="margin-top:.5rem;"></div>
+      <div class="dim"># flash the C5 at 0x0 — factory bin includes bootloader + partitions + app</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32c5 --port <span class="warn">COM8</span> erase_flash</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32c5 --port <span class="warn">COM8</span> write_flash 0x0 trident-factory.bin</div>
+    </div>
+    <p style="color:#94a3b8;font-size:.88rem;margin-bottom:.8rem;">Replace <code style="background:rgba(52,211,153,.15);padding:.1rem .35rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">COM8</code> with your actual serial port. macOS: <code style="background:rgba(52,211,153,.15);padding:.1rem .35rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">/dev/tty.usbmodem*</code> · Linux: <code style="background:rgba(52,211,153,.15);padding:.1rem .35rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">/dev/ttyACM0</code>. esptool ≥ v4.7 is required for ESP32-C5 chip support.</p>
+
+    <h3 style="font-family:var(--font-display);font-size:1rem;color:#34d399;letter-spacing:.05em;margin-bottom:.6rem;">Build from source — ESP-IDF</h3>
+    <p style="color:#cbd5e1;line-height:1.6;font-size:.92rem;margin-bottom:.8rem;">The C5 firmware lives in <code style="background:rgba(52,211,153,.12);padding:.1rem .3rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">c5_node/</code> and builds with ESP-IDF 5.5+ (needed for ESP32-C5 chip support).</p>
+    <div class="stream-panel" style="margin-bottom:1rem;">
+      <div class="head"><span class="led" style="background:#34d399;box-shadow:0 0 6px #34d399"></span>SHELL · build + flash from source</div>
+      <div><span class="ocean">$</span> cd poseidon/c5_node</div>
+      <div><span class="ocean">$</span> idf.py set-target esp32c5</div>
+      <div><span class="ocean">$</span> idf.py build</div>
+      <div><span class="ocean">$</span> idf.py -p <span class="warn">COM8</span> flash</div>
+    </div>
+    <p style="color:#94a3b8;font-size:.88rem;margin:0;">The satellite pairs with POSEIDON automatically over ESP-NOW on channel 1 — no WiFi credentials, no manual MAC pairing. Power it up next to the Cardputer and you'll see it show up in <code style="background:rgba(52,211,153,.15);padding:.1rem .35rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">C5 → Status</code>.</p>
+  </div>
+
   <!-- ── Route 1: M5Burner ── -->
   <div class="reveal frame" style="padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(14,165,233,.22);border-radius:18px;background:linear-gradient(135deg,rgba(14,165,233,.08) 0%,rgba(6,10,22,.4) 100%);position:relative;overflow:hidden;margin-bottom:2.5rem;">
     <div style="font-family:var(--font-mono);font-size:.72rem;letter-spacing:.2em;color:var(--ocean-bright);margin-bottom:.5rem;">01 · EASIEST</div>
@@ -89,7 +135,7 @@
       <div style="margin-top:.5rem;"></div>
       <div class="dim"># erase + flash at 0x0</div>
       <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> erase_flash</div>
-      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> write_flash 0x0 poseidon-v0.4.3-factory.bin</div>
+      <div><span class="ocean">$</span> esptool.py --chip esp32s3 --port <span class="warn">COM5</span> write_flash 0x0 poseidon-factory.bin</div>
     </div>
     <p style="color:#94a3b8;font-size:.9rem;">Replace <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">COM5</code> with your actual port. macOS looks like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/tty.usbmodem*</code>, Linux like <code style="background:rgba(251,191,36,.15);padding:.1rem .35rem;border-radius:3px;color:var(--gold);font-family:var(--font-mono);">/dev/ttyACM0</code>.</p>
   </div>

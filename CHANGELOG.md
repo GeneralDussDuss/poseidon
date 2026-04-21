@@ -4,6 +4,128 @@ All notable changes to POSEIDON are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-04-21
+
+### Added — TRIDENT (ESP32-C5 companion satellite over ESP-NOW)
+
+The Cardputer-Adv's ESP32-S3 is 2.4 GHz-only. TRIDENT is an ESP32-C5
+plug-in node that pairs automatically with POSEIDON on channel 1 and
+gives us the RF territory the S3 physically can't touch:
+
+- **5 GHz deauth** (targeted + broadcast). `esp_wifi_80211_tx()` on
+  IDF 5.5 is blocked by `ieee80211_raw_frame_sanity_check` inside
+  `libnet80211.a` for management subtypes 0xA/0xC. Worked around via
+  a direct binary patch: the function's body is rewritten to
+  `li a0, 0; ret` (RISC-V), re-inserted into `libnet80211.a` with
+  `objcopy --update-section` + `ar r`. Linker `--wrap` and
+  `--allow-multiple-definition` both failed because the caller and
+  definition live in the same object file — only a binary patch
+  works.
+- **802.15.4 Zigbee sniffer** — channel hop 11-26, pcap-compatible
+  dump over ESP-NOW.
+- **5 GHz PMKID capture** — ESP32-C5 dual-band scans every
+  country-allowed channel, association-requests AP, captures M1,
+  streams PMKID back to the Cardputer.
+- **Full-band WiFi scan** — scanner reports 2.4 + 5 GHz APs with
+  auth type (WPA3 / WPA3-EAP / WPA3-EXT shown in red as a
+  PMF-mandatory hint, since deauth against those silently does
+  nothing).
+
+POSEI v2 protocol — lightweight binary framing over ESP-NOW:
+HELLO / SCAN req+resp / DEAUTH / ZIGBEE-SNIFF / PMKID-CAP / STATUS.
+Re-entry + duplicate-command guards on the C5 side (ESP-NOW
+sometimes delivers the same frame twice; `s_scan_running` +
+`s_last_scan_seq` flags now ignore the second copy instead of
+racing two scan tasks). Channel-pin to ch 1 after every scan /
+attack so the C5 never drifts off the discovery channel.
+
+TRIDENT web flasher — ESP32-C5 isn't in M5Burner's supported chip
+list yet, so the install page has a direct WebSerial flash button
+(esp-web-tools 10.2.0+ pinned; 10.2.0 is the first release with C5
+support via esptool-js 0.5.6). Reads `trident-factory.bin` from the
+release assets. Manual esptool + full ESP-IDF build-from-source
+paths also documented.
+
+### Added — M5 Launcher integration
+
+New `[env:cardputer-launcher]` PlatformIO env produces a POSEIDON
+build linked at `ota_0` / `0x170000` using bmorcelli's canonical
+8 MB partition table (`support_files/launcher_8Mb.csv`). Drop the
+resulting `firmware.bin` onto SD or upload via bmorcelli's WebUI
+and POSEIDON slots into the Launcher's app list with no further
+config.
+
+Settings → `[L] back to Launcher` surfaces a "unplug USB to return"
+hint — bmorcelli's custom bootloader decides which partition to
+run from the RTC reset-reason (POWERON → Launcher, SW → app), so
+there's no software way to force a swap from inside an installed
+app. Better to say so up-front than have the menu item do nothing.
+
+### Fixed — LoRa end-to-end on CAP-LoRa1262
+
+The SX1262 radio was broken in several compounding ways. After
+re-porting the init against M5Stack's own reference example and
+d4rkmen/plai's Cardputer-Adv Meshtastic port:
+
+- Pass **BUSY (GPIO 6) to RadioLib's `Module()`** — was
+  `RADIOLIB_NC`. Without it RadioLib had nothing to wait on between
+  SPI commands, so `startReceive()` would stall silently.
+- **Do not create a second `SPIClass`**. Our `SPIClass(FSPI)` was
+  the display's SPI2 peripheral. `loraSpi.begin(40,39,14,-1)`
+  hijacked the bus from M5GFX and every draw after that froze the
+  CPU mid-SPI-transaction. Fixed by sharing the SD helper's HSPI
+  (SPI3) — same physical pins 40/39/14, different CS, different
+  peripheral, M5GFX untouched.
+- **Antenna switch enable before `radio.begin()`** — not after.
+  PI4IOE5V6408 P0 HIGH first, then chip init.
+- **`setCurrentLimit(140)`** per M5's reference.
+- **SD logging inside the scan loop removed**. After `lora_begin()`
+  the pin matrix is owned by the radio — any SD write contends for
+  pins 40/39/14 and freezes the CPU.
+- **`sd_mount()` guard at top of `lora_begin`** so
+  `sd_get_spi()` is guaranteed to have been `begin()`-d before we
+  hand the `SPIClass&` to RadioLib.
+
+Scan / beacon / Meshtastic / spectrum all now work on 433 / 868 /
+915 / US LongFast. Auth display on the WiFi scan list uses the same
+red-flag treatment as the C5 scanner (WPA3 / PMF-mandatory modes
+highlighted).
+
+### Fixed — flicker across every live / scan screen
+
+Every live screen was redrawing the full body on a 250-400 ms tick
+even when nothing changed. Eliminated:
+
+- `ui_draw_status` caches `(radio, extra, heap_bucket)` — only
+  repaints the gradient + text when something visibly changed.
+  Heap is quantised to 4 KB buckets so minor churn doesn't force
+  a redraw. The pulse dot animates independently in its own 5×5
+  rect. `ui_force_clear_body` invalidates the cache.
+- `feat_wifi_scan`, `feat_ble_scan`, `feat_wifi_clients` loops now
+  gate `draw_list()` on `(count, cursor, scanning)` changing —
+  not on a timer. Key handlers update state only; the state-change
+  gate owns drawing.
+- `feat_wifi_spectrum` rewritten to paint static chrome once and
+  only redraw bars whose RSSI actually changed. The pulse ring
+  erases the old position and draws the new one on channel change
+  instead of clearing the whole body every 80 ms.
+- `c5_scan::draw_status_header` caches the peer count and the
+  status-dot colour; no-op when nothing changed.
+
+### Added — release tooling
+
+- `scripts/prepare_release.sh` packages three artifacts into
+  `dist/<version>/` with exact filenames the webflasher manifests
+  expect: `poseidon-factory.bin` (S3 factory image),
+  `poseidon-launcher.bin` (app-only for bmorcelli's ota_0),
+  `trident-factory.bin` (C5 merged image). The web flashers pull
+  from `releases/latest/download/<name>` so a fresh tag
+  automatically repoints the site.
+- `scripts/wsl_sync_and_build.sh` copies back both PIO envs
+  (`cardputer` + `cardputer-launcher`).
+- `scripts/c5_tail.py` auto-reconnects on USB-CDC resets so the
+  serial monitor survives a flash.
+
 ## [0.4.3] - 2026-04-20
 
 ### Fixed — Sub-GHz record / replay / broadcast actually transmit

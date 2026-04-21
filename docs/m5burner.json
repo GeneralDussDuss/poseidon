@@ -7,6 +7,20 @@
   "icon": "https://generaldussduss.github.io/poseidon/assets/icon.png",
   "firmware": [
     {
+      "name": "POSEIDON v0.5.0",
+      "version": "0.5.0",
+      "chip": "esp32s3",
+      "target": "M5Cardputer-Adv",
+      "flash_size": "8MB",
+      "psram": true,
+      "url": "https://github.com/GeneralDussDuss/poseidon/releases/download/v0.5.0/poseidon-factory.bin",
+      "offset": "0x0",
+      "description": "TRIDENT (ESP32-C5 satellite) over ESP-NOW — 5 GHz deauth, Zigbee sniffer, PMKID capture, dual-band scan. LoRa SX1262 works end-to-end on CAP-LoRa1262. Flicker eliminated across every live/scan screen. M5 Launcher partition env ships alongside.",
+      "date": "2026-04-21",
+      "changelog": "https://github.com/GeneralDussDuss/poseidon/blob/master/CHANGELOG.md",
+      "license": "MIT"
+    },
+    {
       "name": "POSEIDON v0.4.3",
       "version": "0.4.3",
       "chip": "esp32s3",

@@ -20,13 +20,13 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![features](https://img.shields.io/badge/features-90+-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
-![version](https://img.shields.io/badge/version-0.4.0-cyan?style=flat-square)
+![version](https://img.shields.io/badge/version-0.5.0-cyan?style=flat-square)
 
-[**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner or esptool at offset 0x0
+[**Download Latest .bin**](https://github.com/GeneralDussDuss/poseidon/releases/latest) — flash with M5Burner, the browser (Chrome/Edge), or esptool at offset 0x0
 
-**v0.4.0 shipped** — deauth frames actually TX on-air now. The fix wasn't the platform migration or Bruce's "patched" libs (which don't actually patch anything). The real blocker was `ieee80211_raw_frame_sanity_check` inside libnet80211.a — bypassed at link time with a 5-line C override + one linker flag. Full SaltyJack LAN arsenal lands (DHCP starve / rogue DHCP / Responder / WPAD / on-device NTLMv2 cracker), NimBLE migrated to 2.x across all 13 BLE features, platform on pioarduino + IDF 5.5.4. See [CHANGELOG](CHANGELOG.md) for the full breakdown.
+**v0.5.0 shipped — TRIDENT.** The ESP32-C5 companion satellite is now a proper peripheral over ESP-NOW. POSEIDON's Cardputer-Adv is 2.4 GHz-only; TRIDENT adds **5 GHz deauth** (bypasses `ieee80211_raw_frame_sanity_check` via a direct binary patch to `libnet80211.a`), **802.15.4 Zigbee sniffing**, and **5 GHz PMKID capture** — features the S3 physically can't do. LoRa is now fully working end-to-end on the CAP-LoRa1262 hat (canonical SX1262 init, shared HSPI with SD, proper BUSY pin). Every scan / live screen is flicker-free: `ui_draw_status`, wifi_scan, ble_scan, wifi_clients, wifi_spectrum, and the c5 dashboards all cache state and only repaint on actual change. bmorcelli Launcher support ships as a second PIO env (`cardputer-launcher`) that links into the `ota_0` slot at 0x170000. Full breakdown in [CHANGELOG](CHANGELOG.md).
 
-**New — SaltyJack LAN attack suite** ported from [@7h30th3r0n3](https://github.com/7h30th3r0n3)'s [Evil-M5Project](https://github.com/7h30th3r0n3/Evil-M5Project) / [RaspyJack](https://github.com/7h30th3r0n3/Raspyjack). DHCP starvation shipping first; Rogue DHCP, Responder (LLMNR/NBNS/SMB-NTLMv2), WPAD harvest, and on-device NTLMv2 cracker coming in subsequent commits. All credit where credit is due — every file in `src/features/saltyjack/` has a prominent homage header.
+**TRIDENT web flasher** — ESP32-C5 isn't in M5Burner's chip list, so we put a one-click WebSerial flasher straight in the docs. Plug the C5 in, hit a button, done. Manual `esptool` + full ESP-IDF build-from-source instructions also live there.
 
 </div>
 

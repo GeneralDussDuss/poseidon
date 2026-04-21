@@ -31,12 +31,17 @@ rc=${PIPESTATUS[0]}
 echo "[build] done exit=$rc $(date -u +%FT%TZ)" | tee -a "$LOG"
 ls -la .pio/build/cardputer/firmware.bin 2>&1 | tee -a "$LOG"
 
-if [ -f .pio/build/cardputer/firmware.bin ]; then
-    mkdir -p "$SRC/.pio/build/cardputer"
-    cp .pio/build/cardputer/firmware.bin "$SRC/.pio/build/cardputer/firmware.bin"
-    cp .pio/build/cardputer/partitions.bin "$SRC/.pio/build/cardputer/partitions.bin" 2>/dev/null || true
-    cp .pio/build/cardputer/bootloader.bin "$SRC/.pio/build/cardputer/bootloader.bin" 2>/dev/null || true
-    cp .pio/build/cardputer/firmware.elf  "$SRC/.pio/build/cardputer/firmware.elf"  2>/dev/null || true
-    echo "[copyback] firmware.bin -> $SRC" | tee -a "$LOG"
-fi
+copy_env() {
+    local env="$1"
+    [ -f ".pio/build/$env/firmware.bin" ] || return 0
+    mkdir -p "$SRC/.pio/build/$env"
+    cp ".pio/build/$env/firmware.bin"         "$SRC/.pio/build/$env/firmware.bin"
+    cp ".pio/build/$env/firmware.factory.bin" "$SRC/.pio/build/$env/firmware.factory.bin" 2>/dev/null || true
+    cp ".pio/build/$env/partitions.bin"       "$SRC/.pio/build/$env/partitions.bin"       2>/dev/null || true
+    cp ".pio/build/$env/bootloader.bin"       "$SRC/.pio/build/$env/bootloader.bin"       2>/dev/null || true
+    cp ".pio/build/$env/firmware.elf"         "$SRC/.pio/build/$env/firmware.elf"         2>/dev/null || true
+    echo "[copyback] $env -> $SRC" | tee -a "$LOG"
+}
+copy_env cardputer
+copy_env cardputer-launcher
 exit $rc

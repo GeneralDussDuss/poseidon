@@ -41,10 +41,10 @@
 <div class="console-strip">
   <div class="console-bar">
     <span class="ck">[TIMELINE]</span>
-    <span>shipped=<span class="nm">v0.1 → v0.4.3</span></span>
-    <span>current=<span class="ck">v0.4.3</span></span>
-    <span>next=<span class="vk">v0.5 C5 / nRF52 / OTA</span></span>
-    <span>after=<span class="vk">v0.6 MIMIR / FENRIR</span></span>
+    <span>shipped=<span class="nm">v0.1 → v0.5.0</span></span>
+    <span>current=<span class="ck">v0.5.0</span></span>
+    <span>next=<span class="vk">v0.6 nRF52 / OTA / MIMIR hook</span></span>
+    <span>after=<span class="vk">v0.7 FENRIR policy head</span></span>
     <span class="blink">▸</span>
   </div>
 </div>
@@ -114,9 +114,23 @@
     <div class="rm-item shipped current reveal-left">
       <div class="rm-card">
         <div class="rm-head">
+          <span class="rm-ver">v0.5.0</span>
+          <span class="rm-date">Shipped 2026-04-21</span>
+          <span class="rm-tag shipped">Live</span>
+        </div>
+        <div class="rm-title">TRIDENT (C5 satellite) · 5 GHz deauth · LoRa end-to-end · flicker killed · M5 Launcher</div>
+        <div class="rm-body">
+          The ESP32-C5 companion node (<b>TRIDENT</b>) lands as a proper peripheral over ESP-NOW — 5 GHz deauth targeted + broadcast (binary patch bypassing <code>ieee80211_raw_frame_sanity_check</code> in <code>libnet80211.a</code>), 802.15.4 Zigbee sniffer, 5 GHz PMKID capture, dual-band WiFi scan with auth column. One-click WebSerial flasher on the install page (<code>esp-web-tools@10.2.0</code>). LoRa SX1262 now works end-to-end on the CAP-LoRa1262 hat: BUSY pin wired into RadioLib, shared HSPI with SD, antenna switch order fixed, <code>setCurrentLimit(140)</code>. Every live screen (<code>wifi_scan</code>, <code>ble_scan</code>, <code>wifi_clients</code>, <code>wifi_spectrum</code>, the C5 dashboards) is flicker-free — state caching across the board. bmorcelli Launcher integration ships as a second PIO env (<code>cardputer-launcher</code>) that links into <code>ota_0</code> at <code>0x170000</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="rm-item shipped reveal-left">
+      <div class="rm-card">
+        <div class="rm-head">
           <span class="rm-ver">v0.4.3</span>
           <span class="rm-date">Shipped 2026-04-20</span>
-          <span class="rm-tag shipped">Live</span>
+          <span class="rm-tag shipped">Shipped</span>
         </div>
         <div class="rm-title">Sub-GHz actually transmits · WhisperPair CVE probe · Jam Detect · HUNT bundle</div>
         <div class="rm-body">
