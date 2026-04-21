@@ -22,6 +22,7 @@ enum {
     POSEI_TYPE_CMD_DEAUTH      = 14,
     POSEI_TYPE_CMD_STOP        = 15,
     POSEI_TYPE_CMD_PMKID       = 16,   /* 5 GHz PMKID capture */
+    POSEI_TYPE_CMD_HS_CAPTURE  = 17,   /* 5 GHz 4-way handshake capture */
 
     /* Responses: C5 → S3 */
     POSEI_TYPE_RESP_PONG       = 20,
@@ -29,6 +30,7 @@ enum {
     POSEI_TYPE_RESP_ZB         = 22,
     POSEI_TYPE_RESP_STATUS     = 23,
     POSEI_TYPE_RESP_PMKID      = 24,   /* streamed captures */
+    POSEI_TYPE_RESP_HS         = 25,   /* captured M1+M2 tuple */
 };
 
 #define POSEI_PAYLOAD_MAX 230
@@ -104,6 +106,30 @@ typedef struct __attribute__((packed)) {
     uint8_t  ssid_len;
     char     ssid[33];
 } posei_pmkid_t;
+
+/* Payload for CMD_HS_CAPTURE. Same layout as PMKID req — pin channel +
+ * BSSID, promisc-listen for the 4-way's M1 (ANonce) + M2 (SNonce+MIC). */
+typedef struct __attribute__((packed)) {
+    uint8_t  bssid[6];
+    uint8_t  channel;
+    uint16_t duration_ms;
+} posei_hs_req_t;
+
+/* Payload for RESP_HS. One complete (M1,M2) tuple from the target AP.
+ * anonce comes from M1; snonce + mic + eapol_m2[] come from M2. The S3
+ * converts this into a hashcat 22000 line for offline cracking. */
+typedef struct __attribute__((packed)) {
+    uint8_t  bssid[6];
+    uint8_t  sta[6];
+    uint8_t  anonce[32];       /* from M1 */
+    uint8_t  snonce[32];       /* from M2 */
+    uint8_t  mic[16];          /* from M2 key MIC field */
+    uint8_t  replay_counter[8];
+    uint16_t eapol_m2_len;     /* length of eapol_m2 block below */
+    uint8_t  eapol_m2[128];    /* full M2 EAPOL body (hashcat needs this) */
+    uint8_t  ssid_len;
+    char     ssid[33];
+} posei_hs_t;
 
 void proto_init_msg(posei_msg_t *m, uint8_t type);
 void proto_send_broadcast(const posei_msg_t *m);

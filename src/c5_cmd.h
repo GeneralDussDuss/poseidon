@@ -24,11 +24,13 @@ enum {
     C5_TYPE_CMD_DEAUTH  = 14,
     C5_TYPE_CMD_STOP    = 15,
     C5_TYPE_CMD_PMKID   = 16,
+    C5_TYPE_CMD_HS      = 17,
     C5_TYPE_RESP_PONG   = 20,
     C5_TYPE_RESP_AP     = 21,
     C5_TYPE_RESP_ZB     = 22,
     C5_TYPE_RESP_STATUS = 23,
     C5_TYPE_RESP_PMKID  = 24,
+    C5_TYPE_RESP_HS     = 25,
 };
 
 struct __attribute__((packed)) c5_deauth_req_t {
@@ -48,6 +50,28 @@ struct __attribute__((packed)) c5_pmkid_t {
     uint8_t  bssid[6];
     uint8_t  sta[6];
     uint8_t  pmkid[16];
+    uint8_t  ssid_len;
+    char     ssid[33];
+};
+
+/* Same req shape as PMKID — BSSID + channel + duration. */
+struct __attribute__((packed)) c5_hs_req_t {
+    uint8_t  bssid[6];
+    uint8_t  channel;
+    uint16_t duration_ms;
+};
+
+/* Captured (M1, M2) tuple from a 5 GHz 4-way. Enough to emit a
+ * hashcat 22000 "WPA*02*" line on the POSEIDON side. */
+struct __attribute__((packed)) c5_hs_t {
+    uint8_t  bssid[6];
+    uint8_t  sta[6];
+    uint8_t  anonce[32];        /* M1 */
+    uint8_t  snonce[32];        /* M2 */
+    uint8_t  mic[16];           /* M2 */
+    uint8_t  replay_counter[8];
+    uint16_t eapol_m2_len;
+    uint8_t  eapol_m2[128];
     uint8_t  ssid_len;
     char     ssid[33];
 };
@@ -108,6 +132,9 @@ uint16_t c5_cmd_ping(void);
 uint16_t c5_cmd_deauth(const uint8_t bssid[6], uint8_t channel,
                        uint8_t bcast_all, uint16_t duration_ms);
 uint16_t c5_cmd_pmkid(const uint8_t bssid[6], uint8_t channel, uint16_t duration_ms);
+/* 4-way handshake capture on the C5. Promisc-listens on `channel` for
+ * M1/M2 frames addressed to `bssid`, streams RESP_HS tuples back. */
+uint16_t c5_cmd_hs(const uint8_t bssid[6], uint8_t channel, uint16_t duration_ms);
 
 /* Latest RESP_STATUS values from the C5 (for live attack dashboards). */
 uint32_t c5_status_frames(void);
@@ -122,4 +149,5 @@ uint32_t c5_dbg_raw_ap_records(void);
 int c5_aps(c5_ap_t *out, int max);
 int c5_zbs(c5_zb_t *out, int max);
 int c5_pmkids(c5_pmkid_t *out, int max);
+int c5_hss(c5_hs_t *out, int max);
 void c5_clear_results(void);

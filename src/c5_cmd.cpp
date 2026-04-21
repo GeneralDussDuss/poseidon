@@ -47,6 +47,13 @@ static volatile int s_zb_n = 0;
 static c5_pmkid_t s_pmkids[MAX_PMKIDS];
 static volatile int s_pmkid_n = 0;
 
+/* Handshake buffer — each entry is a full M1+M2 tuple ready to be
+ * converted into a hashcat 22000 line. Sized small on purpose; the
+ * usual flow is: capture → hashcat-convert to SD → clear. */
+#define MAX_HSS 8
+static c5_hs_t s_hss[MAX_HSS];
+static volatile int s_hs_n = 0;
+
 static volatile uint32_t s_last_status_frames  = 0;
 static volatile uint8_t  s_last_status_channel = 0;
 
@@ -161,6 +168,32 @@ static void handle_resp_pmkid(const c5_msg_t *m)
     portEXIT_CRITICAL(&s_mux);
 }
 
+static void handle_resp_hs(const c5_msg_t *m)
+{
+    if (m->payload_len < (int)sizeof(c5_hs_t)) return;
+    const c5_hs_t *h = (const c5_hs_t *)m->payload;
+    portENTER_CRITICAL(&s_mux);
+    /* Dedup by (bssid, sta, anonce-tail) — same handshake won't land twice. */
+    for (int i = 0; i < s_hs_n; ++i) {
+        if (memcmp(s_hss[i].bssid, h->bssid, 6) == 0 &&
+            memcmp(s_hss[i].sta,   h->sta,   6) == 0 &&
+            memcmp(s_hss[i].anonce, h->anonce, 32) == 0) {
+            portEXIT_CRITICAL(&s_mux);
+            return;
+        }
+    }
+    if (s_hs_n >= MAX_HSS) {
+        memmove(s_hss, s_hss + 1, sizeof(c5_hs_t) * (MAX_HSS - 1));
+        s_hs_n = MAX_HSS - 1;
+    }
+    memcpy(&s_hss[s_hs_n++], h, sizeof(c5_hs_t));
+    portEXIT_CRITICAL(&s_mux);
+    Serial.printf("[c5] HS captured bssid=%02X%02X%02X%02X%02X%02X sta=%02X%02X%02X%02X%02X%02X m2=%u\n",
+                  h->bssid[0],h->bssid[1],h->bssid[2],h->bssid[3],h->bssid[4],h->bssid[5],
+                  h->sta[0],h->sta[1],h->sta[2],h->sta[3],h->sta[4],h->sta[5],
+                  (unsigned)h->eapol_m2_len);
+}
+
 /* ESP-NOW recv callback signature differs by ESP-IDF major version.
  *   IDF 4.x (stock espressif32@6.7.0): void(const uint8_t *mac, data, len)
  *   IDF 5.x (pioarduino 55.x):         void(const esp_now_recv_info_t*, ...)
@@ -203,6 +236,7 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
         break;
     }
     case C5_TYPE_RESP_PMKID: handle_resp_pmkid(m); break;
+    case C5_TYPE_RESP_HS:    handle_resp_hs(m);    break;
     }
 }
 
@@ -366,6 +400,16 @@ uint16_t c5_cmd_pmkid(const uint8_t bssid[6], uint8_t channel, uint16_t duration
     return send_simple_cmd(C5_TYPE_CMD_PMKID, (uint8_t *)&r, sizeof(r));
 }
 
+uint16_t c5_cmd_hs(const uint8_t bssid[6], uint8_t channel, uint16_t duration_ms)
+{
+    c5_hs_req_t r;
+    memcpy(r.bssid, bssid, 6);
+    r.channel     = channel;
+    r.duration_ms = duration_ms;
+    s_last_status_channel = channel;
+    return send_simple_cmd(C5_TYPE_CMD_HS, (uint8_t *)&r, sizeof(r));
+}
+
 uint32_t c5_status_frames(void)  { return s_last_status_frames; }
 uint8_t  c5_status_channel(void) { return s_last_status_channel; }
 
@@ -396,10 +440,19 @@ int c5_pmkids(c5_pmkid_t *out, int max)
     portEXIT_CRITICAL(&s_mux);
     return out ? n : total;
 }
+int c5_hss(c5_hs_t *out, int max)
+{
+    portENTER_CRITICAL(&s_mux);
+    int n = s_hs_n < max ? s_hs_n : max;
+    if (out && n > 0) memcpy(out, s_hss, n * sizeof(c5_hs_t));
+    int total = s_hs_n;
+    portEXIT_CRITICAL(&s_mux);
+    return out ? n : total;
+}
 void c5_clear_results(void)
 {
     portENTER_CRITICAL(&s_mux);
-    s_ap_n = 0; s_zb_n = 0; s_pmkid_n = 0;
+    s_ap_n = 0; s_zb_n = 0; s_pmkid_n = 0; s_hs_n = 0;
     s_dbg_resp_ap_frames = 0;
     s_dbg_raw_ap_records = 0;
     portEXIT_CRITICAL(&s_mux);
