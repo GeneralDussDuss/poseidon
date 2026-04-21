@@ -265,7 +265,10 @@ static void wdr_append(const uint8_t *bssid, const char *ssid,
                       bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
                       ssid, g.utc, s_ch,
                       g.lat_deg, g.lon_deg, g.alt_m, g.hdop, type);
-    s_wdr_file.flush();
+    /* No per-row flush — same HSPI thrash risk that deadlocked the
+     * main hashcat file. Capture writes are buffered by FatFS in RAM
+     * and committed at session exit (feat_triton epilogue closes the
+     * file with a final flush). */
 }
 
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)

@@ -8,10 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
-<!-- esp-web-tools 10.2.0+ is the first release to understand ESP32-C5 via
-     esptool-js 0.5.6. Pin explicitly so unpkg can't resolve us onto an
-     older v10.x tag that silently rejects the TRIDENT manifest. -->
-<script type="module" src="https://unpkg.com/esp-web-tools@10.2.0/dist/web/install-button.js?module"></script>
+<!-- esp-web-tools 10.2.0 added ESP32-C5 support; 10.2.1 has stability
+     fixes. Using the nabucasa CDN (the upstream-recommended mirror)
+     rather than unpkg — unpkg was serving an older 10.0-era build
+     cached at some edge nodes which made Chrome/Edge users see a
+     false "Browser not supported" slot even though WebSerial was fine. -->
+<script type="module"
+        src="https://www.nabucasa.com/esp-web-tools/install-button.js"></script>
 </head>
 <body data-matrix>
 
