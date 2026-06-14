@@ -65,7 +65,13 @@ void feat_wifi_connect(void)
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
     }
 
+    WiFi.disconnect(true, true);
+    delay(50);
     WiFi.mode(WIFI_STA);
+    Serial.printf("[wifi] connect: ssid='%s' pass_len=%u\n",
+                  ssid.c_str(), (unsigned)pass.length());
+    Serial.printf("[wifi] mode=%d status=%d\n",
+                  WiFi.getMode(), WiFi.status());
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
     d.setTextColor(T_WARN, T_BG);
@@ -82,6 +88,7 @@ void feat_wifi_connect(void)
     }
 
     d.fillRect(0, BODY_Y + 22, SCR_W, 60, T_BG);
+    Serial.printf("[wifi] result: status=%d (3=CONNECTED)\n", WiFi.status());
     if (WiFi.status() == WL_CONNECTED) {
         d.setTextColor(T_GOOD, T_BG);
         d.setCursor(4, BODY_Y + 22); d.print("CONNECTED");
