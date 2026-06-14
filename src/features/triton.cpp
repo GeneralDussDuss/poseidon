@@ -180,13 +180,15 @@ static portMUX_TYPE s_bs_mux = portMUX_INITIALIZER_UNLOCKED;
  * hashcat line and enqueues it; hop_task drains + flushes to SD. */
 struct capture_t { char line[1024]; };
 #define CAPTURE_Q 8
-static capture_t s_capq[CAPTURE_Q];
+/* heap-002: was static BSS (8 KB). Allocated at Triton entry, freed on exit. */
+static capture_t *s_capq = nullptr;
 static volatile int s_capq_head = 0;
 static volatile int s_capq_tail = 0;
 static portMUX_TYPE s_capq_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static void capture_enqueue(const char *line)
 {
+    if (!s_capq) return;
     portENTER_CRITICAL(&s_capq_mux);
     int next = (s_capq_head + 1) % CAPTURE_Q;
     if (next != s_capq_tail) {
@@ -1073,6 +1075,11 @@ void feat_triton(void)
     s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
     if (!s_file) { ui_toast("file open fail", T_BAD, 1500); return; }
 
+    /* heap-002: allocate capture queue (saves 8 KB BSS). */
+    s_capq = (capture_t *)calloc(CAPTURE_Q, sizeof(capture_t));
+    if (!s_capq) { ui_toast("capq OOM", T_BAD, 1500); return; }
+    s_capq_head = 0; s_capq_tail = 0;
+
     triton_learn_load();
     s_pmk = 0; s_hs = 0; s_eapol = 0; s_deauth_frames = 0;
     s_bs_n = 0; s_m1_n = 0;
@@ -1081,7 +1088,7 @@ void feat_triton(void)
      * would otherwise emit hashcat lines with blank ESSID until it
      * catches a beacon from scratch — often 15-30 seconds of captures
      * wasted. Seeding closes that gap. */
-    if (g_wdr_ap_count > 0) {
+    if (g_wdr_aps && g_wdr_ap_count > 0) {
         int seeded = 0;
         int limit = g_wdr_ap_count < BS_N ? g_wdr_ap_count : BS_N;
         for (int i = 0; i < limit; ++i) {
@@ -1453,6 +1460,7 @@ void feat_triton(void)
 
     s_alive = false;
     capture_flush();
+    free(s_capq); s_capq = nullptr;
     wdr_flush();
     triton_learn_save();
     delay(100);

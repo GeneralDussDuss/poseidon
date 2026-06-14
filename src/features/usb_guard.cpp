@@ -42,10 +42,11 @@ struct ug_ap_t {
     bool    hidden;
 };
 
-static ug_ap_t s_before[UG_MAX];
-static int     s_before_n = 0;
-static ug_ap_t s_after[UG_MAX];
-static int     s_after_n = 0;
+/* heap-004: was static BSS (~6 KB). Allocated in feat_usb_guard(). */
+static ug_ap_t *s_before   = nullptr;
+static int      s_before_n = 0;
+static ug_ap_t *s_after    = nullptr;
+static int      s_after_n  = 0;
 
 /* Raw-IDF scan into the given table. NEVER use Arduino WiFi.scanNetworks
  * after a raw-IDF init — it dup-creates the STA netif and panics (see
@@ -85,6 +86,7 @@ static int ug_scan(ug_ap_t *out, int cap)
 
 static bool ug_seen_before(const uint8_t *bssid)
 {
+    if (!s_before) return false;
     for (int i = 0; i < s_before_n; ++i)
         if (memcmp(s_before[i].bssid, bssid, 6) == 0) return true;
     return false;
@@ -151,6 +153,16 @@ void feat_usb_guard(void)
     radio_switch(RADIO_WIFI);
     if (!wifi_lean_sta_init()) { ui_toast("WiFi init failed", T_BAD, 1500); return; }
 
+    /* heap-004: allocate scan buffers (saves ~6 KB BSS). */
+    s_before = (ug_ap_t *)malloc(UG_MAX * sizeof(ug_ap_t));
+    s_after  = (ug_ap_t *)malloc(UG_MAX * sizeof(ug_ap_t));
+    if (!s_before || !s_after) {
+        free(s_before); free(s_after); s_before = s_after = nullptr;
+        ui_toast("guard OOM", T_BAD, 1500);
+        radio_switch(RADIO_NONE); return;
+    }
+    s_before_n = 0; s_after_n = 0;
+
     auto &d = M5Cardputer.Display;
 
     /* ---- Phase 1: baseline ---- */
@@ -181,7 +193,7 @@ void feat_usb_guard(void)
     while (true) {
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
-        if (k == PK_ESC) { radio_switch(RADIO_NONE); return; }
+        if (k == PK_ESC) { free(s_before); free(s_after); s_before = s_after = nullptr; radio_switch(RADIO_NONE); return; }
         if (k == PK_ENTER) break;
     }
 
@@ -199,7 +211,8 @@ void feat_usb_guard(void)
     delay(800);
     /* merge a second pass so a once-per-second beacon isn't missed */
     {
-        ug_ap_t pass2[UG_MAX];
+        ug_ap_t *pass2 = (ug_ap_t *)malloc(UG_MAX * sizeof(ug_ap_t));
+        if (!pass2) { /* OOM — skip second scan pass */ } else {
         int p2 = ug_scan(pass2, UG_MAX);
         for (int i = 0; i < p2 && s_after_n < UG_MAX; ++i) {
             bool dup = false;
@@ -207,13 +220,16 @@ void feat_usb_guard(void)
                 if (memcmp(s_after[j].bssid, pass2[i].bssid, 6) == 0) { dup = true; break; }
             if (!dup) s_after[s_after_n++] = pass2[i];
         }
+        free(pass2);
+        } /* else pass2 */
     }
 
     /* Collect new APs + scores. */
     struct hit_t { ug_ap_t ap; int score; char why[32]; };
-    static hit_t hits[UG_MAX];
+    hit_t *hits = (hit_t *)malloc(UG_MAX * sizeof(hit_t));
     int hit_n = 0;
     int worst = 0;
+    if (hits) {
     for (int i = 0; i < s_after_n; ++i) {
         if (ug_seen_before(s_after[i].bssid)) continue;
         hit_t &h = hits[hit_n];
@@ -223,6 +239,7 @@ void feat_usb_guard(void)
         hit_n++;
         if (hit_n >= UG_MAX) break;
     }
+    } /* hits null check */
 
     /* ---- Phase 4: verdict + list ---- */
     int cursor = 0;
@@ -314,5 +331,9 @@ void feat_usb_guard(void)
             }
         }
     }
+ug_cleanup:
+    free(hits);
+    free(s_before); free(s_after);
+    s_before = s_after = nullptr;
     radio_switch(RADIO_NONE);
 }

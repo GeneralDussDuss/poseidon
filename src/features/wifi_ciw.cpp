@@ -318,8 +318,9 @@ void feat_wifi_ciw(void)
     /* Category selection first */
     cat_select_menu();
 
-    /* Build active payload list based on mask */
-    static CiwPayload active[PAYLOAD_COUNT];
+    /* heap-003: was static BSS (~7 KB). Allocated on demand. */
+    CiwPayload *active = (CiwPayload *)malloc(PAYLOAD_COUNT * sizeof(CiwPayload));
+    if (!active) { ui_toast("ciw OOM", T_BAD, 1500); return; }
     int activeN = 0;
     for (size_t i = 0; i < PAYLOAD_COUNT; i++) {
         CiwPayload p;
@@ -330,6 +331,7 @@ void feat_wifi_ciw(void)
     }
 
     if (activeN == 0) {
+        free(active);
         ui_toast("no payloads selected", T_WARN, 1500);
         return;
     }
@@ -384,6 +386,7 @@ void feat_wifi_ciw(void)
     wcfg.ampdu_tx_enable    = 0;
     wcfg.ampdu_rx_enable    = 0;
     if (esp_wifi_init(&wcfg) != ESP_OK) {
+        free(active);
         ui_toast("wifi_init fail", T_BAD, 1500);
         return;
     }
@@ -403,6 +406,7 @@ void feat_wifi_ciw(void)
     apc.ap.ssid_hidden     = 0;
     if (esp_wifi_set_config(WIFI_IF_AP, &apc) != ESP_OK ||
         esp_wifi_start() != ESP_OK) {
+        free(active);
         ui_toast("wifi_start fail", T_BAD, 1500);
         esp_wifi_deinit();
         return;
@@ -475,6 +479,7 @@ void feat_wifi_ciw(void)
      * teardown(RADIO_WIFI) (POS-AUDIT-008 partial) drops only the assoc,
      * so we must explicitly stop+deinit here for the AP driver state.
      * radio_switch(RADIO_NONE) is the standard cap. */
+    free(active);
     esp_wifi_set_promiscuous(false);
     esp_wifi_stop();
     esp_wifi_deinit();
