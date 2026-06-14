@@ -7,6 +7,7 @@
 #include "input.h"
 #include "radio.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
 #include <Preferences.h>
@@ -65,17 +66,30 @@ void feat_wifi_connect(void)
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
     }
 
-    /* Start WiFi driver FIRST — esp_wifi_stop() from previous radio
-     * teardown leaves the driver in a stopped state.  WiFi.mode() calls
-     * esp_wifi_start() under the hood which brings it back up.  Calling
-     * disconnect() before mode() hits ESP_ERR_WIFI_NOT_STARTED (0x3002). */
+    /* Force-reset WiFi driver state.  A previous connect attempt can
+     * leave the STA stuck in an infinite AUTH_EXPIRE retry loop — new
+     * WiFi.begin() calls then fail with ESP_ERR_WIFI_STATE (0x3006)
+     * because the driver thinks it's "already connecting".  We must
+     * stop + restart the driver to break the loop. */
+    WiFi.disconnect(true, true);
+    esp_wifi_stop();
+    delay(100);
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(false, false);
-    delay(100);
+    delay(200);
+
+    uint32_t heap = ESP.getFreeHeap();
     Serial.printf("[wifi] connect: ssid='%s' pass_len=%u\n",
                   ssid.c_str(), (unsigned)pass.length());
     Serial.printf("[wifi] mode=%d status=%d heap=%u\n",
-                  WiFi.getMode(), WiFi.status(), (unsigned)ESP.getFreeHeap());
+                  WiFi.getMode(), WiFi.status(), (unsigned)heap);
+
+    if (heap < 20000) {
+        Serial.printf("[wifi] WARN: heap critically low (%u) — "
+                      "connection may fail\n", (unsigned)heap);
+        ui_toast("low heap — may fail", T_WARN, 1200);
+    }
+
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
     d.setTextColor(T_WARN, T_BG);
