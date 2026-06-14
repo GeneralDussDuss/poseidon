@@ -65,13 +65,17 @@ void feat_wifi_connect(void)
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
     }
 
-    WiFi.disconnect(true, true);
-    delay(50);
+    /* Start WiFi driver FIRST — esp_wifi_stop() from previous radio
+     * teardown leaves the driver in a stopped state.  WiFi.mode() calls
+     * esp_wifi_start() under the hood which brings it back up.  Calling
+     * disconnect() before mode() hits ESP_ERR_WIFI_NOT_STARTED (0x3002). */
     WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, false);
+    delay(100);
     Serial.printf("[wifi] connect: ssid='%s' pass_len=%u\n",
                   ssid.c_str(), (unsigned)pass.length());
-    Serial.printf("[wifi] mode=%d status=%d\n",
-                  WiFi.getMode(), WiFi.status());
+    Serial.printf("[wifi] mode=%d status=%d heap=%u\n",
+                  WiFi.getMode(), WiFi.status(), (unsigned)ESP.getFreeHeap());
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
     d.setTextColor(T_WARN, T_BG);
