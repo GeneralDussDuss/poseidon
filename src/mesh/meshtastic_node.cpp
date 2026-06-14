@@ -494,12 +494,17 @@ bool mesh_begin(void)
     s_msg_count = 0;
     s_new_msg = false;
 
+    Serial.printf("[mesh] begin: free heap = %u bytes\n",
+                  (unsigned)ESP.getFreeHeap());
+
     /* Allocate node + message buffers only when mesh is active. Previously
      * these were static BSS (9.5 KB) eating DRAM 24/7 — contributed to
      * WiFi.scanNetworks hitting ENOMEM under cumulative heap pressure. */
     if (!s_nodes) s_nodes = (mesh_node_t *)calloc(MESH_MAX_NODES, sizeof(mesh_node_t));
     if (!s_msgs)  s_msgs  = (mesh_message_t *)calloc(MESH_MSG_RING, sizeof(mesh_message_t));
     if (!s_nodes || !s_msgs) {
+        Serial.printf("[mesh] FAIL: node/msg alloc (nodes=%p msgs=%p) heap=%u\n",
+                      s_nodes, s_msgs, (unsigned)ESP.getFreeHeap());
         free(s_nodes); s_nodes = nullptr;
         free(s_msgs);  s_msgs  = nullptr;
         return false;
@@ -516,7 +521,11 @@ bool mesh_begin(void)
         .power    = MESH_TX_POWER_DBM,
     };
     int st = lora_begin(cfg);
-    if (st != RADIOLIB_ERR_NONE) return false;
+    if (st != RADIOLIB_ERR_NONE) {
+        Serial.printf("[mesh] FAIL: lora_begin returned %d (Radiolib err) heap=%u\n",
+                      st, (unsigned)ESP.getFreeHeap());
+        return false;
+    }
 
     s_radio = &lora_radio();
     s_radio->setPreambleLength(MESH_PREAMBLE);
@@ -527,7 +536,14 @@ bool mesh_begin(void)
     s_rx_task_stop = false;
     /* 5KB stack — enough for RadioLib SPI buffers + our protobuf decoder
      * without biting into scarce heap needed for WiFi init. */
-    xTaskCreatePinnedToCore(rx_task, "mesh_rx", 5120, nullptr, 3, &s_rx_task, 1);
+    BaseType_t ok = xTaskCreatePinnedToCore(rx_task, "mesh_rx", 5120,
+                                            nullptr, 3, &s_rx_task, 1);
+    if (ok != pdPASS) {
+        Serial.printf("[mesh] FAIL: xTaskCreate heap=%u\n",
+                      (unsigned)ESP.getFreeHeap());
+        lora_end();
+        return false;
+    }
 
     s_up = true;
     Serial.printf("[mesh] up id=!%08x long=%s\n",

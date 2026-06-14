@@ -185,8 +185,12 @@ static void run_bars(SX1262 &radio, const lora_range_t &range)
 
 /* ---- Waterfall: scrolling RSSI heatmap, time on X ---- */
 
-#define WF_ROWS 60
-#define WF_COLS 200
+/* rf-013-oomfix: original 60×200 ring buffer (24 KB) caused OOM on the
+ * Cardputer-Adv's PSRAM-less ESP32-S3FN8 after WiFi/BLE/sub-GHz
+ * features fragmented the heap. Reduced to 40×120 (9.6 KB) — still
+ * fills the body area nicely and 2.5× smaller. */
+#define WF_ROWS 40
+#define WF_COLS 120
 
 /* rf-013: returns true on user ESC (clean exit, outer keeps running),
  * false on OOM (outer should tear down LoRa and bail to menu so the
