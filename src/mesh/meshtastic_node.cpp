@@ -20,6 +20,7 @@
   #include <esp_mac.h>   /* esp_read_mac + ESP_MAC_WIFI_STA moved here in IDF 5.x */
 #endif
 #include <string.h>
+#include <Preferences.h>
 
 #define MESH_MAX_NODES     32
 #define MESH_MSG_RING      24
@@ -28,6 +29,107 @@ static const uint8_t DEFAULT_PSK[16] = {
     0xD4, 0xF1, 0xBB, 0x3A, 0x20, 0x29, 0x07, 0x59,
     0xF0, 0xBC, 0xFF, 0xAB, 0xCF, 0x4E, 0x69, 0x01
 };
+
+/* ==================== channel config (NVS-backed) ==================== */
+
+static char     s_channel_name[32] = {0};  /* empty = "LongFast" */
+static uint8_t  s_active_psk[16] = {0};
+static uint8_t  s_channel_hash = MESH_CHANNEL_HASH;
+static float    s_channel_freq = MESH_FREQ_MHZ;
+static bool     s_channel_config_loaded = false;
+
+/* djb2 — same algorithm Meshtastic uses for channel name hashing. */
+static uint32_t mesh_djb2(const char *s)
+{
+    uint32_t h = 5381;
+    while (*s) h = ((h << 5) + h) + (uint8_t)*s++;
+    return h;
+}
+
+/* XOR of PSK bytes. */
+static uint8_t psk_xor(const uint8_t psk[16])
+{
+    uint8_t x = 0;
+    for (int i = 0; i < 16; i++) x ^= psk[i];
+    return x;
+}
+
+/* Load channel config from NVS. Called once by mesh_begin() or on first
+ * getter access so the channel config screen can display active values
+ * even before the mesh is up. */
+static void load_channel_config(void)
+{
+    if (s_channel_config_loaded) return;
+
+    /* Defaults. */
+    memcpy(s_active_psk, DEFAULT_PSK, 16);
+    s_channel_name[0] = '\0';
+
+    Preferences p;
+    if (p.begin("poseidon", true)) {
+        String nm = p.getString("ch_name", "");
+        String pk = p.getString("ch_psk", "");
+        p.end();
+
+        if (nm.length() > 0 && nm.length() < sizeof(s_channel_name)) {
+            strlcpy(s_channel_name, nm.c_str(), sizeof(s_channel_name));
+        }
+
+        if (pk.length() > 0) {
+            /* Try hex decode first (32 hex chars = 16 bytes). */
+            const char *hex = pk.c_str();
+            int hlen = strlen(hex);
+            bool is_hex = (hlen == 32);
+            if (is_hex) {
+                for (int i = 0; i < hlen; i++) {
+                    char c = hex[i];
+                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+                          (c >= 'A' && c <= 'F'))) {
+                        is_hex = false;
+                        break;
+                    }
+                }
+            }
+            if (is_hex) {
+                for (int i = 0; i < 16; i++) {
+                    char buf[3] = { hex[i*2], hex[i*2+1], '\0' };
+                    s_active_psk[i] = (uint8_t)strtoul(buf, nullptr, 16);
+                }
+            } else {
+                /* Hash text via djb2, spread across 16 bytes. */
+                memset(s_active_psk, 0, 16);
+                for (int pass = 0; pass < 4; pass++) {
+                    uint32_t h = 5381;
+                    for (const char *ch = hex; *ch; ch++)
+                        h = ((h << 5) + h) + (uint8_t)*ch + pass;
+                    s_active_psk[pass*4]   = (uint8_t)(h);
+                    s_active_psk[pass*4+1] = (uint8_t)(h >> 8);
+                    s_active_psk[pass*4+2] = (uint8_t)(h >> 16);
+                    s_active_psk[pass*4+3] = (uint8_t)(h >> 24);
+                }
+            }
+        }
+    }
+
+    /* Derive channel hash: XOR of djb2(name) bytes XOR'd with XOR(psk). */
+    const char *eff = s_channel_name[0] ? s_channel_name : "LongFast";
+    uint32_t dh = mesh_djb2(eff);
+    s_channel_hash = (uint8_t)dh ^ (uint8_t)(dh >> 8)
+                   ^ (uint8_t)(dh >> 16) ^ (uint8_t)(dh >> 24);
+    s_channel_hash ^= psk_xor(s_active_psk);
+
+    /* Frequency from channel name: djb2 mod 104 slots. */
+    s_channel_freq = 903.08f + (mesh_djb2(eff) % 104) * 2.16f;
+
+    s_channel_config_loaded = true;
+    Serial.printf("[mesh-ch] name='%s' hash=0x%02X freq=%.3f MHz\n",
+                  eff, s_channel_hash, s_channel_freq);
+}
+
+const char   *mesh_active_channel_name(void) { load_channel_config(); return s_channel_name; }
+const uint8_t *mesh_active_psk(void)         { load_channel_config(); return s_active_psk; }
+uint8_t        mesh_active_channel_hash(void) { load_channel_config(); return s_channel_hash; }
+float          mesh_active_freq_mhz(void)    { load_channel_config(); return s_channel_freq; }
 
 /* ==================== state ==================== */
 
@@ -58,6 +160,29 @@ static volatile bool     s_rx_task_stop = false;
 static bool              s_position_reporting = false;
 static uint32_t          s_last_nodeinfo_ms = 0;
 static uint32_t          s_last_position_ms = 0;
+
+/* ==================== ACK tracking ==================== */
+
+#define MESH_ACK_RING    8   /* max pending ACKs — small for no-PSRAM */
+
+struct mesh_ack_entry_t {
+    uint32_t  packet_id;
+    uint32_t  dest_node;     /* MESH_BROADCAST_NODEID or specific node */
+    uint32_t  tx_time_ms;
+    uint8_t   retries;
+    uint8_t   status;        /* mesh_ack_status_t */
+    uint8_t   text_len;
+    char      text[MESH_MAX_PAYLOAD];
+};
+
+static mesh_ack_entry_t  s_ack_ring[MESH_ACK_RING];
+static int               s_ack_head  = 0;
+static int               s_ack_count = 0;
+static portMUX_TYPE      s_ack_mux   = portMUX_INITIALIZER_UNLOCKED;
+
+/* Traceroute result — written by the RX task, read by the UI. */
+static volatile bool            s_traceroute_ready = false;
+static mesh_traceroute_result_t s_traceroute_result = {};
 
 /* ==================== identity ==================== */
 
@@ -187,6 +312,87 @@ void mesh_clear_messages(void)
     portEXIT_CRITICAL(&s_msgs_mux);
 }
 
+/* ==================== ACK helpers ==================== */
+
+/* Add an entry to the pending-ACK ring. Called from main loop context. */
+static void ack_add(uint32_t packet_id, uint32_t dest_node,
+                    const char *text, uint16_t text_len)
+{
+    portENTER_CRITICAL(&s_ack_mux);
+    int idx;
+    if (s_ack_count < MESH_ACK_RING) {
+        idx = (s_ack_head + s_ack_count) % MESH_ACK_RING;
+        s_ack_count++;
+    } else {
+        /* Evict oldest (head) — no room. */
+        idx = s_ack_head;
+        s_ack_head = (s_ack_head + 1) % MESH_ACK_RING;
+    }
+    s_ack_ring[idx].packet_id  = packet_id;
+    s_ack_ring[idx].dest_node  = dest_node;
+    s_ack_ring[idx].tx_time_ms = millis();
+    s_ack_ring[idx].retries    = 0;
+    s_ack_ring[idx].status     = MESH_ACK_PENDING;
+    uint8_t n = text_len;
+    if (n > MESH_MAX_PAYLOAD) n = MESH_MAX_PAYLOAD;
+    s_ack_ring[idx].text_len = n;
+    memcpy(s_ack_ring[idx].text, text, n);
+    portEXIT_CRITICAL(&s_ack_mux);
+}
+
+/* Match an incoming ACK request_id against our pending list.
+ * Returns true and marks the entry as OK if found. */
+static bool ack_match(uint32_t request_id)
+{
+    portENTER_CRITICAL(&s_ack_mux);
+    for (int i = 0; i < s_ack_count; i++) {
+        int idx = (s_ack_head + i) % MESH_ACK_RING;
+        if (s_ack_ring[idx].packet_id == request_id &&
+            s_ack_ring[idx].status == MESH_ACK_PENDING) {
+            s_ack_ring[idx].status = MESH_ACK_OK;
+            portEXIT_CRITICAL(&s_ack_mux);
+            Serial.printf("[mesh-ack] ACKed id=0x%08x\n", (unsigned)request_id);
+            return true;
+        }
+    }
+    portEXIT_CRITICAL(&s_ack_mux);
+    return false;
+}
+
+/* Query the delivery status of a given packet_id. */
+mesh_ack_status_t mesh_ack_status(uint32_t packet_id)
+{
+    mesh_ack_status_t result = MESH_ACK_FAILED;
+    portENTER_CRITICAL(&s_ack_mux);
+    for (int i = 0; i < s_ack_count; i++) {
+        int idx = (s_ack_head + i) % MESH_ACK_RING;
+        if (s_ack_ring[idx].packet_id == packet_id) {
+            result = (mesh_ack_status_t)s_ack_ring[idx].status;
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_ack_mux);
+    return result;
+}
+
+/* Forward declaration — defined later at line ~446. */
+static bool mesh_tx_data(uint32_t to, const mesh_data_t &data,
+                         bool want_ack = false, uint32_t *out_id = nullptr,
+                         uint32_t force_id = 0);
+
+/* Send an ACK (Routing proto) back to a node that requested one. */
+static void mesh_send_ack(uint32_t to, uint32_t original_packet_id)
+{
+    mesh_data_t d = {};
+    d.portnum = MESH_PORT_ROUTING;
+    d.request_id = original_packet_id;
+    /* Routing proto: error_reason = NONE (field 1, varint value 0). */
+    d.payload[0] = 0x08;  /* tag: field 1, wire type 0 */
+    d.payload[1] = 0x00;  /* value: 0 (NONE) */
+    d.payload_len = 2;
+    mesh_tx_data(to, d);
+}
+
 /* ==================== header packing ==================== */
 
 static void pack_header(uint8_t hdr[16],
@@ -212,14 +418,15 @@ static void pack_header(uint8_t hdr[16],
                   | (want_ack ? MESH_FLAGS_WANT_ACK_MASK : 0)
                   | ((hop_start << MESH_FLAGS_HOP_START_SHIFT) & MESH_FLAGS_HOP_START_MASK);
     hdr[12] = flags;
-    hdr[13] = MESH_CHANNEL_HASH;
+    hdr[13] = s_channel_hash;
     hdr[14] = 0;  /* next_hop = no preference */
     hdr[15] = 0;  /* relay_node = none */
 }
 
 static void parse_header(const uint8_t hdr[16],
                          uint32_t *to, uint32_t *from, uint32_t *id,
-                         uint8_t *hop_limit, uint8_t *hop_start, uint8_t *channel)
+                         uint8_t *hop_limit, uint8_t *hop_start, uint8_t *channel,
+                         bool *want_ack)
 {
     *to   = (uint32_t)hdr[0]  | ((uint32_t)hdr[1]  << 8)
           | ((uint32_t)hdr[2] << 16) | ((uint32_t)hdr[3]  << 24);
@@ -231,6 +438,7 @@ static void parse_header(const uint8_t hdr[16],
     *hop_limit = flags & MESH_FLAGS_HOP_LIMIT_MASK;
     *hop_start = (flags & MESH_FLAGS_HOP_START_MASK) >> MESH_FLAGS_HOP_START_SHIFT;
     *channel = hdr[13];
+    *want_ack = (flags & MESH_FLAGS_WANT_ACK_MASK) != 0;
 }
 
 /* ==================== TX pipeline ==================== */
@@ -240,21 +448,23 @@ static SX1262 *s_radio = nullptr;
 /* Ciphertext budget: 255 (LoRa max) - 16 (header) = 239 bytes. */
 #define MESH_MAX_CIPHERTEXT 239
 
-static bool mesh_tx_data(uint32_t to, const mesh_data_t &data)
+static bool mesh_tx_data(uint32_t to, const mesh_data_t &data,
+                         bool want_ack, uint32_t *out_id,
+                         uint32_t force_id)
 {
     uint8_t encoded[MESH_MAX_CIPHERTEXT];
     mesh_buf_t buf = { encoded, sizeof(encoded), 0 };
     if (!mesh_pb_encode_data(&buf, &data)) return false;
     if (buf.len == 0 || buf.len > MESH_MAX_CIPHERTEXT) return false;
 
-    uint32_t id = next_packet_id();
+    uint32_t id = force_id ? force_id : next_packet_id();
 
     /* Encrypt the Data proto in place. */
-    mesh_crypto_ctr(DEFAULT_PSK, id, s_own_id, encoded, buf.len);
+    mesh_crypto_ctr(s_active_psk, id, s_own_id, encoded, buf.len);
 
     /* Build the full on-air frame: 16 byte header + ciphertext. */
     uint8_t frame[16 + MESH_MAX_CIPHERTEXT];
-    pack_header(frame, to, s_own_id, id, MESH_HOP_RELIABLE, false);
+    pack_header(frame, to, s_own_id, id, MESH_HOP_RELIABLE, want_ack);
     memcpy(frame + 16, encoded, buf.len);
 
     size_t total = 16 + buf.len;
@@ -263,24 +473,31 @@ static bool mesh_tx_data(uint32_t to, const mesh_data_t &data)
     int st = s_radio->transmit(frame, total);
     /* Immediately return to RX so we don't miss other nodes' traffic. */
     s_radio->startReceive();
-    return st == RADIOLIB_ERR_NONE;
+    bool ok = (st == RADIOLIB_ERR_NONE);
+    if (ok && out_id) *out_id = id;
+    return ok;
 }
 
-bool mesh_send_broadcast_text(const char *text)
+uint32_t mesh_send_broadcast_text(const char *text)
 {
-    if (!s_up || !text) return false;
+    if (!s_up || !text) return 0;
     mesh_data_t d = {};
     d.portnum = MESH_PORT_TEXT_MESSAGE;
     size_t n = strlen(text);
     if (n > sizeof(d.payload)) n = sizeof(d.payload);
     memcpy(d.payload, text, n);
     d.payload_len = (uint16_t)n;
-    return mesh_tx_data(MESH_BROADCAST_NODEID, d);
+    uint32_t id = 0;
+    if (mesh_tx_data(MESH_BROADCAST_NODEID, d, true, &id)) {
+        ack_add(id, MESH_BROADCAST_NODEID, text, (uint16_t)n);
+        return id;
+    }
+    return 0;
 }
 
-bool mesh_send_direct_text(uint32_t dest, const char *text)
+uint32_t mesh_send_direct_text(uint32_t dest, const char *text)
 {
-    if (!s_up || !text || dest == 0 || dest == s_own_id) return false;
+    if (!s_up || !text || dest == 0 || dest == s_own_id) return 0;
     mesh_data_t d = {};
     d.portnum = MESH_PORT_TEXT_MESSAGE;
     d.dest = dest;
@@ -289,7 +506,12 @@ bool mesh_send_direct_text(uint32_t dest, const char *text)
     if (n > sizeof(d.payload)) n = sizeof(d.payload);
     memcpy(d.payload, text, n);
     d.payload_len = (uint16_t)n;
-    return mesh_tx_data(dest, d);
+    uint32_t id = 0;
+    if (mesh_tx_data(dest, d, true, &id)) {
+        ack_add(id, dest, text, (uint16_t)n);
+        return id;
+    }
+    return 0;
 }
 
 bool mesh_send_nodeinfo(void)
@@ -347,7 +569,8 @@ bool mesh_send_position(void)
 
 static void handle_decoded_data(uint32_t from, uint32_t to, uint8_t hops,
                                 int16_t rssi, int8_t snr,
-                                const mesh_data_t &d)
+                                const mesh_data_t &d,
+                                uint32_t packet_id, bool want_ack)
 {
     /* Always update roster — any packet tells us a node exists. */
     portENTER_CRITICAL(&s_nodes_mux);
@@ -357,6 +580,22 @@ static void handle_decoded_data(uint32_t from, uint32_t to, uint8_t hops,
     s_nodes[idx].hops = hops;
     s_nodes[idx].last_seen_ms = millis();
     portEXIT_CRITICAL(&s_nodes_mux);
+
+    /* If the sender wants an ACK and the packet is addressed to us
+     * (not broadcast — we don't ACK broadcasts to avoid storms), send
+     * one back before processing the payload. */
+    if (want_ack && to == s_own_id) {
+        mesh_send_ack(from, packet_id);
+    }
+
+    /* If this is a Routing packet with a request_id, it's likely an
+     * ACK for one of our outgoing messages. */
+    if (d.portnum == MESH_PORT_ROUTING && d.request_id != 0) {
+        ack_match(d.request_id);
+        /* Fall through to process any other fields if needed, but
+         * for now ACKs are handled entirely above. */
+        return;
+    }
 
     switch (d.portnum) {
     case MESH_PORT_TEXT_MESSAGE: {
@@ -430,8 +669,46 @@ static void handle_decoded_data(uint32_t from, uint32_t to, uint8_t hops,
         }
         break;
     }
+    case MESH_PORT_TRACEROUTE_APP: {
+        /* Traceroute response — decode RouteDiscovery and store result.
+         * We only accept responses addressed to us (direct). */
+        if (to == s_own_id) {
+            mesh_route_discovery_t rd;
+            if (mesh_pb_decode_traceroute(d.payload, d.payload_len, &rd)) {
+                /* Determine which path to use. If the response has
+                 * route_back entries, those represent the forward path
+                 * (dest copies them reversed from the request). If not,
+                 * use route + snr_towards. */
+                mesh_traceroute_result_t res = {};
+                int n = 0;
+                if (rd.route_back_count > 0) {
+                    n = rd.route_back_count;
+                    if (n > MESH_TRACEROUTE_MAX_HOPS) n = MESH_TRACEROUTE_MAX_HOPS;
+                    for (int i = 0; i < n; i++) {
+                        res.route[i] = rd.route_back[i];
+                        /* SNR values in proto are dB*4; convert to integer dB */
+                        res.snr[i] = (int8_t)(rd.snr_back[i] / 4);
+                    }
+                } else if (rd.route_count > 0) {
+                    n = rd.route_count;
+                    if (n > MESH_TRACEROUTE_MAX_HOPS) n = MESH_TRACEROUTE_MAX_HOPS;
+                    for (int i = 0; i < n; i++) {
+                        res.route[i] = rd.route[i];
+                        res.snr[i] = (int8_t)(rd.snr_towards[i] / 4);
+                    }
+                }
+                /* Even if n==0, we got a response — direct link (0 hops). */
+                res.hops = n;
+                res.complete = true;
+                s_traceroute_result = res;
+                s_traceroute_ready = true;
+                Serial.printf("[mesh-trace] response from !%08x hops=%d\n",
+                              (unsigned)from, n);
+            }
+        }
+        break;
+    }
     default:
-        /* Routing, telemetry, etc. — ignore for now. */
         break;
     }
 }
@@ -457,23 +734,24 @@ static void rx_task(void *)
 
         uint32_t to, from, id;
         uint8_t hop_limit, hop_start, channel;
-        parse_header(buf, &to, &from, &id, &hop_limit, &hop_start, &channel);
+        bool want_ack;
+        parse_header(buf, &to, &from, &id, &hop_limit, &hop_start, &channel, &want_ack);
 
-        /* Filter: only default-channel traffic; ignore packets from ourselves
-         * (shouldn't happen but be safe). */
-        if (channel != MESH_CHANNEL_HASH) continue;
+        /* Filter: only matching-channel traffic; ignore packets from
+         * ourselves (shouldn't happen but be safe). */
+        if (channel != s_channel_hash) continue;
         if (from == s_own_id) continue;
 
         size_t ctext_len = plen - 16;
         uint8_t ctext[260];
         memcpy(ctext, buf + 16, ctext_len);
-        mesh_crypto_ctr(DEFAULT_PSK, id, from, ctext, ctext_len);
+        mesh_crypto_ctr(s_active_psk, id, from, ctext, ctext_len);
 
         mesh_data_t d;
         if (!mesh_pb_decode_data(ctext, ctext_len, &d)) continue;
 
         uint8_t hops = (hop_start > hop_limit) ? (hop_start - hop_limit) : 0;
-        handle_decoded_data(from, to, hops, rssi, snr, d);
+        handle_decoded_data(from, to, hops, rssi, snr, d, id, want_ack);
     }
     s_rx_task_alive = false;
     vTaskDelete(nullptr);
@@ -486,6 +764,9 @@ bool mesh_is_up(void) { return s_up; }
 bool mesh_begin(void)
 {
     if (s_up) return true;
+
+    /* Load channel config (name + PSK) from NVS before anything else. */
+    load_channel_config();
 
     derive_identity();
     s_packet_counter = esp_random() & 0x3FFu;
@@ -510,10 +791,11 @@ bool mesh_begin(void)
         return false;
     }
 
-    /* Configure LoRa for Meshtastic LongFast US. lora_hw's config struct
-     * takes freq_mhz, bw_khz, sf, cr (as int 5..8), sync byte, power. */
+    /* Configure LoRa for Meshtastic channel. lora_hw's config struct
+     * takes freq_mhz, bw_khz, sf, cr (as int 5..8), sync byte, power.
+     * Frequency is derived from the channel name via djb2 mod 104. */
     lora_config_t cfg = {
-        .freq_mhz = MESH_FREQ_MHZ,
+        .freq_mhz = s_channel_freq,
         .bw_khz   = MESH_BW_KHZ,
         .sf       = MESH_SF,
         .cr       = MESH_CR,
@@ -546,8 +828,9 @@ bool mesh_begin(void)
     }
 
     s_up = true;
-    Serial.printf("[mesh] up id=!%08x long=%s\n",
-                  (unsigned int)s_own_id, s_own_long);
+    const char *ch = s_channel_name[0] ? s_channel_name : "LongFast";
+    Serial.printf("[mesh] up id=!%08x long=%s channel='%s' hash=0x%02X freq=%.3f\n",
+                  (unsigned int)s_own_id, s_own_long, ch, s_channel_hash, s_channel_freq);
 
     /* Announce ourselves on startup. */
     mesh_send_nodeinfo();
@@ -576,6 +859,8 @@ void mesh_end(void)
     s_node_count = 0;
     s_msg_count = 0;
     s_msg_head = 0;
+    s_ack_head = 0;
+    s_ack_count = 0;
     s_up = false;
 }
 
@@ -604,4 +889,108 @@ extern "C" void mesh_tick(void)
             s_last_position_ms = now;
         }
     }
+
+    /* ---- ACK retry logic ----
+     * Check pending ACKs every 2 seconds.  If an entry is older than 3 s
+     * and retries < 3, retransmit the same packet_id.  After 3 retries
+     * mark as failed. */
+    if (s_ack_count == 0) return;
+    static uint32_t s_last_ack_check = 0;
+    if (now - s_last_ack_check < 2000) return;
+    s_last_ack_check = now;
+
+    for (int i = 0; i < s_ack_count; i++) {
+        /* Grab one entry under lock, release immediately so we can TX. */
+        portENTER_CRITICAL(&s_ack_mux);
+        int idx = (s_ack_head + i) % MESH_ACK_RING;
+        mesh_ack_entry_t *e = &s_ack_ring[idx];
+
+        if (e->status != MESH_ACK_PENDING) {
+            portEXIT_CRITICAL(&s_ack_mux);
+            continue;
+        }
+        if ((int32_t)(now - e->tx_time_ms) < 3000) {
+            portEXIT_CRITICAL(&s_ack_mux);
+            continue;
+        }
+        if (e->retries >= 3) {
+            e->status = MESH_ACK_FAILED;
+            Serial.printf("[mesh-ack] FAILED id=0x%08x retries=%u\n",
+                          (unsigned)e->packet_id, e->retries);
+            portEXIT_CRITICAL(&s_ack_mux);
+            continue;
+        }
+
+        /* Copy fields needed for retransmission. */
+        uint32_t dest = e->dest_node;
+        uint32_t pid  = e->packet_id;
+        uint8_t  tlen = e->text_len;
+        char     text_copy[MESH_MAX_PAYLOAD];
+        memcpy(text_copy, e->text, tlen);
+        e->retries++;
+        e->tx_time_ms = now;
+        portEXIT_CRITICAL(&s_ack_mux);
+
+        /* Rebuild the Data proto and retransmit with the same packet_id. */
+        mesh_data_t d = {};
+        d.portnum = MESH_PORT_TEXT_MESSAGE;
+        memcpy(d.payload, text_copy, tlen);
+        d.payload_len = tlen;
+        bool is_bc = (dest == 0 || dest == MESH_BROADCAST_NODEID);
+        if (!is_bc) {
+            d.dest   = dest;
+            d.source = s_own_id;
+        }
+        mesh_tx_data(is_bc ? MESH_BROADCAST_NODEID : dest,
+                     d, true, nullptr, pid);
+        Serial.printf("[mesh-ack] retry %u/3 id=0x%08x\n",
+                      (unsigned)e->retries, (unsigned)pid);
+    }
+}
+
+/* ==================== traceroute ==================== */
+
+bool mesh_send_traceroute(uint32_t dest_node_id)
+{
+    if (!s_up || dest_node_id == 0 || dest_node_id == s_own_id) return false;
+
+    /* Encode an empty RouteDiscovery as the payload. Intermediate
+     * Meshtastic nodes will populate route[] and snr_towards[] as the
+     * packet traverses the mesh. The destination sends back a response
+     * with the full path. */
+    mesh_route_discovery_t rd = {};
+    uint8_t rd_buf[80];
+    mesh_buf_t rb = { rd_buf, sizeof(rd_buf), 0 };
+    if (!mesh_pb_encode_traceroute(&rb, &rd)) return false;
+
+    mesh_data_t d = {};
+    d.portnum = MESH_PORT_TRACEROUTE_APP;
+    d.dest = dest_node_id;
+    d.source = s_own_id;
+    if (rb.len > sizeof(d.payload)) return false;
+    memcpy(d.payload, rd_buf, rb.len);
+    d.payload_len = (uint16_t)rb.len;
+
+    s_traceroute_ready = false;
+    memset(&s_traceroute_result, 0, sizeof(s_traceroute_result));
+
+    bool ok = mesh_tx_data(dest_node_id, d);
+    if (ok) {
+        Serial.printf("[mesh-trace] sent to !%08x\n", (unsigned)dest_node_id);
+    }
+    return ok;
+}
+
+bool mesh_traceroute_result(mesh_traceroute_result_t *out)
+{
+    if (!s_traceroute_ready) return false;
+    if (out) *out = s_traceroute_result;
+    s_traceroute_ready = false;
+    return true;
+}
+
+void mesh_traceroute_clear(void)
+{
+    s_traceroute_ready = false;
+    memset(&s_traceroute_result, 0, sizeof(s_traceroute_result));
 }

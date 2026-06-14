@@ -351,3 +351,77 @@ bool mesh_pb_decode_position(const uint8_t *buf, size_t len, mesh_position_t *ou
     }
     return true;
 }
+
+/* ==================== RouteDiscovery proto (traceroute) ==================== */
+
+bool mesh_pb_encode_traceroute(mesh_buf_t *b, const mesh_route_discovery_t *rd)
+{
+    /* field 1: repeated uint32 route */
+    for (int i = 0; i < rd->route_count; i++) {
+        if (!write_varint_field(b, 1, (uint64_t)rd->route[i])) return false;
+    }
+    /* field 2: repeated int32 snr_towards (varint, sign-extended) */
+    for (int i = 0; i < rd->route_count; i++) {
+        if (!write_tag(b, 2, 0)) return false;
+        if (!write_varint(b, (uint64_t)(int64_t)rd->snr_towards[i])) return false;
+    }
+    /* field 3: repeated uint32 route_back */
+    for (int i = 0; i < rd->route_back_count; i++) {
+        if (!write_varint_field(b, 3, (uint64_t)rd->route_back[i])) return false;
+    }
+    /* field 4: repeated int32 snr_back (varint, sign-extended) */
+    for (int i = 0; i < rd->route_back_count; i++) {
+        if (!write_tag(b, 4, 0)) return false;
+        if (!write_varint(b, (uint64_t)(int64_t)rd->snr_back[i])) return false;
+    }
+    return true;
+}
+
+bool mesh_pb_decode_traceroute(const uint8_t *buf, size_t len, mesh_route_discovery_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    if (len == 0) return true;  /* empty RouteDiscovery is valid (initial request) */
+    const uint8_t *p = buf;
+    const uint8_t *end = buf + len;
+    int snr_idx = 0;      /* tracks snr_towards entries (parallel to route) */
+    int snr_back_idx = 0; /* tracks snr_back entries (parallel to route_back) */
+    while (p < end) {
+        uint64_t tag;
+        if (!read_varint(&p, end, &tag)) return false;
+        uint8_t field = (uint8_t)(tag >> 3);
+        uint8_t wire  = (uint8_t)(tag & 0x07);
+        switch (field) {
+        case 1: { /* repeated uint32 route */
+            if (wire != 0) return false;
+            uint64_t v; if (!read_varint(&p, end, &v)) return false;
+            if (out->route_count < MESH_TRACEROUTE_MAX_HOPS)
+                out->route[out->route_count++] = (uint32_t)v;
+            break;
+        }
+        case 2: { /* repeated int32 snr_towards */
+            if (wire != 0) return false;
+            uint64_t v; if (!read_varint(&p, end, &v)) return false;
+            if (snr_idx < MESH_TRACEROUTE_MAX_HOPS)
+                out->snr_towards[snr_idx++] = (int32_t)v;
+            break;
+        }
+        case 3: { /* repeated uint32 route_back */
+            if (wire != 0) return false;
+            uint64_t v; if (!read_varint(&p, end, &v)) return false;
+            if (out->route_back_count < MESH_TRACEROUTE_MAX_HOPS)
+                out->route_back[out->route_back_count++] = (uint32_t)v;
+            break;
+        }
+        case 4: { /* repeated int32 snr_back */
+            if (wire != 0) return false;
+            uint64_t v; if (!read_varint(&p, end, &v)) return false;
+            if (snr_back_idx < MESH_TRACEROUTE_MAX_HOPS)
+                out->snr_back[snr_back_idx++] = (int32_t)v;
+            break;
+        }
+        default:
+            if (!skip_field(&p, end, wire)) return false;
+        }
+    }
+    return true;
+}
