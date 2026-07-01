@@ -21,6 +21,7 @@ Goals:
 - Client PIN for user verification, entered on the Cardputer keyboard.
 - On screen display of the relying party during registration and authentication.
 - Encrypted credential storage at rest that survives POSEIDON's frequent reflash workflow.
+- Encrypted backup and restore of the credential store to microSD, portable to a replacement Cardputer.
 - A documented Windows login story, including the local account fallback.
 
 Non goals for the first delivery:
@@ -121,6 +122,24 @@ Partition tables: add the `nvs_kerb` data partition (subtype nvs) to both `defau
 
 Residual risk, stated plainly: while the device is unlocked and in your hand, the unlocked store shares the SoC with POSEIDON's attack features. The eFuse and PIN protect data at rest, not a live unlocked session. This is accepted under the co-resident, hardened choice.
 
+### 7.1 Passkey type and why keys never touch Google
+
+KERBEROS issues device bound passkeys, not synced ones. A synced passkey (Google Password Manager, iCloud Keychain, 1Password) keeps an encrypted copy of the private key in a cloud account and syncs it across devices. KERBEROS instead generates each private key inside the Cardputer where it physically cannot leave; the relying party stores only the matching public key and a credential id. So a KERBEROS passkey lives in the `nvs_kerb` partition, never in Google's or anyone's cloud. That is the security win, and the recovery cost that section 7.2 addresses. Capacity note: unlike a hardware key that holds a couple dozen resident credentials, the 8 MB flash lets KERBEROS hold hundreds of discoverable credentials.
+
+### 7.2 Backup and recovery
+
+Device bound means a lost Cardputer loses its passkeys, so KERBEROS supports two independent recovery paths and the user picks per account.
+
+Encrypted SD backup (the "kennel" backup):
+- Export serializes the credential records and writes an encrypted blob to microSD, for example `/poseidon/kerberos/kennel-<stamp>.bak`. Restore reads it back on any Cardputer.
+- Critical design point: the backup is NOT encrypted under the device eFuse secret, because a replacement Cardputer has a different eFuse secret and could never decrypt it. Instead the backup is encrypted under a separate, longer recovery passphrase the user sets once. The day to day PIN stays short and eFuse bound for at rest storage and fast user verification; the recovery passphrase is long and used only for export and restore. This keeps backups portable across devices.
+- Because a short PIN cannot protect an offline file, the backup key is derived from the recovery passphrase with a strong, slow KDF (for example PBKDF2 or Argon2 style stretching within the S3's means) plus a per file salt stored in the blob, and the blob is integrity tagged. A stolen `.bak` is then only as weak as the chosen passphrase.
+
+Second authenticator (FIDO best practice, documented not built):
+- For any important account, register a backup authenticator alongside KERBEROS: a real hardware key, or a synced Google or Apple passkey. If KERBEROS is lost, the backup key still signs in, so loss never means lockout. This is the recommended primary safety net; the SD backup is the convenience layer on top.
+
+Security trade-off, stated plainly: an SD backup means a copy of the credential material exists outside the device, which is weaker than the pure "the secret only ever lived here" model. The recovery passphrase and slow KDF bound that risk. Users who want the purest model can skip backups and rely only on a second authenticator.
+
 ## 8. Windows compatibility checklist
 
 Treated as acceptance criteria, not aspirations:
@@ -140,7 +159,8 @@ Each phase is independently testable on hardware.
 2. CTAP2 makeCredential and getAssertion. CBOR, P-256 credentials, presence via Enter, RP shown on screen. Gmail and Discord passkeys work end to end. KEEPALIVE proven under a slow human approval.
 3. Client PIN and user verification. Keyboard PIN entry, retry and lockout, account picker for multiple credentials.
 4. Hardened storage. eFuse HMAC key, PIN derived encryption, the `nvs_kerb` partition, persistent signature counters.
-5. Windows and polish. Entra passwordless verification, the badusb local account fallback mode, POSEIDON theming, and the full section 8 checklist run on Windows.
+5. Backup and recovery. Recovery passphrase, encrypted SD export and restore of the credential store, restore verified onto a second Cardputer, and the documented "register a second authenticator" guidance.
+6. Windows and polish. Entra passwordless verification, the badusb local account fallback mode, POSEIDON theming, and the full section 8 checklist run on Windows.
 
 ## 10. Testing
 
@@ -150,6 +170,7 @@ Each phase is independently testable on hardware.
 - Windows security key management flow in Settings.
 - Reboot tests confirming signature counters never regress and credentials survive power cycles.
 - A wrong PIN lockout test confirming the retry counter and recovery behave per spec.
+- Backup and restore round trip: export the kennel on one Cardputer, restore onto a second, and confirm the restored passkeys authenticate to Gmail and Discord. A wrong recovery passphrase must fail the restore cleanly.
 
 ## 11. Open risks
 
@@ -157,4 +178,6 @@ Each phase is independently testable on hardware.
 - Vendored pico-fido core: we take a pinned snapshot rather than a live dependency, so upstream fixes are pulled in deliberately. The port surface is the small HAL (USB, crypto, storage, UP/UV), which bounds the work.
 - eFuse burn is one time: the storage master secret burn must be gated behind an explicit user action with a clear warning, since it cannot be undone on that unit.
 - VID/PID identity: a test identity is fine for personal use but is called out as not commercially shippable.
+- SD backup offline attack: a stolen `.bak` is exposed to offline guessing of the recovery passphrase. Mitigation is a strong slow KDF plus a genuinely long passphrase; the spec forbids deriving the backup from the short device PIN. Users wanting no external copy can skip backups and rely on a second authenticator.
+- Restore trust: importing a `.bak` writes credentials the device did not originate. Restore is gated behind the recovery passphrase and an explicit on device confirmation so a planted file cannot silently inject credentials.
 ```
