@@ -29,6 +29,7 @@ Non goals for the first delivery:
 - NFC.
 - Enterprise attestation. Self attestation only.
 - Acting as a general password manager.
+- TOTP and other non FIDO2 auth modes. Deferred and built on demand only. The credential store format should leave room for TOTP seeds so a future add is cheap, but nothing is built now.
 
 ## 3. Where FIDO2 works, and the Windows reality
 
