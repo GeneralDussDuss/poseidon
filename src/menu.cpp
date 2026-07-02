@@ -119,6 +119,7 @@ extern void feat_badusb_linux(void);
 extern void feat_badusb_android(void);
 extern void feat_badusb_chrome(void);
 extern void feat_badusb_pranks(void);
+extern void feat_kerberos(void);
 extern void feat_net_portscan(void);
 extern void feat_net_ping(void);
 extern void feat_net_dns(void);
@@ -1015,6 +1016,12 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "up as a USB stick for drag-and-drop file transfer. While active the "
       "host owns the card and POSEIDON's own SD logging pauses; ESC ejects "
       "cleanly and hands the card back (no reboot). Serial console stays up." },
+    { 'k', "KERBEROS", "FIDO2 security key (U2F)", nullptr, feat_kerberos,
+      "Turns the Cardputer into a USB security key. Enter this mode, plug "
+      "into a PC, and register it at a site's security key settings. The "
+      "screen shows the sign in prompt and ENTER approves. Phase 1 speaks "
+      "U2F, so it works as a second factor on Google, GitHub, and any site "
+      "that accepts a security key." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
