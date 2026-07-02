@@ -104,6 +104,29 @@ static void test_register_denied_without_presence(void) {
     TEST_ASSERT_EQUAL_UINT8(0x85, out[n-1]);
 }
 
+// A frame that claims Lc=64 but carries far fewer bytes must be rejected
+// (wrong length 0x6700), never dereferencing the absent payload.
+static void test_register_rejects_truncated(void) {
+    u2f_cfg_t cfg = make_test_cfg(true);
+    uint8_t apdu[20]={0}; apdu[1]=0x01; apdu[6]=64;      // Lc=64 but only 13 data bytes present
+    uint8_t out[512];
+    uint16_t n = u2f_handle(&cfg, apdu, sizeof apdu, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x67, out[n-2]);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[n-1]);
+}
+
+// If the output buffer cannot hold the response, return wrong-length rather
+// than overflowing.
+static void test_register_respects_capacity(void) {
+    u2f_cfg_t cfg = make_test_cfg(true);
+    uint8_t data[64]; memset(data,0xAB,64);
+    uint8_t apdu[7+64+2]={0}; apdu[1]=0x01; apdu[6]=64; memcpy(apdu+7,data,64);
+    uint8_t out[512];
+    uint16_t n = u2f_handle(&cfg, apdu, sizeof apdu, out, /*cap=*/100);
+    TEST_ASSERT_EQUAL_UINT8(0x67, out[n-2]);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[n-1]);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_wrap_unwrap_roundtrip);
@@ -111,5 +134,7 @@ int main(int, char **) {
     RUN_TEST(test_version_returns_u2f_v2);
     RUN_TEST(test_register_shape);
     RUN_TEST(test_register_denied_without_presence);
+    RUN_TEST(test_register_rejects_truncated);
+    RUN_TEST(test_register_respects_capacity);
     return UNITY_END();
 }
