@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;padding:0;background:#000;}
+  html{scroll-behavior:smooth;scroll-padding-top:64px;}html,body{margin:0;padding:0;background:#000;}
   *{box-sizing:border-box;}
   @keyframes causticDrift{0%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-4%,3%) scale(1.16)}100%{transform:translate(0,0) scale(1.1)}}
   @keyframes rippleAnim{from{transform:translate(-50%,-50%) scale(0);opacity:.85}to{transform:translate(-50%,-50%) scale(11);opacity:0}}
@@ -30,6 +30,14 @@
   @keyframes pedestalPulse{0%,100%{opacity:.6}50%{opacity:1}}
   @keyframes traceFlow{0%{background-position:0 0}100%{background-position:0 -220px}}
   @keyframes haloPulse{0%,100%{opacity:.65;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+  @keyframes bokehA{0%,100%{transform:translate(0,0)}50%{transform:translate(36px,-48px)}}
+  @keyframes bokehB{0%,100%{transform:translate(0,0)}50%{transform:translate(-44px,34px)}}
+  @keyframes bokehC{0%,100%{transform:translate(0,0)}50%{transform:translate(26px,40px)}}
+  @keyframes bokehPulse{0%,100%{opacity:.08}50%{opacity:.20}}
+  @keyframes revealUp{from{opacity:0;transform:translateY(34px)}to{opacity:1;transform:none}}
+  @keyframes hintFloat{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
+  @keyframes battBlink{0%,100%{opacity:1}50%{opacity:0.25}}
+  @keyframes eggPop{0%{opacity:0;transform:translateX(-50%) scale(0.8)}12%{opacity:1;transform:translateX(-50%) scale(1.05)}20%{transform:translateX(-50%) scale(1)}85%{opacity:1}100%{opacity:0}}
   @keyframes ledBlink{0%,100%{opacity:.35}50%{opacity:1}}
   @keyframes scanSweep{0%{top:-16%}100%{top:116%}}
   @keyframes ticker{to{transform:translateX(-50%)}}
@@ -38,10 +46,33 @@
   @keyframes keyGlowB{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 5px rgba(0,0,0,0.55), 0 0 9px rgba(217,70,239,0.05)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 5px rgba(0,0,0,0.55), 0 0 17px rgba(217,70,239,0.14)}}
 </style>
 </helmet>
-<div style="min-height:100vh;width:100%;position:relative;display:flex;align-items:center;justify-content:center;padding:48px 20px;overflow:hidden;background:#000;font-family:'Rajdhani',sans-serif;">
+<div style="min-height:100vh;width:100%;position:relative;display:flex;align-items:center;justify-content:center;padding:44px 20px;box-sizing:border-box;background:radial-gradient(130% 100% at 50% 26%, #0d0620, #040110 55%, #010006);font-family:'Rajdhani',sans-serif;overflow:hidden;">
   <canvas ref="{{ bgCanvasRef }}" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
 
+  <div style="position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden;">
+    <span style="position:absolute;left:6%;top:16%;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,0.6),transparent 62%);filter:blur(16px);animation:bokehA 17s ease-in-out infinite, bokehPulse 11s ease-in-out infinite;"></span>
+    <span style="position:absolute;right:8%;top:12%;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(217,70,239,0.6),transparent 62%);filter:blur(14px);animation:bokehB 21s ease-in-out infinite, bokehPulse 13s ease-in-out infinite;animation-delay:-3s;"></span>
+    <span style="position:absolute;left:13%;bottom:12%;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(162,28,175,0.55),transparent 60%);filter:blur(20px);animation:bokehC 24s ease-in-out infinite, bokehPulse 15s ease-in-out infinite;animation-delay:-6s;"></span>
+    <span style="position:absolute;right:11%;bottom:16%;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,0.5),transparent 62%);filter:blur(15px);animation:bokehA 19s ease-in-out infinite, bokehPulse 10s ease-in-out infinite;animation-delay:-8s;"></span>
+    <span style="position:absolute;left:2%;top:52%;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(240,171,252,0.5),transparent 60%);filter:blur(11px);animation:bokehB 16s ease-in-out infinite, bokehPulse 8s ease-in-out infinite;animation-delay:-2s;"></span>
+    <span style="position:absolute;right:3%;top:46%;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,0.45),transparent 62%);filter:blur(13px);animation:bokehC 22s ease-in-out infinite, bokehPulse 12s ease-in-out infinite;animation-delay:-5s;"></span>
+    <span style="position:absolute;left:44%;top:4%;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(217,70,239,0.4),transparent 62%);filter:blur(17px);animation:bokehA 26s ease-in-out infinite, bokehPulse 14s ease-in-out infinite;animation-delay:-9s;"></span>
+  </div>
+
   <div ref="{{ scalerRef }}" style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:16px;width:820px;max-width:100%;transform-origin:top center;will-change:transform;">
+
+    <sc-if value="{{ showHint }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:14px;padding:9px 17px;border-radius:999px;background:rgba(6,4,14,0.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(34,211,238,0.3);box-shadow:0 8px 30px rgba(0,0,0,0.5),0 0 22px rgba(34,211,238,0.14);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:1px;color:#9fc0cf;pointer-events:none;animation:hintFloat 3s ease-in-out infinite;">
+        <span style="display:flex;align-items:center;gap:6px;"><span style="padding:2px 6px;border:1px solid rgba(94,230,245,0.4);border-radius:4px;color:#7ff0fb;">;/.</span> move</span>
+        <span style="display:flex;align-items:center;gap:6px;"><span style="padding:2px 6px;border:1px solid rgba(94,230,245,0.4);border-radius:4px;color:#7ff0fb;">Tab</span> search</span>
+        <span style="display:flex;align-items:center;gap:6px;"><span style="padding:2px 6px;border:1px solid rgba(94,230,245,0.4);border-radius:4px;color:#7ff0fb;">?</span> help</span>
+        <span style="display:flex;align-items:center;gap:6px;color:#c9a3ff;">drag to tilt</span>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ eggActive }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;left:50%;top:34px;transform:translateX(-50%);z-index:40;padding:11px 22px;border-radius:12px;background:rgba(6,4,14,0.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(217,70,239,0.5);box-shadow:0 10px 40px rgba(0,0,0,0.6),0 0 30px rgba(217,70,239,0.3);font-family:'Orbitron',sans-serif;font-weight:800;font-size:15px;letter-spacing:3px;background-image:linear-gradient(135deg,#d946ef,#f0abfc,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;pointer-events:none;animation:eggPop 3.2s ease-out forwards;">{{ eggText }}</div>
+    </sc-if>
 
     <sc-if value="{{ hudChrome }}" hint-placeholder-val="{{ true }}">
       <div style="position:relative;z-index:3;width:100%;overflow:hidden;display:flex;gap:16px;align-items:center;padding:8px 14px 8px 18px;border:1px solid rgba(217,70,239,0.2);border-radius:8px;background:rgba(6,4,14,0.85);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#64748b;flex-wrap:wrap;">
@@ -58,7 +89,8 @@
       </div>
     </sc-if>
 
-    <div style="position:relative;width:100%;">
+    <div style="position:relative;width:100%;perspective:1600px;">
+      <div ref="{{ shadowRef }}" style="position:absolute;left:4%;right:4%;top:14%;bottom:-6%;border-radius:30px;background:rgba(0,0,0,0.6);filter:blur(30px);pointer-events:none;z-index:0;will-change:transform,opacity;"></div>
       <div style="position:absolute;inset:-46px;border-radius:48px;background:radial-gradient(58% 58% at 42% 40%, rgba(217,70,239,0.32), transparent 70%),radial-gradient(54% 54% at 74% 64%, rgba(34,211,238,0.24), transparent 72%),radial-gradient(46% 40% at 62% 30%, rgba(240,171,252,0.16), transparent 70%);filter:blur(38px);pointer-events:none;animation:haloPulse 6.5s ease-in-out infinite;"></div>
 
       <div style="position:absolute;left:50%;bottom:-58px;transform:translateX(-50%);width:118%;height:150px;pointer-events:none;">
@@ -66,7 +98,8 @@
         <div style="position:absolute;left:8%;right:8%;top:0;height:100%;overflow:hidden;opacity:.6;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);mask-image:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);background-image:repeating-linear-gradient(90deg, rgba(217,70,239,0.35) 0 1px, transparent 1px 30px), repeating-linear-gradient(0deg, rgba(34,211,238,0.28) 0 1px, transparent 1px 26px);background-size:30px 26px;animation:traceFlow 3.2s linear infinite;transform:perspective(300px) rotateX(62deg);transform-origin:top;"></div>
       </div>
 
-      <div ref="{{ panelRef }}" style="position:relative;width:100%;border-radius:24px;padding:13px 18px 16px;background:linear-gradient(158deg,#101319,#0a0c11 55%,#0d1016);border:1px solid rgba(214,228,248,0.13);animation:rimGlow 7s ease-in-out infinite;will-change:transform;">
+      <div ref="{{ panelRef }}" style="position:relative;width:100%;border-radius:24px;padding:13px 18px 16px;background:linear-gradient(158deg,#101319,#0a0c11 55%,#0d1016);border:1px solid rgba(214,228,248,0.13);animation:rimGlow 7s ease-in-out infinite;will-change:transform;transform-style:preserve-3d;">
+        <div ref="{{ bezelRef }}" style="position:absolute;inset:0;border-radius:24px;pointer-events:none;z-index:4;"></div>
         <div style="position:absolute;inset:0;border-radius:26px;overflow:hidden;pointer-events:none;">
           <div style="position:absolute;inset:-20%;background:radial-gradient(38% 30% at 20% 16%, rgba(34,211,238,0.12), transparent 60%),radial-gradient(34% 28% at 82% 26%, rgba(217,70,239,0.1), transparent 60%),radial-gradient(46% 36% at 55% 88%, rgba(240,171,252,0.08), transparent 60%);mix-blend-mode:screen;animation:causticDrift 20s ease-in-out infinite;"></div>
         </div>
@@ -91,12 +124,15 @@
           </div>
         </div>
 
-        <div style="position:relative;display:flex;gap:20px;align-items:stretch;">
+        <div style="position:relative;display:flex;gap:20px;align-items:stretch;transform-style:preserve-3d;">
 
-          <div style="flex:0 0 178px;position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:14px 14px 13px;border-radius:14px;background:linear-gradient(165deg, rgba(30,10,42,0.55), rgba(12,6,20,0.6));border:1px solid rgba(217,70,239,0.3);box-shadow:0 0 16px rgba(217,70,239,0.16), 0 0 34px rgba(34,211,238,0.08), inset 0 0 24px rgba(162,28,175,0.12), inset 0 1px 0 rgba(240,171,252,0.07);overflow:hidden;">
+          <div style="flex:0 0 178px;position:relative;transform:translateZ(16px);display:flex;flex-direction:column;justify-content:space-between;padding:14px 14px 13px;border-radius:14px;background:linear-gradient(165deg, rgba(30,10,42,0.55), rgba(12,6,20,0.6));border:1px solid rgba(217,70,239,0.3);box-shadow:0 0 16px rgba(217,70,239,0.16), 0 0 34px rgba(34,211,238,0.08), inset 0 0 24px rgba(162,28,175,0.12), inset 0 1px 0 rgba(240,171,252,0.07);overflow:hidden;">
             <div style="position:absolute;inset:0;background:repeating-linear-gradient(120deg, rgba(217,70,239,0.04) 0 1px, transparent 1px 13px);pointer-events:none;"></div>
             <div onClick="{{ onSigil }}" style="position:relative;flex:1 1 auto;min-height:0;margin:-14px -14px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
               <img src="assets/poseidon-crop.png" alt="POSEIDON" style="width:100%;height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 0 10px rgba(217,70,239,0.4)) drop-shadow(0 0 20px rgba(34,211,238,0.22));animation:sigilBreath 5s ease-in-out infinite;"/>
+              <sc-if value="{{ eggActive }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 42%, rgba(217,70,239,0.45), rgba(34,211,238,0.18) 45%, transparent 70%);mix-blend-mode:screen;animation:eggPop 3.2s ease-out forwards;"></div>
+              </sc-if>
             </div>
             <div style="display:flex;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(217,70,239,0.18);position:relative;flex-wrap:wrap;">
               <div style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);animation:ledBlink 2.4s ease-in-out infinite;"></span><span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#64748b;">PWR</span></div>
@@ -106,7 +142,8 @@
             </div>
           </div>
 
-          <div style="flex:1 1 auto;position:relative;padding:10px;border-radius:14px;background:linear-gradient(180deg,#0a0510,#0d0818);border:1px solid rgba(217,70,239,0.14);box-shadow:inset 0 2px 10px rgba(0,0,0,0.85), 0 0 26px rgba(217,70,239,0.12);display:flex;align-items:center;justify-content:center;">
+          <div style="flex:1 1 auto;position:relative;transform:translateZ(3px);padding:10px;border-radius:14px;background:linear-gradient(180deg,#0a0510,#0d0818);border:1px solid rgba(217,70,239,0.14);box-shadow:inset 0 2px 10px rgba(0,0,0,0.85), 0 0 26px rgba(217,70,239,0.12);display:flex;align-items:center;justify-content:center;">
+            <div style="{{ screenSpillStyle }}"></div>
             <div style="position:absolute;bottom:7px;right:11px;font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1.5px;color:rgba(148,163,184,0.4);pointer-events:none;">1.14&Prime; TFT &middot; 240&times;135 &middot; 16:9</div>
             <div style="position:relative;height:198px;aspect-ratio:16 / 9;border-radius:9px;overflow:hidden;background:#010306;box-shadow:inset 0 0 44px rgba(0,0,0,0.92), 0 0 0 1px rgba(0,0,0,0.6), 0 0 22px rgba(217,70,239,0.14);">
               <canvas ref="{{ screenCanvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
@@ -129,7 +166,7 @@
                         <span style="display:flex;align-items:center;gap:3px;">
                           <span style="position:relative;display:inline-block;width:13px;height:7px;border:1px solid var(--pdim,#5f93a6);border-radius:1px;">
                             <span style="position:absolute;right:-2.5px;top:1.5px;width:1.5px;height:3px;background:var(--pdim,#5f93a6);"></span>
-                            <span style="{{ battFillStyle }}"></span>
+                            <span style="{{ battWarnStyle }}"></span>
                           </span>
                           <span>{{ battPct }}</span>
                         </span>
@@ -274,18 +311,18 @@
                         <div ref="{{ aboutRef }}" style="position:absolute;inset:0;overflow-y:auto;pointer-events:auto;padding-right:4px;">
                           <div style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:15px;background:linear-gradient(135deg,var(--pacc,#5ee6f5),var(--pacc2,#f0abfc));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">POSEIDON</div>
                           <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);margin-top:1px;">Cardputer Advanced &middot; ESP32-S3 &middot; v3.9</div>
-                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);margin-top:6px;line-height:1.3;">A pocket multi-radio security workbench &mdash; WiFi, BLE, sub-GHz, LoRa, nRF24, IR, USB-HID &amp; LAN, with a defense note for every tool.</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);margin-top:6px;line-height:1.3;">A pocket multi-radio security workbench, WiFi, BLE, sub-GHz, LoRa, nRF24, IR, USB-HID &amp; LAN, with a defense note for every tool.</div>
                           <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin:9px 0 3px;">CREDITS &amp; RESEARCH</div>
                           <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxti,#a7c0cc);line-height:1.5;">
-                            SaltyJack &mdash; @7h30th3r0n3 (Evil-M5Project) &amp; RaspyJack<br>
-                            SourApple &mdash; ECTO-1A / research community<br>
-                            WhisperPair &mdash; COSIC KU Leuven (CVE-2025-36911)<br>
-                            BlueDucky &mdash; Marc Newlin / pentestfunctions (CVE-2023-45866)<br>
-                            MouseJack &mdash; Bastille Research<br>
-                            Meshtastic &middot; hashcat &middot; WiGLE &mdash; ecosystems used
+                            SaltyJack, @7h30th3r0n3 (Evil-M5Project) &amp; RaspyJack<br>
+                            SourApple, ECTO-1A / research community<br>
+                            WhisperPair, COSIC KU Leuven (CVE-2025-36911)<br>
+                            BlueDucky, Marc Newlin / pentestfunctions (CVE-2023-45866)<br>
+                            MouseJack, Bastille Research<br>
+                            Meshtastic &middot; hashcat &middot; WiGLE, ecosystems used
                           </div>
                           <div style="display:flex;align-items:center;gap:9px;margin-top:9px;padding-top:8px;border-top:1px solid var(--prule,#e833c0);">
-                            <img src="{{ qrUrl }}" alt="repo QR" width="46" height="46" style="border-radius:4px;image-rendering:pixelated;flex-shrink:0;background:#fff;display:block;"/>
+                            <span style="line-height:0;">{{ qrImg }}</span>
                             <div style="min-width:0;">
                               <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);">SCAN FOR REPO</div>
                               <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ptxta,#d7ebf7);margin-top:2px;white-space:nowrap;">{{ repoUrl }}</div>
@@ -326,7 +363,7 @@
                               </div>
                             </sc-if>
                             <sc-if value="{{ searchEmpty }}" hint-placeholder-val="{{ false }}">
-                              <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:var(--pdim,#5f93a6);padding:8px 4px;">No match &mdash; try &ldquo;deauth&rdquo;, &ldquo;tracker&rdquo;, &ldquo;lora&rdquo;&hellip;</div>
+                              <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:var(--pdim,#5f93a6);padding:8px 4px;">No match, try &ldquo;deauth&rdquo;, &ldquo;tracker&rdquo;, &ldquo;lora&rdquo;&hellip;</div>
                             </sc-if>
                           </div>
                         </div>
@@ -346,7 +383,7 @@
                       <div style="display:flex;gap:14px;">
                         <div style="flex:1;">
                           <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin-bottom:4px;">KEYS</div>
-                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);line-height:1.5;">; / . &mdash; move<br>letter &mdash; jump to item<br>&#9166; &mdash; open<br>= &mdash; info + defense<br>&#96; &mdash; back</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);line-height:1.5;">; / ., move<br>letter, jump to item<br>&#9166;, open<br>=, info + defense<br>&#96;, back</div>
                         </div>
                         <div style="flex:1;">
                           <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pgood,#7bf6b0);margin-bottom:4px;">LEGEND</div>
@@ -357,7 +394,7 @@
                           </div>
                         </div>
                       </div>
-                      <div style="margin-top:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pgood,#7bf6b0);">Demo &mdash; tools explain &amp; defend, they don't transmit. EDU // authorized use only.</div>
+                      <div style="margin-top:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pgood,#7bf6b0);">Demo, tools explain &amp; defend, they don't transmit. EDU // authorized use only.</div>
                     </div>
                   </sc-if>
 
@@ -369,7 +406,7 @@
                 <sc-if value="{{ dormant }}" hint-placeholder-val="{{ true }}">
                   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
                     <div style="text-align:center;">
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:5px;color:#5a6b80;">&mdash; DORMANT &mdash;</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:5px;color:#5a6b80;">, DORMANT ,</div>
                       <div style="margin-top:13px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#d946ef;animation:hintBlink 1.8s ease-in-out infinite;">PRESS &#9798; TO AWAKEN</div>
                     </div>
                   </div>
@@ -384,10 +421,11 @@
               <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:radial-gradient(120% 120% at 50% 50%, transparent 52%, rgba(0,0,0,0.6) 100%);"></div>
               <sc-if value="{{ notPaper }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:radial-gradient(85% 65% at 50% 22%, rgba(217,70,239,0.10), transparent 70%);mix-blend-mode:screen;animation:bloomFlicker 5s linear infinite;"></div></sc-if>
               <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 32%);"></div>
+              <div ref="{{ glareRef }}" style="position:absolute;inset:-12%;pointer-events:none;border-radius:9px;background:radial-gradient(46% 38% at 50% 26%, rgba(190,235,255,0.13), transparent 60%);mix-blend-mode:screen;will-change:transform;"></div>
             </div>
           </div>
 
-          <div style="flex:0 0 98px;display:flex;flex-direction:column;gap:8px;align-items:stretch;">
+          <div style="flex:0 0 98px;transform:translateZ(16px);display:flex;flex-direction:column;gap:8px;align-items:stretch;">
             <div style="height:38px;border-radius:9px;background:radial-gradient(circle at 32% 30%, #181228, #08060f);box-shadow:inset 0 0 12px rgba(0,0,0,0.85), 0 0 0 1px rgba(217,70,239,0.14);position:relative;overflow:hidden;">
               <div style="position:absolute;inset:6px;border-radius:6px;background-image:radial-gradient(circle, rgba(217,70,239,0.35) 1px, transparent 1.7px);background-size:6px 6px;opacity:.5;"></div>
             </div>
@@ -404,7 +442,7 @@
           </div>
         </div>
 
-        <div style="position:relative;margin-top:11px;display:grid;grid-template-columns:repeat(14,1fr);gap:5px;">{{ keyboardNode }}</div>
+        <div style="position:relative;margin-top:11px;display:grid;grid-template-columns:repeat(14,1fr);gap:5px;transform:translateZ(26px);transform-style:preserve-3d;">{{ keyboardNode }}</div>
 
         <div style="position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 4px;">
           <span style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:11px;letter-spacing:2px;color:#d946ef;">POSEIDON</span>
@@ -439,65 +477,65 @@
 // Every leaf carries plain-language "w" (what it does) + "d" (defend).
 // Submenu nodes carry children (c) + a category "w".
 const WIFI=[
- {k:"s",l:"Scan",sim:"wscan",h:"Scan + list nearby APs",w:"Actively scans 2.4 GHz and lists nearby access points \u2014 SSID, BSSID, channel, signal and encryption. ENTER on an AP hands it to the attack tools.",d:"You can't hide from a scan; networks must broadcast. Use WPA3 and never treat a hidden SSID as security."},
- {k:"l",l:"Clients",h:"Hunt ALL clients (all channels)",w:"Channel-hops 1\u201313 in monitor mode and catalogs every client-to-AP pairing it sees, so you learn which devices sit on which network.",d:"Passive discovery can't be blocked. Use WPA3 / 802.11w so the follow-on deauth and tracking fail."},
- {k:"o",l:"AP Clients",h:"List STAs on last-scanned AP",w:"Locks to one chosen AP and lists only its associated clients \u2014 faster than the global hunt when you already have a target.",d:"Also passive. WPA3 + Protected Management Frames neutralize what an attacker does with the list."},
- {k:"d",l:"Deauth",sim:"deauth",h:"Jam target AP (typed or picked)",w:"Sends spoofed 802.11 deauthentication frames as the AP, repeatedly knocking its clients offline.",d:"Enable WPA3 with 802.11w (PMF) \u2014 it signs management frames so forged deauths are ignored."},
- {k:"x",l:"Deauth all",h:"Broadcast deauth all clients",w:"Broadcast deauth to FF:FF:FF:FF:FF:FF kicks every client of an AP at once \u2014 often paired with handshake capture on reconnect.",d:"802.11w (mandatory in WPA3) makes broadcast deauth ineffective; enable PMF on WPA2 where supported."},
- {k:"e",l:"Deauth det.",h:"Passive deauth frame detector",w:"Passively sniffs the air for deauth / disassoc frames and shows the live rate and source \u2014 it catches other attackers near you.",d:"This is a defensive tool. A spike in deauth frames means someone is jamming \u2014 move to a PMF network."},
+ {k:"s",l:"Scan",sim:"wscan",h:"Scan + list nearby APs",w:"Actively scans 2.4 GHz and lists nearby access points, SSID, BSSID, channel, signal and encryption. ENTER on an AP hands it to the attack tools.",d:"You can't hide from a scan; networks must broadcast. Use WPA3 and never treat a hidden SSID as security."},
+ {k:"l",l:"Clients",h:"Hunt ALL clients (all channels)",w:"Channel-hops 1-13 in monitor mode and catalogs every client-to-AP pairing it sees, so you learn which devices sit on which network.",d:"Passive discovery can't be blocked. Use WPA3 / 802.11w so the follow-on deauth and tracking fail."},
+ {k:"o",l:"AP Clients",h:"List STAs on last-scanned AP",w:"Locks to one chosen AP and lists only its associated clients, faster than the global hunt when you already have a target.",d:"Also passive. WPA3 + Protected Management Frames neutralize what an attacker does with the list."},
+ {k:"d",l:"Deauth",sim:"deauth",h:"Jam target AP (typed or picked)",w:"Sends spoofed 802.11 deauthentication frames as the AP, repeatedly knocking its clients offline.",d:"Enable WPA3 with 802.11w (PMF), it signs management frames so forged deauths are ignored."},
+ {k:"x",l:"Deauth all",h:"Broadcast deauth all clients",w:"Broadcast deauth to FF:FF:FF:FF:FF:FF kicks every client of an AP at once, often paired with handshake capture on reconnect.",d:"802.11w (mandatory in WPA3) makes broadcast deauth ineffective; enable PMF on WPA2 where supported."},
+ {k:"e",l:"Deauth det.",h:"Passive deauth frame detector",w:"Passively sniffs the air for deauth / disassoc frames and shows the live rate and source, it catches other attackers near you.",d:"This is a defensive tool. A spike in deauth frames means someone is jamming, move to a PMF network."},
  {k:"c",l:"AP Clone",h:"Mirror scanned AP, lure clients",w:"Stands up a soft-AP reusing a real network's SSID so devices that saved the original may auto-roam onto the rogue.",d:"Turn off auto-join for open/known networks; enterprise EAP binds clients to a server cert a clone can't forge."},
  {k:"p",l:"Portal",sim:"portal",h:"Evil captive portal (16 templates)",w:"Captive portal with DNS hijack serving fake login pages (Google, Microsoft, Apple, hotel / airport WiFi) and logs whatever is typed.",d:"Never type credentials into a captive portal. Check the URL and certificate; real logins use HTTPS on the real domain."},
- {k:"i",l:"Evil Twin",h:"Clone AP + portal + auto-deauth",w:"One-button chain that time-slices between deauthing a target AP and beaconing a rogue clone with a captive portal to harvest credentials.",d:"WPA3/PMF blocks the deauth half; enterprise EAP with cert validation blocks the clone. Verify portals before entering anything."},
- {k:"t",l:"AP Signal Test",h:"Diagnostic: is the AP broadcasting?",w:"Diagnostic that brings up a known test SSID to confirm the soft-AP radio path actually transmits \u2014 isolates hardware from feature bugs.",d:"Diagnostic tool, not an attack \u2014 no defensive action needed."},
+ {k:"i",l:"Evil Twin",sim:"eviltwin",h:"Clone AP + portal + auto-deauth",w:"One-button chain that time-slices between deauthing a target AP and beaconing a rogue clone with a captive portal to harvest credentials.",d:"WPA3/PMF blocks the deauth half; enterprise EAP with cert validation blocks the clone. Verify portals before entering anything."},
+ {k:"t",l:"AP Signal Test",h:"Diagnostic: is the AP broadcasting?",w:"Diagnostic that brings up a known test SSID to confirm the soft-AP radio path actually transmits, isolates hardware from feature bugs.",d:"Diagnostic tool, not an attack, no defensive action needed."},
  {k:"k",l:"Karma",h:"Auto-respond to probe requests",w:"Listens for the networks phones are searching for, then instantly impersonates one so saved-network auto-join connects the victim to the attacker.",d:"Disable auto-join for open networks and forget old saved SSIDs; phones that randomize probes resist Karma."},
- {k:"b",l:"Beacon spam",h:"Broadcast fake SSIDs",w:"Floods the air with hundreds of fake network names, cluttering everyone's WiFi list (meme lists plus custom entries).",d:"Mostly a nuisance. Keep client firmware updated and never auto-connect to unfamiliar SSIDs."},
- {k:"r",l:"Probe sniff",h:"Log probe requests + clients",w:"Passively logs which network names each nearby device hunts for, revealing the networks a person has saved \u2014 a profiling goldmine.",d:"Update devices to randomize MACs and stop naming saved networks in probes; forget networks you don't need."},
- {k:"m",l:"PMKID cap",h:"EAPOL M1 -> hashcat 22000",w:"Captures the PMKID and/or full 4-way handshake in hashcat-22000 format for offline cracking; a HUNT mode deauths APs to force reconnects.",d:"Use a long random passphrase and WPA3-SAE \u2014 SAE removes the offline-crackable handshake this relies on."},
- {k:"g",l:"Spectrum",sim:"spectrum",h:"2.4 GHz channel activity bars",w:"Real-time 2.4 GHz spectrum: hops channels 1\u201313 and shows peak signal per channel as colored bars.",d:"Passive RF visualization \u2014 nothing to defend. Useful for spotting congestion or a jammer."},
- {k:"w",l:"Wardrive",h:"Channel hop + GPS -> WiGLE CSV",w:"Logs every beacon it hears with a GPS coordinate to WiGLE-format CSV, mapping where networks physically are.",d:"Only public beacon data is logged; nothing client-side to fix \u2014 it maps the network's own broadcasts."},
- {k:"n",l:"Connect",h:"Join saved WiFi network",w:"Saves an SSID/password and joins as a normal client \u2014 required before the LAN / Network tools can run.",d:"Utility, not an attack. Keep your own passphrase strong and secret."},
- {k:"y",l:"DefMon",h:"Defensive WiFi+BLE monitor",w:"Passive detector for deauth floods, evil twins, beacon spam, Karma and BLE spoof/flood \u2014 logs alerts with GPS and chirps on each new class.",d:"This IS the defense. Run it in hostile spaces to detect active WiFi/BLE attacks around you in real time."},
- {k:"u",l:"Cable Guard",h:"Detect malicious USB cable implants",w:"Two-phase RF scan: baseline the room with a suspect cable unplugged, plug it in, and flag any radio that switched on \u2014 scored against known implant signatures (O.MG etc.).",d:"Only use cables and chargers you trust; this catches active implants, but a dormant one can hide \u2014 buy from reputable sources."},
- {k:"v",l:"Surveil",h:"Flock/Raven surveillance detector",w:"Passively fingerprints Flock Safety ALPR cameras and ShotSpotter gunshot sensors by OUI / SSID / probe patterns and GPS-tags each hit.",d:"Awareness tool \u2014 use it to learn where fixed surveillance sensors are; nothing to defend beyond knowing."},
- {k:"z",l:"CIW Zeroclick",h:"SSID injection payload broadcast",w:"Broadcasts beacons whose SSID field carries exploit payloads (command injection, buffer overflow, XSS, Log4Shell) aimed at buggy WiFi-driver and UI parsers.",d:"Keep device and router firmware patched \u2014 these target unsanitized SSID parsing that vendors fix over time."},
+ {k:"b",l:"Beacon spam",sim:"beaconspam",h:"Broadcast fake SSIDs",w:"Floods the air with hundreds of fake network names, cluttering everyone's WiFi list (meme lists plus custom entries).",d:"Mostly a nuisance. Keep client firmware updated and never auto-connect to unfamiliar SSIDs."},
+ {k:"r",l:"Probe sniff",h:"Log probe requests + clients",w:"Passively logs which network names each nearby device hunts for, revealing the networks a person has saved, a profiling goldmine.",d:"Update devices to randomize MACs and stop naming saved networks in probes; forget networks you don't need."},
+ {k:"m",l:"PMKID cap",h:"EAPOL M1 -> hashcat 22000",w:"Captures the PMKID and/or full 4-way handshake in hashcat-22000 format for offline cracking; a HUNT mode deauths APs to force reconnects.",d:"Use a long random passphrase and WPA3-SAE, SAE removes the offline-crackable handshake this relies on."},
+ {k:"g",l:"Spectrum",sim:"spectrum",h:"2.4 GHz channel activity bars",w:"Real-time 2.4 GHz spectrum: hops channels 1-13 and shows peak signal per channel as colored bars.",d:"Passive RF visualization, nothing to defend. Useful for spotting congestion or a jammer."},
+ {k:"w",l:"Wardrive",sim:"wardrivemap",h:"Channel hop + GPS -> WiGLE CSV",w:"Logs every beacon it hears with a GPS coordinate to WiGLE-format CSV, mapping where networks physically are.",d:"Only public beacon data is logged; nothing client-side to fix, it maps the network's own broadcasts."},
+ {k:"n",l:"Connect",h:"Join saved WiFi network",w:"Saves an SSID/password and joins as a normal client, required before the LAN / Network tools can run.",d:"Utility, not an attack. Keep your own passphrase strong and secret."},
+ {k:"y",l:"DefMon",h:"Defensive WiFi+BLE monitor",w:"Passive detector for deauth floods, evil twins, beacon spam, Karma and BLE spoof/flood, logs alerts with GPS and chirps on each new class.",d:"This IS the defense. Run it in hostile spaces to detect active WiFi/BLE attacks around you in real time."},
+ {k:"u",l:"Cable Guard",h:"Detect malicious USB cable implants",w:"Two-phase RF scan: baseline the room with a suspect cable unplugged, plug it in, and flag any radio that switched on, scored against known implant signatures (O.MG etc.).",d:"Only use cables and chargers you trust; this catches active implants, but a dormant one can hide, buy from reputable sources."},
+ {k:"v",l:"Surveil",h:"Flock/Raven surveillance detector",w:"Passively fingerprints Flock Safety ALPR cameras and ShotSpotter gunshot sensors by OUI / SSID / probe patterns and GPS-tags each hit.",d:"Awareness tool, use it to learn where fixed surveillance sensors are; nothing to defend beyond knowing."},
+ {k:"z",l:"CIW Zeroclick",h:"SSID injection payload broadcast",w:"Broadcasts beacons whose SSID field carries exploit payloads (command injection, buffer overflow, XSS, Log4Shell) aimed at buggy WiFi-driver and UI parsers.",d:"Keep device and router firmware patched, these target unsanitized SSID parsing that vendors fix over time."},
 ];
 const BLE=[
- {k:"s",l:"Scan",h:"Discover BLE devices",w:"Passive BLE scan that identifies nearby devices; ENTER opens details where GATT / clone / HID / flood / spam hotkeys target that device.",d:"Turn Bluetooth off when unused; modern OSes rotate BLE MACs to resist tracking \u2014 keep them updated."},
- {k:"p",l:"Spam",h:"Apple/Samsung/etc popups",w:"Broadcasts fake pairing adverts that trigger native connect popups on nearby phones (AirPods, SmartTag, Fast Pair, Swift Pair).",d:"Update iOS/Android/Windows \u2014 vendors patched much of the popup spam; ignore unexpected pairing prompts."},
+ {k:"s",l:"Scan",h:"Discover BLE devices",w:"Passive BLE scan that identifies nearby devices; ENTER opens details where GATT / clone / HID / flood / spam hotkeys target that device.",d:"Turn Bluetooth off when unused; modern OSes rotate BLE MACs to resist tracking, keep them updated."},
+ {k:"p",l:"Spam",h:"Apple/Samsung/etc popups",w:"Broadcasts fake pairing adverts that trigger native connect popups on nearby phones (AirPods, SmartTag, Fast Pair, Swift Pair).",d:"Update iOS/Android/Windows, vendors patched much of the popup spam; ignore unexpected pairing prompts."},
  {k:"h",l:"Bad-KB",h:"BLE HID keyboard attack",w:"Advertises as a Bluetooth keyboard under a disguised name; once a target pairs it can type keystrokes, lock the screen or run scripts.",d:"Don't pair unknown Bluetooth keyboards; review paired devices and remove ones you don't recognize."},
- {k:"t",l:"Tracker",sim:"btrack",h:"Detect AirTag/SmartTag/Tile",w:"Scans for Apple Find My, Samsung SmartTag and Tile trackers, showing distance class, signal and MAC; new hits flash and chirp.",d:"This is a defense \u2014 run periodic scans to catch an unwanted tracker planted on you or your vehicle."},
- {k:"f",l:"Finder",h:"Hunt a rogue tracker (geiger)",w:"Pick a tracker, then a geiger-style proximity meter beeps faster as you close in \u2014 used to physically locate a tracker following you.",d:"Defensive tool. If you find a tracker you don't own, locate it and involve authorities if it was planted."},
- {k:"d",l:"Drone RID",h:"Detect FAA Remote ID broadcasts",w:"Passively decodes ASTM Remote ID beacons from compliant drones \u2014 UAS ID plus drone and operator GPS location.",d:"Awareness tool \u2014 use it to know when a Remote-ID drone is nearby and roughly where the pilot is."},
+ {k:"t",l:"Tracker",sim:"btrack",h:"Detect AirTag/SmartTag/Tile",w:"Scans for Apple Find My, Samsung SmartTag and Tile trackers, showing distance class, signal and MAC; new hits flash and chirp.",d:"This is a defense, run periodic scans to catch an unwanted tracker planted on you or your vehicle."},
+ {k:"f",l:"Finder",h:"Hunt a rogue tracker (geiger)",w:"Pick a tracker, then a geiger-style proximity meter beeps faster as you close in, used to physically locate a tracker following you.",d:"Defensive tool. If you find a tracker you don't own, locate it and involve authorities if it was planted."},
+ {k:"d",l:"Drone RID",h:"Detect FAA Remote ID broadcasts",w:"Passively decodes ASTM Remote ID beacons from compliant drones, UAS ID plus drone and operator GPS location.",d:"Awareness tool, use it to know when a Remote-ID drone is nearby and roughly where the pilot is."},
  {k:"n",l:"Sniffer",h:"Log all BLE adv -> SD CSV",w:"Dumps every BLE advertisement to CSV (time, MAC, RSSI, name, raw hex) for passive recon or offline analysis.",d:"Passive capture of public adverts. Disable Bluetooth when idle to reduce what you broadcast."},
- {k:"b",l:"iBeacon",h:"Broadcast an iBeacon",w:"Broadcasts a standard iBeacon advertisement (UUID plus major/minor) that beacon apps will detect.",d:"Harmless beacon broadcast \u2014 no attack surface to defend."},
- {k:"c",l:"Clone",h:"Rebroadcast last scanned MAC",w:"Rebroadcasts a scanned device's MAC and name as a connectable advert with a minimal GATT server \u2014 handy for honeypots and impersonation.",d:"Devices that verify a signed identity (not just MAC/name) resist impersonation; bond only with trusted peripherals."},
- {k:"g",l:"GATT",cat:"attack",h:"Connect + enumerate + r/w",w:"A pocket nRF-Connect: connects, walks services and characteristics and reads or writes raw values \u2014 key for probing smart locks and IoT.",d:"Require bonded, encrypted characteristics; don't expose sensitive read/write handles to unauthenticated connections."},
- {k:"x",l:"Flood",h:"DoS connection storm to target",w:"Hammers a target's BLE connection queue with rapid connects from random MACs \u2014 effective against locks, speakers and trackers that hold few connections.",d:"Keep peripheral firmware updated; devices with connection rate-limiting resist the flood."},
+ {k:"b",l:"iBeacon",h:"Broadcast an iBeacon",w:"Broadcasts a standard iBeacon advertisement (UUID plus major/minor) that beacon apps will detect.",d:"Harmless beacon broadcast, no attack surface to defend."},
+ {k:"c",l:"Clone",h:"Rebroadcast last scanned MAC",w:"Rebroadcasts a scanned device's MAC and name as a connectable advert with a minimal GATT server, handy for honeypots and impersonation.",d:"Devices that verify a signed identity (not just MAC/name) resist impersonation; bond only with trusted peripherals."},
+ {k:"g",l:"GATT",cat:"attack",h:"Connect + enumerate + r/w",w:"A pocket nRF-Connect: connects, walks services and characteristics and reads or writes raw values, key for probing smart locks and IoT.",d:"Require bonded, encrypted characteristics; don't expose sensitive read/write handles to unauthenticated connections."},
+ {k:"x",l:"Flood",h:"DoS connection storm to target",w:"Hammers a target's BLE connection queue with rapid connects from random MACs, effective against locks, speakers and trackers that hold few connections.",d:"Keep peripheral firmware updated; devices with connection rate-limiting resist the flood."},
  {k:"k",l:"Karma",h:"Rotate identity, lure pairings",w:"Cycles popular device names, each a connectable AP with a fresh random MAC, so phones hunting a known device may auto-pair with the attacker.",d:"Disable auto-reconnect for accessories you don't have with you; remove stale bonds."},
- {k:"a",l:"SourApple",h:"Multi-vendor BLE spam",w:"Rotating BLE spam across seven packet types (Apple proximity/AirTag, Samsung EasySetup, Swift Pair, Google Fast Pair) so every nearby device gets popup-bombed.",d:"Update your OS \u2014 the crash variants are patched; dismiss and ignore unexpected pairing modals."},
- {k:"y",l:"Find My",cat:"attack",h:"Fake AirTag broadcaster",w:"Broadcasts fake Apple Find My / AirTag adverts with rotating keys; passing iPhones relay the tags to iCloud location \u2014 a covert location channel.",d:"Keep iOS updated (Apple tightened Find My anti-abuse); run tracker detection if you suspect you're followed."},
+ {k:"a",l:"SourApple",h:"Multi-vendor BLE spam",w:"Rotating BLE spam across seven packet types (Apple proximity/AirTag, Samsung EasySetup, Swift Pair, Google Fast Pair) so every nearby device gets popup-bombed.",d:"Update your OS, the crash variants are patched; dismiss and ignore unexpected pairing modals."},
+ {k:"y",l:"Find My",cat:"attack",h:"Fake AirTag broadcaster",w:"Broadcasts fake Apple Find My / AirTag adverts with rotating keys; passing iPhones relay the tags to iCloud location, a covert location channel.",d:"Keep iOS updated (Apple tightened Find My anti-abuse); run tracker detection if you suspect you're followed."},
  {k:"d",l:"Salty Deep",h:"Wireless toy scanner + controller",w:"Scans for and connects to consumer intimate devices (Lovense / WeVibe etc.), exposing that many ship with no pairing authentication at all.",d:"Only pair such devices in private; prefer products that require app-level authentication and encryption."},
- {k:"w",l:"WhisperPair",cat:"attack",cve:"CVE-2025-36911",h:"CVE-2025-36911 Fast Pair probe",w:"Probes Google Fast Pair earbuds by writing a bogus Key-Based Pairing blob; a response means vulnerable, a silent drop means patched.",d:"Update earbud firmware through the manufacturer app \u2014 patches are rolling out unevenly."},
+ {k:"w",l:"WhisperPair",cat:"attack",cve:"CVE-2025-36911",h:"CVE-2025-36911 Fast Pair probe",w:"Probes Google Fast Pair earbuds by writing a bogus Key-Based Pairing blob; a response means vulnerable, a silent drop means patched.",d:"Update earbud firmware through the manufacturer app, patches are rolling out unevenly."},
  {k:"q",l:"BlueDucky",cve:"CVE-2023-45866",h:"BLE HID inject (CVE-2023-45866)",w:"Exploits CVE-2023-45866: advertises as a BLE keyboard and injects keystrokes into unpatched Android without the pairing dialog being confirmed.",d:"Install the December-2023-or-later Android security patch; turn Bluetooth off when not needed."},
 ];
 const IR_PRANKS=[
- {k:"b",l:"Power Bomb",h:"All 27 brands' power codes",w:"Fires every brand's power-off code back-to-back, covering most TVs, projectors and soundbars in a room within a few seconds.",d:"Prank \u2014 block line-of-sight to the IR emitter or power-cycle the display."},
- {k:"c",l:"Ch Scramble",h:"Spam Ch+ on Samsung+LG",w:"Rapidly spams Channel-Up on Samsung and LG, flipping through dozens of channels before the victim can react.",d:"Prank \u2014 grab the real remote or block the IR path."},
- {k:"v",l:"Volume Bomb",h:"Vol+ x30 on Samsung+LG",w:"Slams Volume-Up about thirty times on Samsung and LG, driving TVs and soundbars toward max.",d:"Prank \u2014 mute at the source or block line-of-sight."},
- {k:"r",l:"Source Roulette",h:"Cycle TV inputs 12x",w:"Presses Source twelve times with human-like delays, cycling inputs so the screen shows No Signal.",d:"Prank \u2014 just reselect the correct input."},
- {k:"m",l:"Mute Torture",h:"Toggle mute every 800ms",w:"Toggles mute every 800 ms for 30 seconds, stuttering audio on a maddening cadence.",d:"Prank \u2014 power-cycle or block the IR path."},
- {k:"p",l:"Permanent Off",h:"Power-bomb every 3s for 5 min",w:"Fires the full 27-brand power bomb every 3 seconds for five minutes so the display can't stay on.",d:"Prank \u2014 unplug briefly or block line-of-sight to reset."},
- {k:"o",l:"Cable Flakes",h:"3 input-loss cycles, 45s apart",w:"Three input-loss simulations about 45 seconds apart, mimicking a cable box that keeps losing signal.",d:"Prank \u2014 reselect the input; there is no lasting effect."},
- {k:"a",l:"Caption Chaos",h:"Toggle CC every 600ms",w:"Rapidly toggles closed captions (and sometimes caption language) every 600 ms.",d:"Prank \u2014 turn captions off from the real remote."},
- {k:"s",l:"Sleep 180",h:"Samsung sleep timer to 180 min",w:"Cycles the Samsung sleep timer to 180 minutes so the TV powers off hours later with no obvious cause.",d:"Prank \u2014 open the TV menu and clear the sleep timer."},
- {k:"k",l:"AC Chaos",h:"Daikin/Mitsubishi/LG AC toggle",w:"Replays captured Daikin / Mitsubishi / LG air-conditioner power-toggle states \u2014 office HVAC roulette.",d:"Prank \u2014 use the real A/C remote to restore state."},
+ {k:"b",l:"Power Bomb",h:"All 27 brands' power codes",w:"Fires every brand's power-off code back-to-back, covering most TVs, projectors and soundbars in a room within a few seconds.",d:"Prank, block line-of-sight to the IR emitter or power-cycle the display."},
+ {k:"c",l:"Ch Scramble",h:"Spam Ch+ on Samsung+LG",w:"Rapidly spams Channel-Up on Samsung and LG, flipping through dozens of channels before the victim can react.",d:"Prank, grab the real remote or block the IR path."},
+ {k:"v",l:"Volume Bomb",h:"Vol+ x30 on Samsung+LG",w:"Slams Volume-Up about thirty times on Samsung and LG, driving TVs and soundbars toward max.",d:"Prank, mute at the source or block line-of-sight."},
+ {k:"r",l:"Source Roulette",h:"Cycle TV inputs 12x",w:"Presses Source twelve times with human-like delays, cycling inputs so the screen shows No Signal.",d:"Prank, just reselect the correct input."},
+ {k:"m",l:"Mute Torture",h:"Toggle mute every 800ms",w:"Toggles mute every 800 ms for 30 seconds, stuttering audio on a maddening cadence.",d:"Prank, power-cycle or block the IR path."},
+ {k:"p",l:"Permanent Off",h:"Power-bomb every 3s for 5 min",w:"Fires the full 27-brand power bomb every 3 seconds for five minutes so the display can't stay on.",d:"Prank, unplug briefly or block line-of-sight to reset."},
+ {k:"o",l:"Cable Flakes",h:"3 input-loss cycles, 45s apart",w:"Three input-loss simulations about 45 seconds apart, mimicking a cable box that keeps losing signal.",d:"Prank, reselect the input; there is no lasting effect."},
+ {k:"a",l:"Caption Chaos",h:"Toggle CC every 600ms",w:"Rapidly toggles closed captions (and sometimes caption language) every 600 ms.",d:"Prank, turn captions off from the real remote."},
+ {k:"s",l:"Sleep 180",h:"Samsung sleep timer to 180 min",w:"Cycles the Samsung sleep timer to 180 minutes so the TV powers off hours later with no obvious cause.",d:"Prank, open the TV menu and clear the sleep timer."},
+ {k:"k",l:"AC Chaos",h:"Daikin/Mitsubishi/LG AC toggle",w:"Replays captured Daikin / Mitsubishi / LG air-conditioner power-toggle states, office HVAC roulette.",d:"Prank, use the real A/C remote to restore state."},
 ];
 const IR=[
- {k:"t",l:"TV-B-Gone",h:"Kill nearby TVs",w:"Cycles power-off IR codes for major TV brands \u2014 point the top edge at a TV to turn it off.",d:"IR needs line of sight \u2014 a prank. Nothing to defend beyond blocking the IR path."},
+ {k:"t",l:"TV-B-Gone",h:"Kill nearby TVs",w:"Cycles power-off IR codes for major TV brands, point the top edge at a TV to turn it off.",d:"IR needs line of sight, a prank. Nothing to defend beyond blocking the IR path."},
  {k:"r",l:"Remote",h:"Virtual Samsung remote",w:"A virtual Samsung TV remote: power, mute, volume, channel, digits, source, home and back over IR.",d:"Line-of-sight only; no security impact."},
- {k:"c",l:"Clone",cat:"utility",h:"Multi-profile IR remote",w:"Pre-installed Samsung / LG / Sony remote profiles firing IR from the TX LED; a future update adds capture-from-real-remote and Flipper .ir import.",d:"IR is unauthenticated by design \u2014 keep IR-controlled gear out of a stranger's line-of-sight if it matters."},
- {k:"p",l:"Pranks",h:"10 one-shot IR pranks",w:"Ten one-shot IR pranks layered on TV-B-Gone \u2014 power, volume, channel, source, mute, caption and sleep chaos plus A/C toggles.",c:IR_PRANKS},
- {k:"x",l:"LED Test",h:"Verify IR LED pin + polarity",w:"Hardware diagnostic that drives candidate pins and polarities so you can confirm which lights the IR LED (view it through a phone camera).",d:"Diagnostic tool \u2014 no defensive action."},
+ {k:"c",l:"Clone",cat:"utility",h:"Multi-profile IR remote",w:"Pre-installed Samsung / LG / Sony remote profiles firing IR from the TX LED; a future update adds capture-from-real-remote and Flipper .ir import.",d:"IR is unauthenticated by design, keep IR-controlled gear out of a stranger's line-of-sight if it matters."},
+ {k:"p",l:"Pranks",h:"10 one-shot IR pranks",w:"Ten one-shot IR pranks layered on TV-B-Gone, power, volume, channel, source, mute, caption and sleep chaos plus A/C toggles.",c:IR_PRANKS},
+ {k:"x",l:"LED Test",h:"Verify IR LED pin + polarity",w:"Hardware diagnostic that drives candidate pins and polarities so you can confirm which lights the IR LED (view it through a phone camera).",d:"Diagnostic tool, no defensive action."},
 ];
 const NRF52=[
  {k:"s",l:"Scan",h:"BLE 5 full scan (all PHYs)",w:"Uses an add-on nRF52840 to actively scan BLE on 1M + 2M + Coded PHYs, catching BLE 5 long-range beacons the main chip can't see.",d:"Turn Bluetooth off when idle; there's no stopping passive scanning of what you advertise."},
@@ -505,33 +543,33 @@ const NRF52=[
  {k:"n",l:"Sniffer",h:"All BLE adv + decode + pcap",w:"Passively sniffs every BLE advertisement on every channel and dumps a pcap to SD for Wireshark.",d:"Passive capture of public data; minimize what your devices advertise."},
  {k:"z",l:"Zigbee",h:"802.15.4 sniffer (Zigbee/Thread)",w:"IEEE 802.15.4 sniffer for Zigbee, Thread, OpenThread and Matter-over-Thread mesh traffic.",d:"Use non-default Zigbee network keys and rotate them so sniffed frames stay encrypted."},
  {k:"m",l:"MITM",h:"BLE 5 connection follow + hijack",w:"Follows a live BLE connection, jams the peripheral on its hop channel and hijacks the link (BTLEJack-style with full BLE 5 PHY support).",d:"Use LE Secure Connections (numeric comparison) so a hijacked link can't complete pairing."},
- {k:"r",l:"MITM Relay",h:"Active BLE GATT proxy",w:"Connects to a real peripheral while advertising a clone to the victim, relaying and logging every GATT operation between them.",d:"Require bonded, encrypted characteristics and verify device identity \u2014 a relay can't forge a valid bond."},
+ {k:"r",l:"MITM Relay",h:"Active BLE GATT proxy",w:"Connects to a real peripheral while advertising a clone to the victim, relaying and logging every GATT operation between them.",d:"Require bonded, encrypted characteristics and verify device identity, a relay can't forge a valid bond."},
  {k:"k",l:"Scout+Strike",h:"Recon -> pick -> kill workflow",w:"A two-phase pipeline: passively scan and classify BLE devices, pick a target, then jam / disconnect / deauth it.",d:"LE Secure Connections plus PMF-style protections limit the strike; keep firmware current."},
- {k:"c",l:"WiFi+BLE Combo",h:"Deauth -> BLE pairing capture",w:"Deauths a smart-home device off WiFi with the main chip while the nRF52 captures the BLE provisioning handshake it falls back to \u2014 a unique cross-radio attack.",d:"Provision IoT over an encrypted channel and use WPA3 so the WiFi deauth that triggers BLE fallback fails."},
+ {k:"c",l:"WiFi+BLE Combo",h:"Deauth -> BLE pairing capture",w:"Deauths a smart-home device off WiFi with the main chip while the nRF52 captures the BLE provisioning handshake it falls back to, a unique cross-radio attack.",d:"Provision IoT over an encrypted channel and use WPA3 so the WiFi deauth that triggers BLE fallback fails."},
 ];
 const BADUSB=[
- {k:"b",l:"Built-in",h:"5 starter payloads",w:"The starter DuckyScript shortlist \u2014 types a greeting, opens Notepad, rickrolls via Run, locks the workstation or opens a terminal \u2014 for quick demos.",d:"Lock your screen when away; disable or whitelist USB HID on sensitive machines so a plugged-in keyboard can't type."},
- {k:"p",l:"Pranks",h:"Vibe-organized chaos reel",w:"59 prank payloads across 7 vibes (gaslight, visible chaos, lockers, browser doom, fake hack, loud, classic), each tagged by target OS.",d:"Same as any BadUSB \u2014 screen lock, USB port control, and never leave a machine logged in and unattended."},
- {k:"w",l:"Windows",h:"44 payloads",w:"44 Windows payloads: Run-dialog openers, local WiFi-profile dumps and system-info printouts \u2014 all self-contained with no exfil to attacker servers.",d:"Enforce screen lock and USB device-control policies; log and alert on new HID device enumeration."},
- {k:"m",l:"macOS",h:"24 payloads",w:"24 macOS payloads: Spotlight openers, Terminal scripts, AppleScript snippets and system info to the Desktop \u2014 all local-only.",d:"Require a password after sleep; use MDM to restrict USB accessory access."},
+ {k:"b",l:"Built-in",h:"5 starter payloads",w:"The starter DuckyScript shortlist, types a greeting, opens Notepad, rickrolls via Run, locks the workstation or opens a terminal, for quick demos.",d:"Lock your screen when away; disable or whitelist USB HID on sensitive machines so a plugged-in keyboard can't type."},
+ {k:"p",l:"Pranks",h:"Vibe-organized chaos reel",w:"59 prank payloads across 7 vibes (gaslight, visible chaos, lockers, browser doom, fake hack, loud, classic), each tagged by target OS.",d:"Same as any BadUSB, screen lock, USB port control, and never leave a machine logged in and unattended."},
+ {k:"w",l:"Windows",h:"44 payloads",w:"44 Windows payloads: Run-dialog openers, local WiFi-profile dumps and system-info printouts, all self-contained with no exfil to attacker servers.",d:"Enforce screen lock and USB device-control policies; log and alert on new HID device enumeration."},
+ {k:"m",l:"macOS",h:"24 payloads",w:"24 macOS payloads: Spotlight openers, Terminal scripts, AppleScript snippets and system info to the Desktop, all local-only.",d:"Require a password after sleep; use MDM to restrict USB accessory access."},
  {k:"l",l:"Linux",h:"19 payloads",w:"19 Linux payloads: terminal openers, harmless info commands (uname, ip a) and local file ops for desktop distros.",d:"Lock the session; udev rules can restrict which USB HID devices are allowed to attach."},
- {k:"a",l:"Android",h:"11 payloads",w:"11 Android payloads over USB-OTG: app-drawer search openers, Settings deep-links and screenshot triggers \u2014 needs the phone to accept a HID keyboard.",d:"Don't grant USB access to unknown cables or hosts; keep the screen locked when charging in public."},
+ {k:"a",l:"Android",h:"11 payloads",w:"11 Android payloads over USB-OTG: app-drawer search openers, Settings deep-links and screenshot triggers, needs the phone to accept a HID keyboard.",d:"Don't grant USB access to unknown cables or hosts; keep the screen locked when charging in public."},
  {k:"c",l:"ChromeOS",h:"8 payloads",w:"8 ChromeOS payloads: Chrome shortcuts, crosh terminal opener, Settings deep-links and screenshots for USB-C HID on Chromebooks.",d:"Enable USB-guard / admin policies on managed Chromebooks; lock the screen when away."},
 ];
 const NET_ATTACKS=[
- {k:"u",l:"UART Shell",h:"Serial bridge to UART1",w:"Bridges the keyboard to a UART port (or Grove pins) with auto or manual baud \u2014 a serial console to attached hardware.",d:"Disable or physically protect exposed UART / debug headers on production devices."},
- {k:"t",l:"TCP Tunnel",h:"Reverse connect-back TCP client",w:"Opens an outbound TCP connection to a host and port and relays keyboard input as commands \u2014 a simple reverse-shell relay.",d:"Egress-filter outbound connections and alert on unexpected phone-home traffic."},
- {k:"h",l:"Honeypot",h:"Fake telnet server on :23",w:"Runs a fake Ubuntu telnet login on port 23 and logs every username, password and command attempted.",d:"This is a deception / defense tool \u2014 deploy it to catch who's probing your network."},
- {k:"d",l:"Dead Drop",h:"Hidden AP for anonymous drops",w:"Creates a hidden AP with a captive page for anonymous file uploads and notes, stored on SD.",d:"Scan for unexpected hidden APs \u2014 this is a covert exfiltration channel to be aware of."},
+ {k:"u",l:"UART Shell",h:"Serial bridge to UART1",w:"Bridges the keyboard to a UART port (or Grove pins) with auto or manual baud, a serial console to attached hardware.",d:"Disable or physically protect exposed UART / debug headers on production devices."},
+ {k:"t",l:"TCP Tunnel",h:"Reverse connect-back TCP client",w:"Opens an outbound TCP connection to a host and port and relays keyboard input as commands, a simple reverse-shell relay.",d:"Egress-filter outbound connections and alert on unexpected phone-home traffic."},
+ {k:"h",l:"Honeypot",h:"Fake telnet server on :23",w:"Runs a fake Ubuntu telnet login on port 23 and logs every username, password and command attempted.",d:"This is a deception / defense tool, deploy it to catch who's probing your network."},
+ {k:"d",l:"Dead Drop",h:"Hidden AP for anonymous drops",w:"Creates a hidden AP with a captive page for anonymous file uploads and notes, stored on SD.",d:"Scan for unexpected hidden APs, this is a covert exfiltration channel to be aware of."},
  {k:"p",l:"Printer",h:"Scan + print to network printers",w:"Scans the /24 for open port 9100 (JetDirect) and sends a file to a chosen printer.",d:"Firewall port 9100, require authenticated printing and isolate printers on their own VLAN."},
  {k:"s",l:"SSDP Poison",h:"Flood LAN with fake UPnP devices",w:"Broadcasts fake SSDP alive packets and answers M-SEARCH with spoofed device descriptions, polluting UPnP device lists.",d:"Disable UPnP/SSDP where unneeded and segment IoT so poisoned discovery can't reach clients."},
 ];
 const NET=[
  {k:"p",l:"Port scan",h:"TCP portscan a host",w:"Connects to a range of TCP ports on a host to find open services (requires joining a WiFi network first).",d:"Firewall unused ports and run IDS / host monitoring to flag scan bursts."},
  {k:"i",l:"Ping",h:"ICMP echo loop",w:"Live ICMP ping showing round-trip time and sequence until you exit.",d:"Drop ICMP echo at the firewall if you want hosts to stay quiet to basic probes."},
- {k:"d",l:"DNS",h:"Lookup a hostname",w:"Resolves a hostname to its A record over the joined network.",d:"Utility \u2014 use DNS-over-HTTPS/TLS to keep your own lookups private."},
- {k:"c",l:"Connect",h:"Join saved WiFi network",w:"Joins a WiFi network as a client (same as WiFi > Connect) so the LAN tools can run.",d:"Utility \u2014 protect your own credentials."},
- {k:"r",l:"Responder",h:"Poison LLMNR/NBT-NS/mDNS",w:"When DNS fails, Windows/macOS/Linux fall back to LLMNR / NBT-NS / mDNS \u2014 this answers every query with our IP and logs the NTLM challenge for hashcat 5600.",d:"Disable LLMNR and NBT-NS via Group Policy and require SMB signing so captured challenges are useless."},
+ {k:"d",l:"DNS",h:"Lookup a hostname",w:"Resolves a hostname to its A record over the joined network.",d:"Utility, use DNS-over-HTTPS/TLS to keep your own lookups private."},
+ {k:"c",l:"Connect",h:"Join saved WiFi network",w:"Joins a WiFi network as a client (same as WiFi > Connect) so the LAN tools can run.",d:"Utility, protect your own credentials."},
+ {k:"r",l:"Responder",h:"Poison LLMNR/NBT-NS/mDNS",w:"When DNS fails, Windows/macOS/Linux fall back to LLMNR / NBT-NS / mDNS, this answers every query with our IP and logs the NTLM challenge for hashcat 5600.",d:"Disable LLMNR and NBT-NS via Group Policy and require SMB signing so captured challenges are useless."},
  {k:"a",l:"LAN Recon",h:"Auto sweep + portscan + banners",w:"Drop-box auto recon: ARP-sweeps the /24, port-scans each host, grabs HTTP/SSH/Telnet banners, does OUI vendor lookup and exports a full CSV.",d:"Segment the LAN with VLANs, disable unused services and monitor for sweep patterns."},
  {k:"u",l:"UPnP scan",h:"Discover LAN UPnP devices",w:"Sends SSDP M-SEARCH and pulls each device's description XML to map internal IoT: routers, printers, TVs, cameras, NAS, Chromecasts.",d:"Disable UPnP/SSDP on devices that don't need it and put IoT on an isolated VLAN."},
  {k:"v",l:"CCTV Toolkit",h:"IP camera recon + default creds",w:"Scans for open camera ports, fingerprints the brand, sprays a default-credential list on 401s and walks common RTSP stream paths.",d:"Change default camera passwords immediately, keep firmware patched and keep cameras off the public internet."},
@@ -544,109 +582,109 @@ const NET=[
  {k:"e",l:"Autodiscover",h:"Exchange cred capture (Basic+NTLM)",w:"Fakes an Exchange Autodiscover endpoint, offering Basic auth (plaintext) with NTLM fallback and returning valid XML so Outlook thinks it worked.",d:"Block external Autodiscover, disable Basic auth and require modern auth (OAuth) for mail clients."},
 ];
 const SALTY=[
- {k:"i",l:"About",h:"Homage + arsenal overview",w:"Credits @7h30th3r0n3's Evil-M5Project and RaspyJack firmware and lists the ported LAN attacks in this suite.",d:"Informational page \u2014 no attack surface."},
+ {k:"i",l:"About",h:"Homage + arsenal overview",w:"Credits @7h30th3r0n3's Evil-M5Project and RaspyJack firmware and lists the ported LAN attacks in this suite.",d:"Informational page, no attack surface."},
  {k:"s",l:"DHCP Starve",h:"Exhaust DHCP pool w/ random MACs",w:"Spews DHCP Discover/Request with random plausible client MACs until the real server exhausts its pool and NAKs new clients.",d:"Enable DHCP snooping and port-security MAC limits on managed switches."},
  {k:"g",l:"Rogue DHCP (STA)",h:"Race real DHCP, poison leases",w:"Binds port 67 and races the real DHCP server; our lease says we are gateway, DNS and WPAD, so client traffic pivots through us.",d:"DHCP snooping drops the rogue server; alert on duplicate DHCP servers on the LAN."},
  {k:"j",l:"Rogue DHCP (AP)",h:"Evil-twin SoftAP + DHCP server",w:"Stands up an open POSEIDON-SaltyJack soft-AP and serves DHCP itself, owning gateway, DNS and WPAD for anyone who joins.",d:"Don't join open APs; use 802.1X and DHCP snooping on trusted networks."},
  {k:"r",l:"Responder",sim:"saltyjack",h:"Poison LLMNR/NBNS, SMB hashes",w:"Answers LLMNR (5355), NBT-NS (137) and SMB (445) name lookups pointing clients at us, then runs the NTLMv2 dance and saves hashcat-format hashes.",d:"Disable LLMNR/NBT-NS via Group Policy and require SMB signing."},
  {k:"w",l:"WPAD NTLM",h:"PAC + 407 Proxy NTLM harvest",w:"Serves a /wpad.dat PAC telling browsers to proxy through us, then returns HTTP 407 Proxy-Authenticate: NTLM; domain Windows auto-sends creds we decode to hashcat format.",d:"Disable WPAD (WinHttpAutoProxySvc) or set an explicit proxy policy."},
- {k:"c",l:"NTLMv2 Crack",h:"On-device HMAC-MD5 wordlist",w:"Reads captured hashes and brute-forces each on-device with HMAC-MD5 and MD4 against a wordlist \u2014 no PC needed.",d:"Long, unique passphrases resist offline wordlist cracking even after a hash leaks."},
+ {k:"c",l:"NTLMv2 Crack",h:"On-device HMAC-MD5 wordlist",w:"Reads captured hashes and brute-forces each on-device with HMAC-MD5 and MD4 against a wordlist, no PC needed.",d:"Long, unique passphrases resist offline wordlist cracking even after a hash leaks."},
 ];
 const LORA=[
- {k:"s",l:"Scan",h:"Passive RX on selected band",w:"Tunes the SX1262 to 433/868/915 MHz or Meshtastic LongFast and logs LoRa packets with RSSI, SNR and payload.",d:"Encrypt payloads at the app layer \u2014 the LoRa PHY is visible to any listener by design."},
+ {k:"s",l:"Scan",h:"Passive RX on selected band",w:"Tunes the SX1262 to 433/868/915 MHz or Meshtastic LongFast and logs LoRa packets with RSSI, SNR and payload.",d:"Encrypt payloads at the app layer, the LoRa PHY is visible to any listener by design."},
  {k:"b",l:"Beacon",h:"TX POSEIDON ping every 3s",w:"Transmits a POSEIDON ping with uptime and GPS every 3 seconds for range testing with a second LoRa device.",d:"Only beacon your position on channels and nodes you intend to share it with."},
  {k:"m",l:"Mesh LF",h:"Meshtastic LongFast US listener",w:"Listens on Meshtastic LongFast US params (SF11 BW250) and parses packet headers (from/to node, packet ID).",d:"Use Meshtastic channel PSKs so only trusted nodes can read your traffic."},
- {k:"a",l:"Analyzer",h:"Spectrum + waterfall + scope",w:"Three LoRa-band views: bar spectrum with peak-hold, waterfall heatmap and a live oscilloscope across 430\u2013930 MHz.",d:"Passive RF visualization \u2014 nothing to defend."},
+ {k:"a",l:"Analyzer",h:"Spectrum + waterfall + scope",w:"Three LoRa-band views: bar spectrum with peak-hold, waterfall heatmap and a live oscilloscope across 430-930 MHz.",d:"Passive RF visualization, nothing to defend."},
  {k:"c",l:"Mesh Chat",h:"Meshtastic text chat",w:"Joins as a real Meshtastic node to send and receive text on the LongFast channel.",d:"Set a channel PSK and treat default-channel chat as public."},
- {k:"n",l:"Mesh Nodes",h:"Live roster of seen nodes",w:"Live roster of seen Meshtastic nodes with name, ID, SNR/RSSI, hops, last-seen and a GPS indicator.",d:"Unencrypted NodeInfo is public \u2014 use PSK channels if that matters."},
- {k:"p",l:"Mesh Page",h:"Direct message a node",w:"Sends a direct (unicast) Meshtastic message to a specific node ID.",d:"DMs still ride the shared channel \u2014 use PSKs and don't assume privacy."},
+ {k:"n",l:"Mesh Nodes",h:"Live roster of seen nodes",w:"Live roster of seen Meshtastic nodes with name, ID, SNR/RSSI, hops, last-seen and a GPS indicator.",d:"Unencrypted NodeInfo is public, use PSK channels if that matters."},
+ {k:"p",l:"Mesh Page",h:"Direct message a node",w:"Sends a direct (unicast) Meshtastic message to a specific node ID.",d:"DMs still ride the shared channel, use PSKs and don't assume privacy."},
  {k:"g",l:"Mesh Pos",h:"Toggle position broadcasts",w:"Toggles broadcasting our own NodeInfo/Position so we appear as a pin on nearby Meshtastic apps.",d:"Leave position off unless you intend to share your location."},
 ];
 const SUBGHZ=[
- {k:"b",l:"Broadcast",cat:"attack",h:"Categorized .sub TX library",w:"Browses a categorized library of Flipper .sub files (cars, garages, home automation) on SD and transmits them.",d:"Only fixed-code devices are replayable \u2014 upgrade to rolling-code remotes."},
- {k:"s",l:"Scan/Copy",h:"Freq scanner + signal decoder",w:"Sweeps 300\u2013928 MHz, locks the strongest signal and decodes it with RCSwitch (value, protocol, RSSI).",d:"Rolling-code and encrypted remotes can't be usefully copied."},
+ {k:"b",l:"Broadcast",cat:"attack",h:"Categorized .sub TX library",w:"Browses a categorized library of Flipper .sub files (cars, garages, home automation) on SD and transmits them.",d:"Only fixed-code devices are replayable, upgrade to rolling-code remotes."},
+ {k:"s",l:"Scan/Copy",h:"Freq scanner + signal decoder",w:"Sweeps 300-928 MHz, locks the strongest signal and decodes it with RCSwitch (value, protocol, RSSI).",d:"Rolling-code and encrypted remotes can't be usefully copied."},
  {k:"r",l:"Record RAW",h:"RMT pulse capture (up to 20s)",w:"Captures raw RF pulse timing via the RMT peripheral at 1 microsecond resolution and saves a Flipper-compatible .sub.",d:"Rolling-code remotes make a raw recording useless to replay."},
  {k:"p",l:"Play .sub",cat:"attack",h:"Replay any .sub file from SD",w:"Replays any .sub file's raw pulses through the CC1101 transmitter (Flipper and Bruce formats).",d:"Rolling-code garage and car remotes invalidate a code the moment it is used once."},
- {k:"a",l:"Analyzer",sim:"waterfall",h:"Spectrum + waterfall + scope",w:"Bar spectrum with peak-hold, waterfall heatmap and a live scope for sub-GHz bands.",d:"Passive visualization \u2014 nothing to defend."},
+ {k:"a",l:"Analyzer",sim:"waterfall",h:"Spectrum + waterfall + scope",w:"Bar spectrum with peak-hold, waterfall heatmap and a live scope for sub-GHz bands.",d:"Passive visualization, nothing to defend."},
  {k:"f",l:"Brute force",h:"Came/Nice/Linear/Chamberlain",w:"Iterates the entire keyspace of fixed-code protocols (Came, Nice, Chamberlain, Linear, Holtek, Ansonic) and transmits each.",d:"Replace fixed-code gates and garages with rolling-code hardware."},
- {k:"j",l:"Jammer",h:"Sub-GHz intermittent + full TX",w:"Intermittent or continuous-carrier transmit on a chosen frequency with a 20-second safety cap.",d:"Jamming is illegal in most countries \u2014 use Jam Detect to spot it, never to cause it."},
- {k:"h",l:"Finder",h:"Hot/cold signal locator",w:"A hot/cold thermometer bar and quickening beep to home in on a hidden sub-GHz transmitter (fob, camera, bug).",d:"Defensive tool \u2014 use it to locate a rogue emitter near you."},
- {k:"d",l:"Jam Detect",h:"RSSI anomaly monitor",w:"Learns the noise floor, then alerts (overlay, siren and CSV log) on sustained spikes \u2014 the signature of a jammer.",d:"This IS the defense \u2014 it warns you when your band is being jammed."},
+ {k:"j",l:"Jammer",h:"Sub-GHz intermittent + full TX",w:"Intermittent or continuous-carrier transmit on a chosen frequency with a 20-second safety cap.",d:"Jamming is illegal in most countries, use Jam Detect to spot it, never to cause it."},
+ {k:"h",l:"Finder",h:"Hot/cold signal locator",w:"A hot/cold thermometer bar and quickening beep to home in on a hidden sub-GHz transmitter (fob, camera, bug).",d:"Defensive tool, use it to locate a rogue emitter near you."},
+ {k:"d",l:"Jam Detect",h:"RSSI anomaly monitor",w:"Learns the noise floor, then alerts (overlay, siren and CSV log) on sustained spikes, the signature of a jammer.",d:"This IS the defense, it warns you when your band is being jammed."},
 ];
 const NRF24=[
  {k:"s",l:"Sniffer",h:"Promiscuous ESB discovery",w:"Goodspeed promiscuous trick to discover 2.4 GHz wireless HID (Logitech / Microsoft / Dell) with CRC-validated capture and fingerprinting.",d:"Prefer Bluetooth or encrypted receivers over legacy unencrypted ESB dongles."},
  {k:"m",l:"MouseJack",h:"HID keystroke injection",w:"Injects keystrokes into vulnerable wireless keyboards and mice (Logitech Unifying, Microsoft) as if typed on the target.",d:"Patch dongle firmware (Logitech has a fix) or switch to Bluetooth peripherals."},
  {k:"b",l:"BLE Spam",h:"Fake BLE adverts via nRF24",w:"Broadcasts spoofed BLE ADV_IND packets with random MACs and fake names using full CRC24 and whitening from a cheap nRF24.",d:"Keep OS Bluetooth stacks patched; ignore unexpected pairing popups."},
- {k:"a",l:"Scanner",h:"2.4 GHz spectrum + protocol ID",w:"126-channel RPD sweep with gradient bars, peak-hold and protocol markers (WiFi 1/6/11, BLE adv, Zigbee).",d:"Passive energy scan \u2014 nothing to defend."},
- {k:"j",l:"Jammer",h:"CW carrier + data flood presets",w:"Continuous-wave carrier or data flood with presets (BLE, WiFi 1/6/11, Zigbee, drone RC, HID) and a 20-second cap.",d:"Jamming is illegal \u2014 detect interference with the scanner instead of causing it."},
- {k:"h",l:"Finder",h:"Hot/cold 2.4 GHz locator",w:"A hot/cold meter and quickening beep to locate a 2.4 GHz emitter \u2014 hidden cameras, rogue APs, dongles.",d:"Defensive tool \u2014 use it to find a rogue 2.4 GHz source near you."},
+ {k:"a",l:"Scanner",h:"2.4 GHz spectrum + protocol ID",w:"126-channel RPD sweep with gradient bars, peak-hold and protocol markers (WiFi 1/6/11, BLE adv, Zigbee).",d:"Passive energy scan, nothing to defend."},
+ {k:"j",l:"Jammer",h:"CW carrier + data flood presets",w:"Continuous-wave carrier or data flood with presets (BLE, WiFi 1/6/11, Zigbee, drone RC, HID) and a 20-second cap.",d:"Jamming is illegal, detect interference with the scanner instead of causing it."},
+ {k:"h",l:"Finder",h:"Hot/cold 2.4 GHz locator",w:"A hot/cold meter and quickening beep to locate a 2.4 GHz emitter, hidden cameras, rogue APs, dongles.",d:"Defensive tool, use it to find a rogue 2.4 GHz source near you."},
 ];
 const RADIO=[
  {k:"l",l:"LoRa",h:"SX1262 sub-GHz long range",w:"LoRa features for the CAP-LoRa1262 hat: passive scan, beacon TX, Meshtastic listener, chat, node roster and a spectrum analyzer.",c:LORA},
  {k:"s",l:"Sub-GHz",h:"CC1101 scan/record/replay",w:"CC1101 sub-GHz radio: frequency scanner with decode, RAW record, .sub replay, spectrum and waterfall, brute force and jammer.",c:SUBGHZ},
  {k:"n",l:"nRF24",h:"2.4 GHz spectrum/MouseJack/jam",w:"nRF24L01+ 2.4 GHz radio: spectrum analyzer, MouseJack sniff and inject, BLE spam, band jammer and a hot/cold finder.",c:NRF24},
- {k:"g",l:"GPS fix",h:"Live GNSS position page",w:"Shows the current GNSS fix from the GPS module: lat, lon, alt, sats, HDOP, speed and UTC.",d:"Local receiver only \u2014 no network exposure."},
- {k:"t",l:"SATCOM",h:"Satellite tracker (TLE + SGP4)",w:"Live satellite tracking: auto-fetches TLEs, runs SGP4 and shows a polar skyplot with az/el and next-pass predictions for ISS, NOAA and ham birds.",d:"Passive tracking of public orbital data \u2014 nothing to defend."},
+ {k:"g",l:"GPS fix",h:"Live GNSS position page",w:"Shows the current GNSS fix from the GPS module: lat, lon, alt, sats, HDOP, speed and UTC.",d:"Local receiver only, no network exposure."},
+ {k:"t",l:"SATCOM",h:"Satellite tracker (TLE + SGP4)",w:"Live satellite tracking: auto-fetches TLEs, runs SGP4 and shows a polar skyplot with az/el and next-pass predictions for ISS, NOAA and ham birds.",d:"Passive tracking of public orbital data, nothing to defend."},
 ];
 const HUNT=[
- {k:"b",l:"BLE tracker",h:"Geiger-style BLE tracker hunt",w:"Geiger-style proximity hunt homing in on a chosen BLE tracker.",d:"Defensive \u2014 locate a tracker planted on you."},
- {k:"t",l:"Tracker scan",h:"Detect AirTag/SmartTag/Tile",w:"Passive scan for Apple Find My, Samsung SmartTag and Tile with distance class and signal.",d:"Defensive \u2014 run periodically to catch unwanted trackers early."},
- {k:"g",l:"Sub-GHz finder",h:"CC1101 hot/cold locator",w:"Hot/cold CC1101 locator for sub-GHz fobs, remotes and hidden transmitters.",d:"Defensive \u2014 find a rogue sub-GHz emitter near you."},
- {k:"n",l:"2.4 GHz finder",h:"nRF24 hot/cold locator",w:"Hot/cold nRF24 locator for 2.4 GHz HID, dongles and ISM-band sources.",d:"Defensive \u2014 locate a rogue 2.4 GHz source near you."},
+ {k:"b",l:"BLE tracker",h:"Geiger-style BLE tracker hunt",w:"Geiger-style proximity hunt homing in on a chosen BLE tracker.",d:"Defensive, locate a tracker planted on you."},
+ {k:"t",l:"Tracker scan",h:"Detect AirTag/SmartTag/Tile",w:"Passive scan for Apple Find My, Samsung SmartTag and Tile with distance class and signal.",d:"Defensive, run periodically to catch unwanted trackers early."},
+ {k:"g",l:"Sub-GHz finder",h:"CC1101 hot/cold locator",w:"Hot/cold CC1101 locator for sub-GHz fobs, remotes and hidden transmitters.",d:"Defensive, find a rogue sub-GHz emitter near you."},
+ {k:"n",l:"2.4 GHz finder",h:"nRF24 hot/cold locator",w:"Hot/cold nRF24 locator for 2.4 GHz HID, dongles and ISM-band sources.",d:"Defensive, locate a rogue 2.4 GHz source near you."},
 ];
 const TOOLS=[
- {k:"h",l:"Hunt",h:"Unified hot/cold hunter",w:"Every RF proximity locator in one submenu \u2014 BLE tracker hunt, BLE tracker scan, sub-GHz finder and 2.4 GHz finder.",c:HUNT},
- {k:"l",l:"Flashlight",h:"Full-screen white torch",w:"Fills the screen white as a panic light.",d:"Utility \u2014 no security surface."},
- {k:"s",l:"Stopwatch",h:"Timer with laps",w:"A stopwatch with start/stop, up to four laps and reset.",d:"Utility \u2014 no security surface."},
- {k:"d",l:"Dice/8ball",h:"Dice, coin flip, magic 8-ball",w:"Randomizer: 2d6 dice sum, coin flip or magic 8-ball answer.",d:"Utility \u2014 no security surface."},
- {k:"m",l:"Morse",h:"Type text, sends in morse",w:"Types a string and blinks the screen plus beeps it in Morse code.",d:"Utility \u2014 no security surface."},
+ {k:"h",l:"Hunt",h:"Unified hot/cold hunter",w:"Every RF proximity locator in one submenu, BLE tracker hunt, BLE tracker scan, sub-GHz finder and 2.4 GHz finder.",c:HUNT},
+ {k:"l",l:"Flashlight",h:"Full-screen white torch",w:"Fills the screen white as a panic light.",d:"Utility, no security surface."},
+ {k:"s",l:"Stopwatch",h:"Timer with laps",w:"A stopwatch with start/stop, up to four laps and reset.",d:"Utility, no security surface."},
+ {k:"d",l:"Dice/8ball",h:"Dice, coin flip, magic 8-ball",w:"Randomizer: 2d6 dice sum, coin flip or magic 8-ball answer.",d:"Utility, no security surface."},
+ {k:"m",l:"Morse",h:"Type text, sends in morse",w:"Types a string and blinks the screen plus beeps it in Morse code.",d:"Utility, no security surface."},
  {k:"r",l:"MAC rand",h:"Randomize WiFi MAC",w:"Generates a random locally-administered MAC and applies it to the WiFi interface (resets on reboot).",d:"Randomizing your own MAC aids privacy; defensively, never rely on MAC allow-lists alone."},
- {k:"c",l:"Calc",h:"Simple calculator",w:"A simple left-to-right calculator on a typed expression.",d:"Utility \u2014 no security surface."},
- {k:"t",l:"Screen test",h:"RGB cycle + gradient",w:"Cycles solid R/G/B/W/K/cyan/amber and a gradient bar to check the display.",d:"Diagnostic \u2014 no security surface."},
- {k:"f",l:"SD format",h:"WIPE microSD card",w:"Deep-deletes every file on the SD card (requires typing YES; irreversible).",d:"Utility \u2014 back up before wiping; no attack surface."},
+ {k:"c",l:"Calc",h:"Simple calculator",w:"A simple left-to-right calculator on a typed expression.",d:"Utility, no security surface."},
+ {k:"t",l:"Screen test",h:"RGB cycle + gradient",w:"Cycles solid R/G/B/W/K/cyan/amber and a gradient bar to check the display.",d:"Diagnostic, no security surface."},
+ {k:"f",l:"SD format",h:"WIPE microSD card",w:"Deep-deletes every file on the SD card (requires typing YES; irreversible).",d:"Utility, back up before wiping; no attack surface."},
 ];
 const MESH=[
- {k:"s",l:"Status",h:"Live peer table + broadcast",w:"ESP-NOW presence beacon: broadcasts name, heap and GPS every 5 s and shows a live peer table; the foundation for the multi-device C2 concept.",d:"ESP-NOW is unauthenticated broadcast \u2014 treat presence data as public."},
+ {k:"s",l:"Status",h:"Live peer table + broadcast",w:"ESP-NOW presence beacon: broadcasts name, heap and GPS every 5 s and shows a live peer table; the foundation for the multi-device C2 concept.",d:"ESP-NOW is unauthenticated broadcast, treat presence data as public."},
 ];
 const C5=[
  {k:"s",l:"Status",h:"Show connected C5 nodes",w:"Live peer table of ESP32-C5 drop-nodes; auto-connects over ESP-NOW, pings peers and can broadcast STOP.",d:"Awareness of paired nodes; the ESP-NOW HELLO is unauthenticated."},
- {k:"5",l:"Scan 5G+2G",h:"Remote dual-band WiFi scan",w:"Commands every C5 to run a dual-band (2.4 + 5 GHz) WiFi scan and stream results back \u2014 the first pocket tool that sees 5 GHz APs.",d:"Ensure your 5 GHz network runs WPA3 too, not just 2.4 GHz."},
+ {k:"5",l:"Scan 5G+2G",h:"Remote dual-band WiFi scan",w:"Commands every C5 to run a dual-band (2.4 + 5 GHz) WiFi scan and stream results back, the first pocket tool that sees 5 GHz APs.",d:"Ensure your 5 GHz network runs WPA3 too, not just 2.4 GHz."},
  {k:"z",l:"Zigbee sniff",h:"Remote 802.15.4 capture",w:"Puts the C5's 802.15.4 radio in promiscuous mode and streams Zigbee/Thread frame summaries back over ESP-NOW.",d:"Use non-default Zigbee keys so sniffed frames stay opaque."},
- {k:"d",l:"Deauth 5G",h:"5 GHz deauth attack via C5",w:"Uses the C5 to deauth 5 GHz APs the main ESP32-S3 physically can't reach \u2014 the first pocket tool to deauth 5 GHz.",d:"Enable WPA3 / 802.11w PMF on the 5 GHz band so forged deauths are ignored."},
- {k:"p",l:"PMKID 5G",h:"5 GHz PMKID capture via C5",w:"The C5 locks its 5 GHz receiver to a target and captures EAPOL M1 / PMKID, writing WPA*01* lines to hashcat.22000.",d:"Use WPA3-SAE on 5 GHz \u2014 it removes the offline-crackable handshake."},
+ {k:"d",l:"Deauth 5G",h:"5 GHz deauth attack via C5",w:"Uses the C5 to deauth 5 GHz APs the main ESP32-S3 physically can't reach, the first pocket tool to deauth 5 GHz.",d:"Enable WPA3 / 802.11w PMF on the 5 GHz band so forged deauths are ignored."},
+ {k:"p",l:"PMKID 5G",h:"5 GHz PMKID capture via C5",w:"The C5 locks its 5 GHz receiver to a target and captures EAPOL M1 / PMKID, writing WPA*01* lines to hashcat.22000.",d:"Use WPA3-SAE on 5 GHz, it removes the offline-crackable handshake."},
  {k:"n",l:"Nuke 5G + HS",h:"Deauth-all + handshake, 5 GHz",w:"Rotates through every 5 GHz AP: a 4 s broadcast deauth then a 5 s handshake capture, so kicked clients re-auth into the window; hits go to hashcat.22000.",d:"WPA3-SAE plus PMF on 5 GHz defeats both the deauth and the crackable-handshake capture."},
 ];
 const SYS=[
- {k:"f",l:"Files",h:"SD card browser",w:"A simple SD card tree browser: open directories, delete files and go up a level.",d:"Utility \u2014 no attack surface."},
- {k:"c",l:"Clock",h:"Uptime / GPS clock",w:"A large uptime and GPS clock display.",d:"Utility \u2014 no attack surface."},
+ {k:"f",l:"Files",h:"SD card browser",w:"A simple SD card tree browser: open directories, delete files and go up a level.",d:"Utility, no attack surface."},
+ {k:"c",l:"Clock",h:"Uptime / GPS clock",w:"A large uptime and GPS clock display.",d:"Utility, no attack surface."},
  {k:"s",l:"Settings",h:"Config + preferences",w:"Manage saved WiFi, clear the creds log, reset preferences and reboot.",d:"Clear captured creds when done and protect physical access to the device."},
- {k:"t",l:"Theme",act:"theme",h:"6 curated palettes",w:"Six curated palettes (POSEIDON, MATRIX, E-INK, SYNTHWAVE, PHANTOM, BLOOD) with live preview.",d:"Cosmetic \u2014 no security surface."},
- {k:"b",l:"Ambient",act:"toggle-ambient",h:"Live ambient motion preview",w:"Live preview of the active theme's ambient motion (TRON grid and motes, MATRIX rain) with a global on/off toggle.",d:"Cosmetic \u2014 no security surface."},
- {k:"l",l:"Layout",act:"toggle-layout",h:"Terminal / Carousel toggle",w:"Flips the menu render style between the dense TERMINAL list and the big-card CAROUSEL; both keep letter mnemonics.",d:"Cosmetic \u2014 no security surface."},
- {k:"v",l:"Screensaver",act:"toggle-saver",h:"Toggle 2-min idle takeover",w:"Toggles the 2-minute idle screensaver takeover; any key wakes it.",d:"Cosmetic \u2014 no security surface."},
- {k:"p",l:"Saver Pick",act:"saverpick",h:"Choose screensaver / shuffle",w:"Choose from 10 themed screensavers (wardrive cinema, matrix rain, sonar, hex cascade, fake hashcat crack) or shuffle.",d:"Cosmetic \u2014 no security surface."},
- {k:"n",l:"Sound",act:"toggle-sound",h:"Volume + mute + SFX test",w:"Adjust SFX volume 0\u201310 and toggle mute; every menu action, capture and boot has a tone.",d:"Cosmetic \u2014 no security surface."},
- {k:"a",l:"About",act:"about",h:"Build info",w:"Shows version, tagline and repo URL.",d:"Informational \u2014 no security surface."},
- {k:"x",l:"Attract",act:"toggle-attract",h:"Self-driving demo loop",w:"Auto-tours the menu, launches simulations and cycles themes hands-free \u2014 ideal for a booth screen or a README capture. Any key hands control back.",d:"Cosmetic \u2014 no security surface."},
- {k:"d",l:"Postcard",act:"postcard",h:"Export a shareable PNG",w:"Renders the current screen into a framed POSEIDON postcard image and downloads it \u2014 great for a README hero shot or sharing a build.",d:"Cosmetic \u2014 no security surface."},
+ {k:"t",l:"Theme",act:"theme",h:"6 curated palettes",w:"Six curated palettes (POSEIDON, MATRIX, E-INK, SYNTHWAVE, PHANTOM, BLOOD) with live preview.",d:"Cosmetic, no security surface."},
+ {k:"b",l:"Ambient",act:"toggle-ambient",h:"Live ambient motion preview",w:"Live preview of the active theme's ambient motion (TRON grid and motes, MATRIX rain) with a global on/off toggle.",d:"Cosmetic, no security surface."},
+ {k:"l",l:"Layout",act:"toggle-layout",h:"Terminal / Carousel toggle",w:"Flips the menu render style between the dense TERMINAL list and the big-card CAROUSEL; both keep letter mnemonics.",d:"Cosmetic, no security surface."},
+ {k:"v",l:"Screensaver",act:"toggle-saver",h:"Toggle 2-min idle takeover",w:"Toggles the 2-minute idle screensaver takeover; any key wakes it.",d:"Cosmetic, no security surface."},
+ {k:"p",l:"Saver Pick",act:"saverpick",h:"Choose screensaver / shuffle",w:"Choose from 10 themed screensavers (wardrive cinema, matrix rain, sonar, hex cascade, fake hashcat crack) or shuffle.",d:"Cosmetic, no security surface."},
+ {k:"n",l:"Sound",act:"toggle-sound",h:"Volume + mute + SFX test",w:"Adjust SFX volume 0-10 and toggle mute; every menu action, capture and boot has a tone.",d:"Cosmetic, no security surface."},
+ {k:"a",l:"About",act:"about",h:"Build info",w:"Shows version, tagline and repo URL.",d:"Informational, no security surface."},
+ {k:"x",l:"Attract",act:"toggle-attract",h:"Self-driving demo loop",w:"Auto-tours the menu, launches simulations and cycles themes hands-free, ideal for a booth screen or a README capture. Any key hands control back.",d:"Cosmetic, no security surface."},
+ {k:"d",l:"Postcard",act:"postcard",h:"Export a shareable PNG",w:"Renders the current screen into a framed POSEIDON postcard image and downloads it, great for a README hero shot or sharing a build.",d:"Cosmetic, no security surface."},
 ];
 const ROOT={l:"POSEIDON",c:[
- {k:"w",l:"WiFi",h:"WiFi recon + attacks + wardrive",acc:"#38bdf8",w:"2.4 GHz WiFi recon and attacks \u2014 scanning, handshake capture, evil portal, deauth, beacon spam, client hunting, spectrum and GPS wardriving.",c:WIFI},
- {k:"b",l:"Bluetooth",h:"BLE scan / spam / HID / tracker",acc:"#a78bfa",w:"Bluetooth LE toolkit \u2014 scan and identify, GATT explorer, HID spoofing, notification spam, tracker detection and hunting, and live CVE probes.",c:BLE},
- {k:"i",l:"IR",h:"Infrared blaster + remote",acc:"#7dd3fc",w:"Infrared blaster \u2014 TV-B-Gone, virtual and multi-brand remotes and a one-shot prank library.",c:IR},
- {k:"t",l:"Argus",sim:"argus",h:"gotchi pet that hunts handshakes",acc:"#f472b6",w:"An autonomous gotchi companion that channel-hops, sniffs EAPOLs, deauths seen APs to force reconnects and captures PMKIDs and handshakes on its own \u2014 with a mood face and a reinforcement-learning layer that favors productive channels.",d:"Same as handshake capture \u2014 WPA3-SAE removes the crackable handshake and PMF blocks the deauths it uses to force them."},
- {k:"f",l:"Feather",h:"nRF52840 BLE5 / Zigbee / MITM",acc:"#2dd4bf",w:"Add-on nRF52840 radio \u2014 BLE 5 raw-PHY sniffing (incl. long-range Coded), 802.15.4 / Zigbee / Thread and BLE connection MITM the main chip can't do.",c:NRF52},
- {k:"u",l:"BadUSB",h:"USB-HID runner + 165+ payloads",acc:"#f59e0b",w:"USB-HID keyboard emulator \u2014 appears as a real keyboard and types DuckyScript payloads; 165+ built-in and per-OS scripts plus a prank reel.",c:BADUSB},
- {k:"n",l:"Network",h:"Port scan / ping / DNS / connect",acc:"#fb923c",w:"LAN tools that need a WiFi join first \u2014 port scan, ping, DNS, recon, UPnP and CCTV discovery and DHCP / WPAD / Autodiscover attacks.",c:NET},
- {k:"j",l:"SaltyJack",h:"LAN attack suite (homage 7h30th3r0n3)",acc:"#f87171",w:"LAN credential-attack suite (homage to @7h30th3r0n3) \u2014 DHCP starvation, rogue DHCP, LLMNR/NBNS Responder, WPAD NTLM harvest and an on-device cracker.",c:SALTY},
- {k:"r",l:"Radio",h:"LoRa sub-GHz + GNSS (CAP-LoRa)",acc:"#34d399",w:"Sub-GHz LoRa and GPS from the CAP-LoRa hat plus CC1101 and nRF24 radios \u2014 scan, record and replay, analyze and satellite tracking.",c:RADIO},
- {k:"o",l:"Tools",h:"Flashlight / stopwatch / dice",acc:"#f0abfc",w:"Utilities in the Flipper tradition \u2014 the unified RF proximity hunter plus flashlight, stopwatch, dice, morse, MAC randomizer and more.",c:TOOLS},
- {k:"m",l:"Mesh",h:"PigSync ESP-NOW peer mesh",acc:"#22d3ee",w:"ESP-NOW presence mesh \u2014 broadcast name, heap and GPS to nearby POSEIDON devices; the foundation for the multi-device C2 concept.",c:MESH},
- {k:"5",l:"C5 nodes",h:"Remote 5GHz + Zigbee via C5",acc:"#2dd4bf",w:"Control ESP32-C5 drop-nodes over ESP-NOW \u2014 the only ESP chip with 5 GHz WiFi and 802.15.4, enabling remote 5 GHz scan, deauth and PMKID plus Zigbee sniff.",c:C5},
- {k:"x",l:"MIMIR",h:"Control MIMIR drop-box via USB-C",acc:"#c084fc",w:"Connects to the MIMIR pentest drop-box over USB-C to drive scans and attacks (deauth, handshake, PMKID, evil twin, beacon spam) and retrieve cracked creds \u2014 no wireless link, for opsec.",d:"A controller for a separate device; defenses match the underlying WiFi attacks \u2014 WPA3, PMF and strong passphrases."},
- {k:"p",l:"PC Bridge",h:"TRIDENT screen mirror + remote KB",acc:"#60a5fa",w:"Streams the Cardputer screen to the TRIDENT desktop app over USB-C at 10 fps and lets the PC send keystrokes back \u2014 a remote screen and keyboard bridge.",d:"Utility for a trusted PC link \u2014 keep the USB host trusted."},
- {k:"s",l:"System",h:"Files, clock, settings",acc:"#94a3b8",w:"Device utilities \u2014 SD browser, clock, settings, theme, ambient and layout, screensaver, sound and about.",c:SYS},
- {k:"d",l:"Mass Storage",h:"microSD -> USB drive",acc:"#cbd5e1",w:"Exposes the microSD to a USB host as a removable drive \u2014 the Cardputer becomes a card reader for drag-and-drop transfer; ESC ejects cleanly.",d:"Utility; be mindful what's on the card when plugging into an untrusted host."},
+ {k:"w",l:"WiFi",h:"WiFi recon + attacks + wardrive",acc:"#38bdf8",w:"2.4 GHz WiFi recon and attacks, scanning, handshake capture, evil portal, deauth, beacon spam, client hunting, spectrum and GPS wardriving.",c:WIFI},
+ {k:"b",l:"Bluetooth",h:"BLE scan / spam / HID / tracker",acc:"#a78bfa",w:"Bluetooth LE toolkit, scan and identify, GATT explorer, HID spoofing, notification spam, tracker detection and hunting, and live CVE probes.",c:BLE},
+ {k:"i",l:"IR",h:"Infrared blaster + remote",acc:"#7dd3fc",w:"Infrared blaster, TV-B-Gone, virtual and multi-brand remotes and a one-shot prank library.",c:IR},
+ {k:"t",l:"Argus",sim:"argus",h:"gotchi pet that hunts handshakes",acc:"#f472b6",w:"An autonomous gotchi companion that channel-hops, sniffs EAPOLs, deauths seen APs to force reconnects and captures PMKIDs and handshakes on its own, with a mood face and a reinforcement-learning layer that favors productive channels.",d:"Same as handshake capture, WPA3-SAE removes the crackable handshake and PMF blocks the deauths it uses to force them."},
+ {k:"f",l:"Feather",h:"nRF52840 BLE5 / Zigbee / MITM",acc:"#2dd4bf",w:"Add-on nRF52840 radio, BLE 5 raw-PHY sniffing (incl. long-range Coded), 802.15.4 / Zigbee / Thread and BLE connection MITM the main chip can't do.",c:NRF52},
+ {k:"u",l:"BadUSB",h:"USB-HID runner + 165+ payloads",acc:"#f59e0b",w:"USB-HID keyboard emulator, appears as a real keyboard and types DuckyScript payloads; 165+ built-in and per-OS scripts plus a prank reel.",c:BADUSB},
+ {k:"n",l:"Network",h:"Port scan / ping / DNS / connect",acc:"#fb923c",w:"LAN tools that need a WiFi join first, port scan, ping, DNS, recon, UPnP and CCTV discovery and DHCP / WPAD / Autodiscover attacks.",c:NET},
+ {k:"j",l:"SaltyJack",h:"LAN attack suite (homage 7h30th3r0n3)",acc:"#f87171",w:"LAN credential-attack suite (homage to @7h30th3r0n3), DHCP starvation, rogue DHCP, LLMNR/NBNS Responder, WPAD NTLM harvest and an on-device cracker.",c:SALTY},
+ {k:"r",l:"Radio",h:"LoRa sub-GHz + GNSS (CAP-LoRa)",acc:"#34d399",w:"Sub-GHz LoRa and GPS from the CAP-LoRa hat plus CC1101 and nRF24 radios, scan, record and replay, analyze and satellite tracking.",c:RADIO},
+ {k:"o",l:"Tools",h:"Flashlight / stopwatch / dice",acc:"#f0abfc",w:"Utilities in the Flipper tradition, the unified RF proximity hunter plus flashlight, stopwatch, dice, morse, MAC randomizer and more.",c:TOOLS},
+ {k:"m",l:"Mesh",h:"PigSync ESP-NOW peer mesh",acc:"#22d3ee",w:"ESP-NOW presence mesh, broadcast name, heap and GPS to nearby POSEIDON devices; the foundation for the multi-device C2 concept.",c:MESH},
+ {k:"5",l:"C5 nodes",h:"Remote 5GHz + Zigbee via C5",acc:"#2dd4bf",w:"Control ESP32-C5 drop-nodes over ESP-NOW, the only ESP chip with 5 GHz WiFi and 802.15.4, enabling remote 5 GHz scan, deauth and PMKID plus Zigbee sniff.",c:C5},
+ {k:"x",l:"MIMIR",h:"Control MIMIR drop-box via USB-C",acc:"#c084fc",w:"Connects to the MIMIR pentest drop-box over USB-C to drive scans and attacks (deauth, handshake, PMKID, evil twin, beacon spam) and retrieve cracked creds, no wireless link, for opsec.",d:"A controller for a separate device; defenses match the underlying WiFi attacks, WPA3, PMF and strong passphrases."},
+ {k:"p",l:"PC Bridge",h:"TRIDENT screen mirror + remote KB",acc:"#60a5fa",w:"Streams the Cardputer screen to the TRIDENT desktop app over USB-C at 10 fps and lets the PC send keystrokes back, a remote screen and keyboard bridge.",d:"Utility for a trusted PC link, keep the USB host trusted."},
+ {k:"s",l:"System",h:"Files, clock, settings",acc:"#94a3b8",w:"Device utilities, SD browser, clock, settings, theme, ambient and layout, screensaver, sound and about.",c:SYS},
+ {k:"d",l:"Mass Storage",h:"microSD -> USB drive",acc:"#cbd5e1",w:"Exposes the microSD to a USB host as a removable drive, the Cardputer becomes a card reader for drag-and-drop transfer; ESC ejects cleanly.",d:"Utility; be mindful what's on the card when plugging into an untrusted host."},
 ]};
 
 // ---- category taxonomy (badges) ----
@@ -690,6 +728,11 @@ const THEMES=[
  {id:"phantom",name:"PHANTOM",paper:false,b1:"#100a28",b2:"#0a0518",fg:"#e2ecff",dim:"#8b7fb8",acc:"#b66dff",key:"#c9a3ff",acc2:"#9a5cff",good:"#4ade80",warn:"#ffcc55",bad:"#ff5a5a",selbg:"rgba(48,20,74,0.92)",selbd:"#b66dff",rule:"#8a3dff",txta:"#e6dbff",txti:"#9a8fc0",ca1:"182,109,255",ca2:"120,60,255"},
  {id:"blood",name:"BLOOD",paper:false,b1:"#120303",b2:"#080101",fg:"#ecd6d6",dim:"#8a5a5a",acc:"#ff3b3b",key:"#ff8a8a",acc2:"#ff5a5a",good:"#4ea36a",warn:"#ffa200",bad:"#ff0000",selbg:"rgba(64,10,10,0.92)",selbd:"#ff3b3b",rule:"#e70000",txta:"#f0d6d6",txti:"#a06a6a",ca1:"231,0,0",ca2:"150,10,10"},
 ];
+// hidden 7th palette, unlocked via Konami code
+const GHOST_THEME={id:"ghost",name:"GHOST",paper:false,b1:"#04070a",b2:"#010304",fg:"#dff6ff",dim:"#4a7a86",acc:"#d7fbff",key:"#a8ecff",acc2:"#6fd7e8",good:"#8affd0",warn:"#c9e8ff",bad:"#ff9ecb",selbg:"rgba(20,40,48,0.85)",selbd:"#7fe9ff",rule:"#3fa8c0",txta:"#eafaff",txti:"#5f97a4",ca1:"180,240,255",ca2:"120,200,220"};
+const PKEY="poseidon_cardputer_prefs";
+function loadPrefs(){try{return JSON.parse(localStorage.getItem(PKEY)||"{}")||{};}catch(e){return {};}}
+function savePrefs(p){try{localStorage.setItem(PKEY,JSON.stringify(p));}catch(e){}}
 function themeVars(th){return {"--pfg":th.fg,"--pdim":th.dim,"--pacc":th.acc,"--pkey":th.key,"--pacc2":th.acc2,"--pgood":th.good,"--pwarn":th.warn,"--pbad":th.bad,"--pselbg":th.selbg,"--pselbd":th.selbd,"--prule":th.rule,"--ptxta":th.txta,"--ptxti":th.txti};}
 
 // ---- flattened search index (fuzzy find across the whole tree) ----
@@ -705,6 +748,8 @@ function buildIndex(){
   return out;
 }
 const SEARCH_INDEX=buildIndex();
+const LEAVES=SEARCH_INDEX.filter(e=>!e.isCat);
+const STATS={tools:LEAVES.length, attack:LEAVES.filter(e=>e.cat==="attack").length, defense:LEAVES.filter(e=>e.cat==="defense").length};
 // ---- decorative QR (finder patterns + seeded modules; looks the part) ----
 function buildQR(seed){
   const N=25,m=Array.from({length:N},()=>new Array(N).fill(0));
@@ -763,7 +808,7 @@ function keyStyle(meta,pressed,i){
     display:"flex",alignItems:"center",justifyContent:"center",position:"relative",cursor:"pointer",userSelect:"none",overflow:"hidden",
     fontFamily:'"JetBrains Mono", monospace',fontSize:(meta.label.length>2?"9.5px":"13px"),letterSpacing:"0.3px",
     color:color, background:bg, border:"1px solid "+border, boxShadow:shadow,
-    transform: pressed?"scale(0.93)":"none",
+    transform: pressed?"translateZ(-9px) scale(0.93)":"translateZ(0)",
     transition:"transform 0.1s ease, box-shadow 0.35s ease, background 0.25s ease, color 0.2s ease, border-color 0.3s ease"
   };
   if(anim){st.animation=anim+" 4.2s ease-in-out infinite";st.animationDelay=(-(((Math.floor((i||0)/14))+((i||0)%14))*0.11)).toFixed(2)+"s";}
@@ -783,7 +828,7 @@ class Component extends DCLogic {
   state={power:"off",path:[],cursor:0,view:"menu",pressed:{},muted:false,
     themeIdx:0,themePrev:null,layout:"terminal",help:false,
     saverOn:true,saverActive:false,saverSel:0,pickCursor:0,tick:0,
-    query:"",searchCursor:0,attract:false};
+    query:"",searchCursor:0,attract:false,hint1:true,ghostUnlocked:false,egg:null,eggAt:0};
 
   get accent(){return this.theme().acc;}
   theme(){var i=this.state.themePrev!=null?this.state.themePrev:this.state.themeIdx;return THEMES[i]||THEMES[0];}
@@ -851,9 +896,11 @@ class Component extends DCLogic {
   sfxKey(meta){
     if(!this.audioEnabled())return;
     const r=meta.role;
-    const hp=(r==="enter"||r==="space")?2600:(r==="up"||r==="down"||r==="left"||r==="right")?1900:2200;
-    this.noise({dur:0.028,gain:0.045,type:"highpass",freq:hp,q:0.7});
-    this.tone({freq:r==="mod"?150:180,type:"sine",dur:0.018,gain:0.032,attack:0.001,release:0.03});
+    const vr=1+(Math.random()*0.24-0.12);
+    const hp=((r==="enter"||r==="space")?2600:(r==="up"||r==="down"||r==="left"||r==="right")?1900:2200)*vr;
+    this.noise({dur:0.026+Math.random()*0.01,gain:0.04+Math.random()*0.02,type:"highpass",freq:hp,q:0.7});
+    this.noise({dur:0.014,gain:0.03,type:"bandpass",freq:(r==="space"?120:190)*vr,q:2.2});
+    this.tone({freq:(r==="mod"?150:180)*vr,type:"sine",dur:0.02,gain:0.03,attack:0.001,release:0.032});
   }
   sfxNav(dir){ if(!this.audioEnabled())return; const base=520; this.tone({freq:base,type:"triangle",dur:0.05,gain:0.07,attack:0.002,release:0.05,glideTo:base+(dir>0?-70:120)}); }
   sfxSelect(){ if(!this.audioEnabled())return; this.ping(); }
@@ -868,10 +915,13 @@ class Component extends DCLogic {
     this.tone({freq:110,type:"triangle",dur:1.0,gain:0.05,glideTo:220,attack:0.2,release:0.6,space:true});
     this.noise({dur:1.1,gain:0.05,type:"bandpass",freq:280,freqEnd:4200,q:0.8,space:true});
   }
+  sfxClick(){ if(!this.audioEnabled())return; this.noise({dur:0.02,gain:0.08,type:"highpass",freq:2600,q:0.6}); this.tone({freq:90,type:"square",dur:0.03,gain:0.05,attack:0.001,release:0.03}); }
   sfxReady(){
     if(!this.audioEnabled())return;
-    this.tone({freq:392,type:"sine",dur:0.5,gain:0.06,attack:0.01,release:0.5,space:true});
-    this.tone({freq:587,type:"sine",dur:0.55,gain:0.05,attack:0.02,release:0.5,space:true});
+    // boot chime melody: rising perfect intervals
+    var seq=[[392,0],[523,0.12],[659,0.24],[784,0.4]];
+    seq.forEach(s=>setTimeout(()=>{ if(this.audioEnabled())this.tone({freq:s[0],type:"sine",dur:0.5,gain:0.06,attack:0.01,release:0.5,space:true}); }, s[1]*1000));
+    this.tone({freq:1176,type:"sine",dur:0.6,gain:0.02,attack:0.3,release:0.5,space:true});
   }
   sfxPowerOff(){
     if(!this.audioEnabled())return;
@@ -920,17 +970,27 @@ class Component extends DCLogic {
 
   componentDidMount(){
     this.initScene(); this.resize(); this.applyScale();
-    var ti=THEMES.findIndex(t=>t.id===this.props.theme); if(ti>=0)this.setState({themeIdx:ti});
-    if(this.props.layout==="carousel")this.setState({layout:"carousel"});
-    if(this.props.screensaver===false)this.setState({saverOn:false});
+    var PF=loadPrefs();
+    if(PF.ghost&&!THEMES.some(t=>t.id==="ghost"))THEMES.push(GHOST_THEME);
+    if(PF.ghost)this.setState({ghostUnlocked:true});
+    var wantTheme=PF.theme||this.props.theme;
+    var ti=THEMES.findIndex(t=>t.id===wantTheme); if(ti>=0)this.setState({themeIdx:ti});
+    var wantLayout=PF.layout||this.props.layout;
+    if(wantLayout==="carousel")this.setState({layout:"carousel"});
+    if(PF.saverOn===false||this.props.screensaver===false)this.setState({saverOn:false});
+    if(typeof PF.saverSel==="number")this.setState({saverSel:PF.saverSel});
+    if(PF.muted)this.setState({muted:true});
     this.idleMs=Math.max(8000,(this.props.idleSeconds||40)*1000);
     this.battStart=performance.now(); this.battPct0=87;
     this.qrUrl=makeQRDataUrl(REPO_URL);
     this.logoImg=new Image(); this.logoImg.src="assets/poseidon-crop.png";
     this._onResize=()=>{this.resize();this.applyScale();}; window.addEventListener("resize",this._onResize);
     this.onKeyDown=this.onKeyDown.bind(this); window.addEventListener("keydown",this.onKeyDown);
-    this._onMove=(e)=>{this.markInput();this.onPointer(e);}; window.addEventListener("mousemove",this._onMove);
-    this._onDown=()=>this.markInput(); window.addEventListener("pointerdown",this._onDown);
+    this._onMove=(e)=>{this.markInput();if(!this.dragging)this.onPointer(e.clientX,e.clientY);}; window.addEventListener("mousemove",this._onMove);
+    this._onDown=(e)=>{this.markInput();this.startDrag(e.clientX,e.clientY,e.target);}; window.addEventListener("pointerdown",this._onDown);
+    this._onUp=()=>{if(this.dragging){this.dragging=false;this.parallax.tx=0;this.parallax.ty=0;}}; window.addEventListener("pointerup",this._onUp);window.addEventListener("pointercancel",this._onUp);
+    this._onPMove=(e)=>{if(this.dragging){e.preventDefault();this.dragMove(e.clientX,e.clientY);}}; window.addEventListener("pointermove",this._onPMove,{passive:false});
+    this._onTouch=(e)=>{this.markInput();if(e.touches&&e.touches[0]&&!this.dragging)this.onPointer(e.touches[0].clientX,e.touches[0].clientY);}; window.addEventListener("touchmove",this._onTouch,{passive:true});
     this._onHash=()=>this.applyHash(); window.addEventListener("hashchange",this._onHash);
     this.pendingHash=this.parseHash();
     this.clockTimer=setInterval(()=>{if(this.state.power==="on"&&!this.state.saverActive)this.setState(s=>({tick:(s.tick+1)%86400}));},1000);
@@ -959,8 +1019,10 @@ class Component extends DCLogic {
   applyHash(){if(this._selfHash){this._selfHash=false;return;}var segs=this.parseHash();if(!segs){if(this.state.path.length)this.setState({path:[],cursor:0,view:"menu"});return;}var node=ROOT,path=[];for(var i=0;i<segs.length;i++){if(!node.c)break;var idx=node.c.findIndex(x=>x.k&&x.k.toLowerCase()===segs[i].toLowerCase());if(idx<0)break;path.push(idx);node=node.c[idx];}this.setState({path:path,cursor:0,view:"menu"});}
   applyPending(){if(this.pendingHash&&this.pendingHash.length){var segs=this.pendingHash;this.pendingHash=null;var node=ROOT,path=[];for(var i=0;i<segs.length;i++){if(!node.c)break;var idx=node.c.findIndex(x=>x.k&&x.k.toLowerCase()===segs[i].toLowerCase());if(idx<0)break;path.push(idx);node=node.c[idx];}if(path.length)this.setState({path:path});}}
   // ---------- responsive scale + pointer parallax ----------
-  applyScale(){try{var el=this.scalerRef.current;if(!el)return;var vw=window.innerWidth,vh=window.innerHeight;var s=Math.min(1,(vw-24)/860,(vh-24)/720);if(s<0.32)s=0.32;el.style.transform="scale("+s+")";el.style.transformOrigin="top center";this._scale=s;}catch(e){}}
-  onPointer(e){try{var el=this.panelRef.current;if(!el)return;var r=el.getBoundingClientRect();var cx=r.left+r.width/2,cy=r.top+r.height/2;this.parallax.tx=Math.max(-1,Math.min(1,(e.clientX-cx)/(r.width/2)));this.parallax.ty=Math.max(-1,Math.min(1,(e.clientY-cy)/(r.height/2)));}catch(e2){}}
+  applyScale(){try{var el=this.scalerRef.current;if(!el)return;var vw=window.innerWidth,vh=window.innerHeight;var s=Math.min(1,(vw-24)/880,(vh-40)/770);if(s<0.4)s=0.4;el.style.zoom=s;this._scale=s;}catch(e){}}
+  onPointer(px,py){try{var el=this.panelRef.current;if(!el)return;var r=el.getBoundingClientRect();var cx=r.left+r.width/2,cy=r.top+r.height/2;this.parallax.tx=Math.max(-1,Math.min(1,(px-cx)/(r.width/2)));this.parallax.ty=Math.max(-1,Math.min(1,(py-cy)/(r.height/2)));}catch(e2){}}
+  startDrag(px,py,target){try{var el=this.panelRef.current;if(!el)return;var interactive=target&&target.closest&&target.closest("[data-nodrag]");if(interactive)return;var r=el.getBoundingClientRect();if(px<r.left-30||px>r.right+30||py<r.top-30||py>r.bottom+30)return;this.dragging=true;this._dragOX=px;this._dragOY=py;this._dragBX=this.parallax.tx;this._dragBY=this.parallax.ty;}catch(e){}}
+  dragMove(px,py){try{var el=this.panelRef.current;if(!el)return;var r=el.getBoundingClientRect();this.parallax.tx=Math.max(-1.6,Math.min(1.6,this._dragBX+(px-this._dragOX)/(r.width*0.42)));this.parallax.ty=Math.max(-1.6,Math.min(1.6,this._dragBY+(py-this._dragOY)/(r.height*0.42)));}catch(e){}}
 
   initScene(){
     this.parts=[];
@@ -988,6 +1050,7 @@ class Component extends DCLogic {
     if(e.key==="Meta"||e.key==="OS")return;
     if(e.metaKey||e.ctrlKey)return;
     const k=e.key;
+    this.checkEggs(k);
     if(k==="?"){e.preventDefault();if(this.state.power==="on")this.toggleHelp();return;}
     if(this.state.help){if(k==="Enter"||k===" "||k==="Escape"||k==="`"){e.preventDefault();this.setState({help:false});}return;}
     if(k==="Escape"){e.preventDefault();this.togglePower();return;}
@@ -1013,6 +1076,8 @@ class Component extends DCLogic {
     clearTimeout(this.timers[id]);
     this.timers[id]=setTimeout(()=>{this.setState(s=>{const p=Object.assign({},s.pressed);delete p[id];return{pressed:p};});},430);
     this.sfxKey(meta);
+    this.keyPulse=performance.now();
+    if(this.state.hint1)this.setState({hint1:false});
     this.act(meta);
   }
 
@@ -1170,8 +1235,8 @@ class Component extends DCLogic {
     if(a==="theme")this.setState(s=>({view:"theme",pickCursor:s.themeIdx,themePrev:s.themeIdx}));
     else if(a==="about")this.setState({view:"about"});
     else if(a==="saverpick")this.setState(s=>({view:"saverpick",pickCursor:s.saverSel}));
-    else if(a==="toggle-layout")this.setState(s=>({layout:s.layout==="terminal"?"carousel":"terminal"}));
-    else if(a==="toggle-saver")this.setState(s=>({saverOn:!s.saverOn}));
+    else if(a==="toggle-layout")this.setState(s=>({layout:s.layout==="terminal"?"carousel":"terminal"}),()=>this.persist());
+    else if(a==="toggle-saver")this.setState(s=>({saverOn:!s.saverOn}),()=>this.persist());
     else if(a==="toggle-sound")this.toggleSound();
     else if(a==="toggle-ambient")this.toggleAmbient();
     else if(a==="toggle-attract")this.state.attract?this.stopAttract():this.startAttract();
@@ -1180,9 +1245,18 @@ class Component extends DCLogic {
   toggleAmbient(){ if(this.ambient)this.stopAmbient(); else if(this.state.power==="on")this.startAmbient(); }
   toggleHelp(){ this.initAudio(); this.setState(s=>({help:!s.help})); this.sfxSelect(); }
   movePick(d,n,preview){ this.setState(s=>{var c=(s.pickCursor+d+n)%n; var ns={pickCursor:c}; if(preview)ns.themePrev=c; return ns;}); this.sfxNav(d); }
-  commitTheme(){ this.setState(s=>({themeIdx:s.pickCursor,themePrev:null,view:"menu"})); this.sfxSelect(); }
+  persist(){ try{ savePrefs({theme:(THEMES[this.state.themeIdx]||THEMES[0]).id, layout:this.state.layout, saverOn:this.state.saverOn, saverSel:this.state.saverSel, muted:this.state.muted, ghost:!!this.state.ghostUnlocked}); }catch(e){} }
+  checkEggs(k){
+    var KON=["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"];
+    this._kon=(this._kon||[]); this._kon.push(k); if(this._kon.length>KON.length)this._kon.shift();
+    if(this._kon.length===KON.length&&KON.every((v,i)=>v===this._kon[i])){ this._kon=[]; this.unlockGhost(); return; }
+    if(k&&k.length===1){ this._typ=((this._typ||"")+k.toLowerCase()).slice(-8); if(this._typ==="poseidon"){ this._typ=""; this.triggerSigilEgg(); } }
+  }
+  triggerSigilEgg(){ this.sigilEgg=performance.now(); this.setState({egg:"\u2648 POSEIDON",eggAt:performance.now()}); if(this.audioEnabled()){ this.tone({freq:220,type:"sine",dur:1.1,gain:0.11,glideTo:660,attack:0.02,release:0.8,space:true}); this.tone({freq:330,type:"triangle",dur:1.0,gain:0.05,glideTo:990,attack:0.05,release:0.7,space:true}); this.noise({dur:1.2,gain:0.04,type:"bandpass",freq:400,freqEnd:5000,q:0.8,space:true}); } }
+  unlockGhost(){ if(this.state.ghostUnlocked)return; if(!THEMES.some(t=>t.id==="ghost"))THEMES.push(GHOST_THEME); var gi=THEMES.findIndex(t=>t.id==="ghost"); this.setState({ghostUnlocked:true,themeIdx:gi,themePrev:null,view:"menu",egg:"GHOST PROTOCOL UNLOCKED",eggAt:performance.now()},()=>this.persist()); if(this.audioEnabled()){this.tone({freq:180,type:"sine",dur:0.8,gain:0.1,glideTo:900,attack:0.02,release:0.6,space:true});this.tone({freq:1400,type:"sine",dur:0.5,gain:0.04,glideTo:2100,release:0.5,space:true});} }
+  commitTheme(){ this.setState(s=>({themeIdx:s.pickCursor,themePrev:null,view:"menu"}),()=>this.persist()); this.sfxSelect(); }
   cancelTheme(){ this.setState({themePrev:null,view:"menu"}); this.sfxBack(); }
-  commitSaver(){ this.setState(s=>({saverSel:s.pickCursor,view:"menu"})); this.sfxSelect(); }
+  commitSaver(){ this.setState(s=>({saverSel:s.pickCursor,view:"menu"}),()=>this.persist()); this.sfxSelect(); }
   scrollAbout(d){ try{var el=this.aboutRef&&this.aboutRef.current; if(el)el.scrollTop+=d*30;}catch(e){} }
   showInfo(){ const menu=this.currentChildren(); if(menu[this.state.cursor]){ this.setState({view:"info"}); this.sfxSelect(); } }
   goBack(){
@@ -1210,14 +1284,15 @@ class Component extends DCLogic {
   }
   togglePower(){
     this.initAudio();
+    this.sfxClick();
     const p=this.state.power;
     if(p==="off"){this.bootAt=performance.now();this.setState({power:"booting"});this.sfxPowerOn();clearTimeout(this.bootTimer);this.bootTimer=setTimeout(()=>this.finishBoot(),this.reduced()?1500:3200);}
     else if(p==="on"){this.setState({power:"off",view:"menu",help:false,saverActive:false});this.sfxPowerOff();this.stopAmbient();}
   }
-  finishBoot(){ clearTimeout(this.bootTimer); if(this.state.power==="on")return; this.setState({power:"on",cursor:0,view:"menu"}); this.sfxReady(); this.lastInput=performance.now(); if(!this.state.muted)this.startAmbient(); this.applyPending(); if(this.props.attractMode)this.attractTimer=setTimeout(()=>this.startAttract(),1600); }
+  finishBoot(){ clearTimeout(this.bootTimer); if(this.state.power==="on")return; this.crtFlash=performance.now(); this.setState({power:"on",cursor:0,view:"menu"}); this.sfxReady(); this.lastInput=performance.now(); if(!this.state.muted)this.startAmbient(); this.applyPending(); if(this.props.attractMode)this.attractTimer=setTimeout(()=>this.startAttract(),1600); clearTimeout(this.hintTimer); this.hintTimer=setTimeout(()=>{if(this.state.hint1)this.setState({hint1:false});},7000); }
   toggleSound(){
     this.initAudio();
-    const m=!this.state.muted; this.setState({muted:m});
+    const m=!this.state.muted; this.setState({muted:m},()=>this.persist());
     if(m){this.stopAmbient();} else if(this.state.power==="on"){this.startAmbient();}
   }
 
@@ -1230,7 +1305,14 @@ class Component extends DCLogic {
     const now=performance.now();const t=(now-this.t0)/1000;
     if(this.state.power==="on"){const pk=this.state.path.join(",");if(pk!==this._pk){this._pk=pk;this.writeHash();}}
     const pl=this.panelRef.current;
-    if(pl){ this.parallax.x+=(this.parallax.tx-this.parallax.x)*0.08; this.parallax.y+=(this.parallax.ty-this.parallax.y)*0.08; const rx=(-this.parallax.y*3.0).toFixed(2), ry=(this.parallax.x*3.8).toFixed(2); pl.style.transform="perspective(1500px) rotateX("+rx+"deg) rotateY("+ry+"deg)"; }
+    if(pl){ this.parallax.x+=(this.parallax.tx-this.parallax.x)*0.08; this.parallax.y+=(this.parallax.ty-this.parallax.y)*0.08;
+      const idX=Math.sin(t*0.33)*0.05, idY=Math.sin(t*0.41)*0.06;
+      const rx=(-(this.parallax.y+idY)*5.5).toFixed(2), ry=((this.parallax.x+idX)*6.5).toFixed(2);
+      pl.style.transform="rotateX("+rx+"deg) rotateY("+ry+"deg)";
+      const gl=this.glareRef&&this.glareRef.current; if(gl)gl.style.transform="translate("+((this.parallax.x+idX)*22).toFixed(1)+"px,"+((this.parallax.y+idY)*16).toFixed(1)+"px)";
+      const lx=this.parallax.x+idX, ly=this.parallax.y+idY;
+      const bz=this.bezelRef&&this.bezelRef.current; if(bz)bz.style.boxShadow="inset "+(-lx*11).toFixed(1)+"px "+(-ly*11-2).toFixed(1)+"px 15px rgba(190,235,255,0.16), inset "+(lx*9).toFixed(1)+"px "+(ly*9).toFixed(1)+"px 16px rgba(217,70,239,0.13)";
+      const sh=this.shadowRef&&this.shadowRef.current; if(sh){ sh.style.transform="translate("+(-lx*30).toFixed(1)+"px,"+(22-ly*12).toFixed(1)+"px)"; sh.style.opacity=(0.5+Math.min(0.28,(Math.abs(lx)+Math.abs(ly))*0.4)).toFixed(2); } }
     if(this.bgctx)this.drawBG(this.bgctx,this.bw,this.bh,t);
     if(this.sctx){
       const p=this.state.power;
@@ -1243,11 +1325,37 @@ class Component extends DCLogic {
         else{ this.drawScreenBase(this.sctx,this.sw,this.sh,t,this.theme()); this.drawCategoryAmbient(this.sctx,this.sw,this.sh,t,this.sectionAccent()); }
       }
     }
+    if(this.sctx&&this.state.power==="on"){this.drawScreenFX(this.sctx,this.sw,this.sh,now);}
     }catch(err){if(!this._logged){console.error("LOOP ERROR:",err);this._logged=true;}}
     this.raf=requestAnimationFrame(this.loop);
   }
   activateSaver(now){ var idx,sel=this.state.saverSel; if(sel===0){ idx=1+Math.floor(Math.random()*(SAVERS.length-1)); var g=0; while(idx===this._lastSaver&&g<6&&SAVERS.length>2){idx=1+Math.floor(Math.random()*(SAVERS.length-1));g++;} } else idx=sel; this._lastSaver=idx; this.saverId=SAVERS[idx].id; this.saverStart=now; this._sv=null; this.setState({saverActive:true,help:false}); }
 
+  drawScreenFX(ctx,w,h,now){
+    const t=(now-this.t0)/1000;
+    // slow glass reflection band sweeping across
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const sweep=((t*0.09)%1.4)-0.2,gx=sweep*w;
+    const rg=ctx.createLinearGradient(gx-w*0.3,0,gx+w*0.3,h);
+    rg.addColorStop(0,"rgba(190,225,255,0)");rg.addColorStop(0.5,"rgba(190,225,255,0.045)");rg.addColorStop(1,"rgba(190,225,255,0)");
+    ctx.fillStyle=rg;ctx.fillRect(0,0,w,h);ctx.restore();
+    // low-power dim as idle approaches the screensaver
+    if(this.state.saverOn&&!this.state.saverActive&&this.state.view!=="sim"&&!this.attract){
+      const idle=now-this.lastInput,frac=(idle-this.idleMs*0.55)/(this.idleMs*0.45);
+      if(frac>0){ctx.fillStyle="rgba(0,0,0,"+(Math.min(0.45,frac*0.45)).toFixed(3)+")";ctx.fillRect(0,0,w,h);}
+    }
+    // keypress brightness pulse
+    if(this.keyPulse){const kp=(now-this.keyPulse)/1000;if(kp<0.18){const a=(1-kp/0.18)*0.10;ctx.save();ctx.globalCompositeOperation="lighter";ctx.fillStyle="rgba(190,235,255,"+a.toFixed(3)+")";ctx.fillRect(0,0,w,h);ctx.restore();}else this.keyPulse=0;}
+    // CRT power-on flash: bright bloom, horizontal collapse line, quick settle
+    if(this.crtFlash){const e=(now-this.crtFlash)/1000;const dur=0.62;
+      if(e<dur){ctx.save();
+        if(e<0.14){const a=(1-e/0.14);ctx.fillStyle="rgba(255,255,255,"+(0.9*a).toFixed(3)+")";ctx.fillRect(0,0,w,h);}
+        const g=Math.max(0,1-e/0.34);if(g>0){ctx.globalCompositeOperation="lighter";const rg=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,w*0.6);rg.addColorStop(0,"rgba(200,240,255,"+(0.5*g)+")");rg.addColorStop(1,"rgba(200,240,255,0)");ctx.fillStyle=rg;ctx.fillRect(0,0,w,h);}
+        const lp=e/dur;if(lp<0.6){const ly=h*0.5,lh=Math.max(1.5,h*(0.5-lp*0.5)*2*0.5);ctx.globalCompositeOperation="lighter";ctx.fillStyle="rgba(220,245,255,"+(0.85*(1-lp/0.6))+")";ctx.fillRect(0,ly-lh/2,w,lh);}
+        ctx.restore();
+      } else this.crtFlash=0;
+    }
+  }
   makeBolt(w,h){const pts=[];let x=w*(0.15+Math.random()*0.7),y=0;const seg=9;for(let i=0;i<seg;i++){pts.push({x:x,y:y});x+=(Math.random()-0.5)*w*0.07;y+=(h*0.5)/seg;}return pts;}
   drawBG(ctx,w,h,t){
     const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0b0514");g.addColorStop(0.34,"#08040f");g.addColorStop(0.62,"#050308");g.addColorStop(1,"#020207");
@@ -1410,6 +1518,9 @@ class Component extends DCLogic {
     if(id==="portal"){S.log=[];S.tL=0;}
     if(id==="waterfall"){S.rows=[];S.tRow=0;}
     if(id==="saltyjack"){S.hashes=[];S.tH=0;S.tot=0;}
+    if(id==="eviltwin"){S.phase=0;S.tP=0;S.deauth=0;S.creds=0;S.log=[];S.tL=0;}
+    if(id==="beaconspam"){S.list=[];S.total=0;S.tB=0;}
+    if(id==="wardrivemap"){S.dots=[];S.tD=0;S.total=0;S.px=0.5;S.py=0.5;S.trail=[];S.ang=Math.random()*6.28;}
     return S;
   }
   drawSim(ctx,w,h,e,t){
@@ -1425,6 +1536,9 @@ class Component extends DCLogic {
       case "portal":this.simPortal(ctx,w,h,e,t,pal,S);break;
       case "waterfall":this.simWaterfall(ctx,w,h,e,t,pal,S);break;
       case "saltyjack":this.simSaltyjack(ctx,w,h,e,t,pal,S);break;
+      case "eviltwin":this.simEvilTwin(ctx,w,h,e,t,pal,S);break;
+      case "beaconspam":this.simBeaconSpam(ctx,w,h,e,t,pal,S);break;
+      case "wardrivemap":this.simWardriveMap(ctx,w,h,e,t,pal,S);break;
       default:this.simWScan(ctx,w,h,e,t,pal,S);
     }
     this.simChrome(ctx,w,h,pal,this.simLabel||this.simId);
@@ -1475,20 +1589,31 @@ class Component extends DCLogic {
   }
   simArgus(ctx,w,h,e,t,pal,S){
     const now=t*1000;
+    if(!this.argus){var PF=loadPrefs();this.argus={hs:(PF.argusHs||0),pmkid:(PF.argusPm||0),lastCap:0,moodT:0,mood:0};}
+    var A=this.argus;
     if(now-S.tHop>500){S.tHop=now;S.ch=1+((Math.random()*13)|0);}
-    if(now-S.tCap>2200){S.tCap=now;if(Math.random()<0.6)S.hs++;else S.pmkid++;}
-    const fx=w/2,fy=h/2-2,fs=50;
+    if(now-S.tCap>2200){S.tCap=now;if(Math.random()<0.6)A.hs++;else A.pmkid++;A.lastCap=t;if((A.hs+A.pmkid)%3===0){try{var P=loadPrefs();P.argusHs=A.hs;P.argusPm=A.pmkid;savePrefs(P);}catch(e){}}}
+    var lvl=1+Math.floor(A.hs/5), justCap=(t-A.lastCap)<0.6;
+    var MOODS=["on the hunt","sniffing...","locked on","feeling lucky","channel surfing"];
+    if(t-A.moodT>4){A.moodT=t;A.mood=(Math.random()*MOODS.length)|0;}
+    const fx=w/2,fy=h/2-4,fs=50;
+    if(justCap){ctx.save();ctx.globalCompositeOperation="lighter";ctx.fillStyle=pal.good;ctx.globalAlpha=(0.6-(t-A.lastCap))*0.5;var rr=(t-A.lastCap)*70;ctx.beginPath();ctx.arc(fx,fy,rr,0,6.28);ctx.strokeStyle=pal.good;ctx.stroke();ctx.restore();ctx.globalAlpha=1;}
     ctx.strokeStyle=pal.acc;ctx.lineWidth=2;ctx.strokeRect(fx-fs/2,fy-fs/2,fs,fs);
     ctx.beginPath();ctx.moveTo(fx,fy-fs/2);ctx.lineTo(fx,fy-fs/2-8);ctx.stroke();ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(fx,fy-fs/2-10,2.5,0,6.28);ctx.fill();
     const blink=(Math.floor(t*1.3)%6===0);ctx.fillStyle=pal.fg;
     if(blink){ctx.fillRect(fx-15,fy-3,8,2);ctx.fillRect(fx+7,fy-3,8,2);}
     else{ctx.fillRect(fx-15,fy-8,7,8);ctx.fillRect(fx+8,fy-8,7,8);}
-    ctx.strokeStyle=pal.acc2;ctx.lineWidth=2;ctx.beginPath();ctx.arc(fx,fy+7,9,0.12*Math.PI,0.88*Math.PI);ctx.stroke();ctx.lineWidth=1;
-    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("hunting ch "+S.ch,4,27);
-    ctx.fillStyle=pal.good;ctx.textAlign="right";ctx.fillText("handshakes: "+S.hs,w-4,27);
-    ctx.fillStyle=pal.acc2;ctx.fillText("PMKID: "+S.pmkid,w-4,37);
-    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.fillText("mood: on the hunt",4,h-15);
-    const rl=(Math.sin(t*0.5)*0.5+0.5);ctx.strokeStyle=pal.dim;ctx.strokeRect(4,h-11,60,5);ctx.fillStyle=pal.acc;ctx.fillRect(5,h-10,58*rl,3);
+    // mouth: happy (open) when just captured, else content arc
+    ctx.strokeStyle=pal.acc2;ctx.lineWidth=2;ctx.beginPath();
+    if(justCap){ctx.arc(fx,fy+4,7,0.05*Math.PI,0.95*Math.PI);}else{ctx.arc(fx,fy+7,9,0.12*Math.PI,0.88*Math.PI);}
+    ctx.stroke();ctx.lineWidth=1;
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("hunting ch "+S.ch,4,25);
+    ctx.fillStyle=pal.warn;ctx.fillText("LV."+lvl+"  \u2022  ARGUS",4,h-27);
+    ctx.fillStyle=pal.good;ctx.textAlign="right";ctx.fillText("handshakes: "+A.hs,w-4,25);
+    ctx.fillStyle=pal.acc2;ctx.fillText("PMKID: "+A.pmkid,w-4,35);
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.fillText("mood: "+MOODS[A.mood],4,h-15);
+    // XP bar to next level
+    var xp=(A.hs%5)/5;ctx.strokeStyle=pal.dim;ctx.strokeRect(w-64,h-12,60,5);ctx.fillStyle=pal.good;ctx.fillRect(w-63,h-11,58*xp,3);
   }
   simPortal(ctx,w,h,e,t,pal,S){
     const US=["j.martinez","a.chen","s.patel","d.hall","m.wilson","k.obrien"],PW=["Summer2025!","Passw0rd1","Welcome123","Winter#24","Corp!2024"];
@@ -1522,6 +1647,62 @@ class Component extends DCLogic {
     ctx.font='8px "JetBrains Mono", monospace';
     for(let i=0;i<S.hashes.length;i++){const y=47+i*18;ctx.fillStyle=pal.good;ctx.fillText("[+] NTLMv2 "+S.hashes[i].u,4,y);ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText(S.hashes[i].h+"\u2026 \u2192 hashcat 5600",4,y+8);ctx.font='8px "JetBrains Mono", monospace';}
     ctx.fillStyle=pal.warn;ctx.textAlign="right";ctx.fillText("hashes: "+S.tot,w-4,25);ctx.textAlign="left";
+  }
+  simEvilTwin(ctx,w,h,e,t,pal,S){
+    const now=t*1000,PHASES=["DEAUTH target AP","BEACON rogue clone","PORTAL harvest"];
+    if(now-S.tP>2200){S.tP=now;S.phase=(S.phase+1)%3;}
+    if(S.phase===0)S.deauth+=6;
+    if(S.phase===2&&now-S.tL>1500){S.tL=now;S.creds++;S.log.unshift("v.user"+((Math.random()*90+10)|0)+"@corp");if(S.log.length>3)S.log.pop();}
+    ctx.textAlign="left";ctx.fillStyle=pal.fg;ctx.font='9px "JetBrains Mono", monospace';ctx.fillText("target: HOME-5G_a3f2",4,26);
+    // two AP nodes with a victim shuttling
+    const ay=52,realX=w*0.24,rogueX=w*0.76,vy=ay;
+    ctx.fillStyle=pal.dim;ctx.beginPath();ctx.arc(realX,ay,10,0,6.28);ctx.stroke?ctx.stroke():0;ctx.strokeStyle=pal.dim;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(realX,ay,10,0,6.28);ctx.stroke();
+    ctx.strokeStyle=pal.bad;ctx.beginPath();ctx.arc(rogueX,ay,10,0,6.28);ctx.stroke();ctx.lineWidth=1;
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.textAlign="center";ctx.fillText("REAL AP",realX,ay+22);ctx.fillStyle=pal.bad;ctx.fillText("ROGUE",rogueX,ay+22);
+    const toRogue=S.phase>=1,vx=realX+(rogueX-realX)*(toRogue?(0.5+Math.sin(e*3)*0.02+0.48):0.08);
+    ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(toRogue?rogueX-16:realX+16,ay,3.5,0,6.28);ctx.fill();
+    // phase indicator + rings
+    if(S.phase===0){for(let i=0;i<3;i++){const rr=((e+i*0.3)%0.9)/0.9*20;ctx.strokeStyle="rgba("+pal.bad.match(/\d+/g).slice(0,3).join(",")+","+(1-rr/20)+")";ctx.beginPath();ctx.arc(realX,ay,rr,0,6.28);ctx.stroke();}}
+    const bx=6,by=h-30;ctx.textAlign="left";ctx.fillStyle=pal.warn;ctx.font='9px "JetBrains Mono", monospace';ctx.fillText("["+(S.phase+1)+"/3] "+PHASES[S.phase],bx,by);
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("deauth "+S.deauth,bx,by+11);
+    ctx.fillStyle=pal.good;ctx.textAlign="right";ctx.fillText("creds "+S.creds,w-4,by);
+    if(S.log[0]){ctx.fillStyle=pal.good;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText(S.log[0],w-4,by+11);}ctx.textAlign="left";
+  }
+  simBeaconSpam(ctx,w,h,e,t,pal,S){
+    const NM=["FBI_Van_24","Pretty_Fly_4WiFi","Mom_Click_Here","NSA_Listening","Virus.exe","Loading...","Ligma_5G","404_Not_Found","Drop_It_Like_Its_Hotspot","Hide_Yo_Kids","Bill_Wi_the_ScienceFi","DEFCON","skynet_global","Nacho_WiFi","No_Free_WiFi_Here","Area_51_Guest"];
+    const now=t*1000;
+    if(now-S.tB>90){S.tB=now;S.total+=1+((Math.random()*3)|0);S.list.unshift({n:NM[(Math.random()*NM.length)|0],c:1+((Math.random()*13)|0)});if(S.list.length>9)S.list.pop();}
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("flooding fake SSIDs",4,25);
+    for(let i=0;i<S.list.length;i++){const y=37+i*15,a=1-i*0.08;ctx.globalAlpha=a;
+      ctx.fillStyle=pal.acc;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("\uD83D\uDCF6",4,y);
+      ctx.fillStyle=i===0?pal.fg:pal.txti||pal.dim;ctx.font='10px "Rajdhani", sans-serif';ctx.fillText(S.list[i].n,16,y);
+      ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.textAlign="right";ctx.fillText("ch"+S.list[i].c,w-4,y);ctx.textAlign="left";}
+    ctx.globalAlpha=1;
+    ctx.fillStyle=pal.warn;ctx.font='700 10px "JetBrains Mono", monospace';ctx.textAlign="right";ctx.fillText(S.total+" SSIDs",w-4,25);ctx.textAlign="left";
+  }
+  simWardriveMap(ctx,w,h,e,t,pal,S){
+    const now=t*1000;
+    // move a GPS cursor on a wandering path
+    if(now-S.tD>140){S.tD=now;S.ang+=(Math.random()-0.5)*0.9;S.px+=Math.cos(S.ang)*0.03;S.py+=Math.sin(S.ang)*0.03;
+      if(S.px<0.08||S.px>0.92){S.ang=Math.PI-S.ang;S.px=Math.max(0.08,Math.min(0.92,S.px));}
+      if(S.py<0.16||S.py>0.9){S.ang=-S.ang;S.py=Math.max(0.16,Math.min(0.9,S.py));}
+      S.trail.push({x:S.px,y:S.py});if(S.trail.length>60)S.trail.shift();
+      if(Math.random()<0.7){S.total++;S.dots.push({x:S.px+(Math.random()-0.5)*0.12,y:S.py+(Math.random()-0.5)*0.12,e:t,enc:Math.random()<0.25});}
+      if(S.dots.length>90)S.dots.shift();}
+    // grid
+    ctx.strokeStyle=pal.paper?"rgba(0,0,0,0.06)":"rgba("+pal.ca1+",0.08)";ctx.lineWidth=1;
+    for(let gx=0;gx<w;gx+=18){ctx.beginPath();ctx.moveTo(gx,16);ctx.lineTo(gx,h);ctx.stroke();}
+    for(let gy=16;gy<h;gy+=18){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();}
+    // trail
+    ctx.strokeStyle=pal.acc2;ctx.globalAlpha=0.5;ctx.beginPath();for(let i=0;i<S.trail.length;i++){const p=S.trail[i];if(i===0)ctx.moveTo(p.x*w,p.y*h);else ctx.lineTo(p.x*w,p.y*h);}ctx.stroke();ctx.globalAlpha=1;
+    // AP dots
+    for(const d of S.dots){const age=t-d.e,al=Math.min(1,age*2);ctx.fillStyle=d.enc?pal.warn:pal.acc;ctx.globalAlpha=0.35+al*0.5;ctx.beginPath();ctx.arc(d.x*w,d.y*h,2,0,6.28);ctx.fill();if(age<0.5){ctx.globalAlpha=(0.5-age)*1.4;ctx.beginPath();ctx.arc(d.x*w,d.y*h,2+age*12,0,6.28);ctx.strokeStyle=d.enc?pal.warn:pal.acc;ctx.stroke();}}
+    ctx.globalAlpha=1;
+    // GPS cursor
+    const cx=S.px*w,cy=S.py*h;ctx.fillStyle=pal.fg;ctx.beginPath();ctx.arc(cx,cy,3.5,0,6.28);ctx.fill();ctx.strokeStyle=pal.acc;ctx.beginPath();ctx.arc(cx,cy,3.5+Math.sin(e*4)*1.5+3,0,6.28);ctx.stroke();
+    ctx.fillStyle=pal.b1;ctx.fillRect(0,0,w,14);
+    ctx.textAlign="left";ctx.fillStyle=pal.acc;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("WIGLE.csv \u00b7 "+S.total+" nets",4,11);
+    ctx.fillStyle=pal.good;ctx.textAlign="right";ctx.fillText("\u25cf GPS 3D",w-4,11);ctx.textAlign="left";
   }
   // ================= SCREENSAVER POOL =================
   saverChrome(ctx,w,h,pal,title,right){
@@ -1688,8 +1869,10 @@ class Component extends DCLogic {
     const dNow=new Date();
     const clockStr=String(dNow.getHours()).padStart(2,"0")+":"+String(dNow.getMinutes()).padStart(2,"0");
     const bel=(performance.now()-(this.battStart||performance.now()))/1000;
-    const battN=Math.max(14,Math.min(100,Math.round((this.battPct0||87)-bel/90)));
-    const battFillCol=battN<20?th.bad:th.good;
+    const battN=Math.max(6,Math.min(100,Math.round((this.battPct0||87)-bel/22)));
+    const battLow=battN<=20;
+    const battFillCol=battLow?th.bad:th.good;
+    const eggActive=this.state.egg&&(performance.now()-this.state.eggAt)<3200;
 
     const card=cur?{ key:(cur.k||"?").toUpperCase(), label:cur.l, desc:cur.h||"",
       isCat:isCat, notCat:!isCat, glyph:isCat?("MENU \u203a "+cur.c.length):(cur.sim?"\u25b6 run":"\u00b7 tool"),
@@ -1727,18 +1910,22 @@ class Component extends DCLogic {
       search:"type to filter  \u00b7  ;/. move  \u00b7  \u23ce open  \u00b7  \u0060 close" }[view]||"";
 
     return {
-      bgCanvasRef:this.bgRef, screenCanvasRef:this.screenRef, panelRef:this.panelRef, scalerRef:this.scalerRef, aboutRef:this.aboutRef,
+      bgCanvasRef:this.bgRef, screenCanvasRef:this.screenRef, panelRef:this.panelRef, scalerRef:this.scalerRef, aboutRef:this.aboutRef, glareRef:(this.glareRef||(this.glareRef=React.createRef())), bezelRef:(this.bezelRef||(this.bezelRef=React.createRef())), shadowRef:(this.shadowRef||(this.shadowRef=React.createRef())),
       powered:on, dormant:power==="off",
       scanlines:this.props.showScanlines!==false && !th.paper,
       notPaper:!th.paper,
       hudChrome:this.props.hudChrome!==false,
       keyboardNode:keyboardNode,
       screenVars:themeVars(th),
+      screenSpillStyle:{position:"absolute",inset:"4px",borderRadius:"12px",pointerEvents:"none",boxShadow:"0 0 20px rgba("+this.hexToRgb(th.acc)+",0.28), 0 0 42px rgba("+this.hexToRgb(th.acc)+",0.14)",transition:"box-shadow .6s ease",zIndex:0},
+      showHint:this.state.hint1,
+      eggActive:!!eggActive, eggText:this.state.egg||"", battLow:battLow,
+      battWarnStyle:{position:"absolute",left:"1px",top:"1px",bottom:"1px",width:Math.max(1,Math.round(11*battN/100))+"px",background:battFillCol,borderRadius:"1px",animation:battLow?"battBlink 1s steps(1) infinite":"none"},
       notSaver:!this.state.saverActive,
       chromeVisible:!this.state.saverActive && this.state.view!=="sim",
       viewSearch: view==="search", searchQuery:sq, searchHasResults:searchAll.length>0, searchEmpty:view==="search"&&searchAll.length===0, searchRows:searchRows,
       isRootPill: view==="menu" && isRoot, countShow: view==="menu" && !isRoot, attractOn:this.state.attract,
-      qrUrl:(this.qrUrl||(this.qrUrl=makeQRDataUrl(REPO_URL))), repoUrl:REPO_URL,
+      qrImg:React.createElement("img",{src:(this.qrUrl||(this.qrUrl=makeQRDataUrl(REPO_URL))),alt:"repo QR",width:46,height:46,style:{borderRadius:"4px",imageRendering:"pixelated",flexShrink:0,background:"#fff",display:"block"}}), repoUrl:REPO_URL, statTools:STATS.tools, statAttack:STATS.attack,
       themeName:th.name, hudTheme:th.name.toLowerCase(), gpsStr:"no fix", clockStr:clockStr,
       battPct:battN+"%", battFillStyle:{position:"absolute",left:"1px",top:"1px",bottom:"1px",width:Math.max(1,Math.round(11*battN/100))+"px",background:battFillCol,borderRadius:"1px"},
       showTerminal: view==="menu" && this.state.layout==="terminal",
