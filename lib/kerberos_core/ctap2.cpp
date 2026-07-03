@@ -128,13 +128,75 @@ static uint16_t make_cred(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t l
     return (uint16_t)(1 + n);
 }
 
+static uint16_t get_assert(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
+                           uint8_t *out, uint16_t cap) {
+    CborParser p; CborValue map;
+    if (cbor_get_map(req + 1, len - 1, &p, &map)) return err(out, CTAP2_ERR_INVALID_CBOR);
+
+    // 1: rpId (text) -> hash
+    char rpid[128]; size_t rpidl = sizeof rpid;
+    if (cbor_map_text(&map, 1, rpid, &rpidl)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    uint8_t rpIdHash[32];
+    if (cfg->cy->sha256((const uint8_t *)rpid, strlen(rpid), rpIdHash, cfg->cy->ctx))
+        return err(out, CTAP1_ERR_OTHER);
+    // 2: clientDataHash
+    uint8_t cdh[32]; size_t cdhl = sizeof cdh;
+    if (cbor_map_bytes(&map, 2, cdh, &cdhl) || cdhl != 32) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+
+    // 3: allowList -> first credential id we can unwrap for this rp
+    uint8_t priv[32], credId[128]; size_t credIdLen = 0; bool found = false;
+    CborValue al;
+    if (cbor_map_enter(&map, 3, &al) == 0 && cbor_value_is_array(&al)) {
+        CborValue it; cbor_value_enter_container(&al, &it);
+        while (!cbor_value_at_end(&it)) {
+            if (cbor_value_is_map(&it)) {
+                CborValue idv;
+                if (cbor_value_map_find_value(&it, "id", &idv) == CborNoError &&
+                    cbor_value_is_byte_string(&idv)) {
+                    uint8_t cid[128]; size_t cl = sizeof cid;
+                    if (cbor_value_copy_byte_string(&idv, cid, &cl, nullptr) == CborNoError &&
+                        kw_unwrap(cfg->cy, cfg->devkey, cid, cl, rpIdHash, priv) == 0) {
+                        memcpy(credId, cid, cl); credIdLen = cl; found = true; break;
+                    }
+                }
+            }
+            cbor_value_advance(&it);
+        }
+    }
+    if (!found) return err(out, CTAP2_ERR_NO_CREDENTIALS);
+
+    if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
+    uint32_t ctr = cfg->counter ? ++(*cfg->counter) : 1;
+
+    uint8_t authData[37];
+    size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP, ctr, nullptr, 0, authData, sizeof authData);
+    uint8_t tosign[37 + 32]; memcpy(tosign, authData, adLen); memcpy(tosign + adLen, cdh, 32);
+    uint8_t sig[72]; size_t sigLen = 0;
+    if (cfg->cy->p256_sign(priv, tosign, adLen + 32, sig, &sigLen, cfg->cy->ctx))
+        return err(out, CTAP1_ERR_OTHER);
+
+    out[0] = CTAP2_OK;
+    cbor_writer w; cw_init(&w, out + 1, cap - 1);
+    cw_map(&w, 3);                                    // 1: credential, 2: authData, 3: signature
+    cw_key(&w, 1);
+    CborEncoder cred; cbor_encoder_create_map(cw_enc(&w), &cred, 2);
+    cbor_encode_text_stringz(&cred, "id");   cbor_encode_byte_string(&cred, credId, credIdLen);
+    cbor_encode_text_stringz(&cred, "type"); cbor_encode_text_stringz(&cred, "public-key");
+    cbor_encoder_close_container(cw_enc(&w), &cred);
+    cw_key(&w, 2); cw_bytes(&w, authData, adLen);
+    cw_key(&w, 3); cw_bytes(&w, sig, sigLen);
+    size_t n = cw_finish(&w);
+    return (uint16_t)(1 + n);
+}
+
 uint16_t ctap2_handle(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
                       uint8_t *out, uint16_t cap) {
     if (cap < 1) return 0;
     if (len < 1) { out[0] = CTAP1_ERR_INVALID_LENGTH; return 1; }
     switch (req[0]) {
-        case CTAP2_GET_INFO:  return get_info(cfg, out, cap);
-        case CTAP2_MAKE_CRED: return make_cred(cfg, req, len, out, cap);
-        default:              out[0] = CTAP1_ERR_INVALID_COMMAND; return 1;
+        case CTAP2_GET_INFO:   return get_info(cfg, out, cap);
+        case CTAP2_MAKE_CRED:  return make_cred(cfg, req, len, out, cap);
+        case CTAP2_GET_ASSERT: return get_assert(cfg, req, len, out, cap);
+        default:               out[0] = CTAP1_ERR_INVALID_COMMAND; return 1;
     }
 }

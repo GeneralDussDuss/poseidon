@@ -170,6 +170,65 @@ static void test_makecred_denied(void) {
     TEST_ASSERT_EQUAL_UINT8(0x27, out[0]);           // CTAP2_ERR_OPERATION_DENIED
 }
 
+// Make a credential, pull its credId out of authData, then assert with it.
+static void test_getassert_nonresident(void) {
+    g_present2 = true;
+    ctap2_cfg_t cfg = mk_cfg();
+    static uint32_t counter = 5; cfg.counter = &counter;
+
+    uint8_t req[256]; uint16_t rl = build_makecred_req(req, sizeof req);
+    uint8_t mkout[512]; uint16_t mn = ctap2_handle(&cfg, req, rl, mkout, sizeof mkout);
+    TEST_ASSERT_EQUAL_UINT8(0x00, mkout[0]);
+    CborParser p; CborValue map; cbor_get_map(mkout + 1, mn - 1, &p, &map);
+    uint8_t ad[320]; size_t adl = sizeof ad; cbor_map_bytes(&map, 2, ad, &adl);
+    // authData: rpIdHash(32)+flags(1)+count(4)+aaguid(16)+credIdLen(2)+credId+cose
+    uint16_t cidLen = (uint16_t)((ad[37 + 16] << 8) | ad[37 + 16 + 1]);
+    uint8_t *cid = ad + 37 + 16 + 2;
+
+    // getAssertion {1: rpId, 2: cdh, 3: [{id: cid, type}]}
+    uint8_t areq[256]; CborEncoder enc, amap;
+    cbor_encoder_init(&enc, areq + 1, sizeof(areq) - 1, 0);
+    cbor_encoder_create_map(&enc, &amap, 3);
+    cbor_encode_int(&amap, 1); cbor_encode_text_stringz(&amap, "example.com");
+    cbor_encode_int(&amap, 2); uint8_t cdh[32]; memset(cdh, 0xDD, 32); cbor_encode_byte_string(&amap, cdh, 32);
+    cbor_encode_int(&amap, 3); CborEncoder arr; cbor_encoder_create_array(&amap, &arr, 1);
+    CborEncoder e; cbor_encoder_create_map(&arr, &e, 2);
+    cbor_encode_text_stringz(&e, "id");   cbor_encode_byte_string(&e, cid, cidLen);
+    cbor_encode_text_stringz(&e, "type"); cbor_encode_text_stringz(&e, "public-key");
+    cbor_encoder_close_container(&arr, &e); cbor_encoder_close_container(&amap, &arr);
+    cbor_encoder_close_container(&enc, &amap);
+    size_t an = cbor_encoder_get_buffer_size(&enc, areq + 1); areq[0] = 0x02;
+
+    uint8_t out[512]; uint16_t n = ctap2_handle(&cfg, areq, (uint16_t)(an + 1), out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    CborParser p2; CborValue m2; cbor_get_map(out + 1, n - 1, &p2, &m2);
+    uint8_t ad2[64]; size_t ad2l = sizeof ad2; cbor_map_bytes(&m2, 2, ad2, &ad2l);
+    TEST_ASSERT_TRUE(ad2[32] & 0x01);                // UP set
+    TEST_ASSERT_FALSE(ad2[32] & 0x40);               // AT not set on assertion
+    TEST_ASSERT_EQUAL_UINT8(6, ad2[36]);             // counter 5 -> 6
+}
+
+// An allowList credential id that isn't ours -> no credentials.
+static void test_getassert_no_cred(void) {
+    g_present2 = true;
+    ctap2_cfg_t cfg = mk_cfg();
+    uint8_t bogus[60]; memset(bogus, 0x55, 60);
+    uint8_t areq[128]; CborEncoder enc, amap;
+    cbor_encoder_init(&enc, areq + 1, sizeof(areq) - 1, 0);
+    cbor_encoder_create_map(&enc, &amap, 3);
+    cbor_encode_int(&amap, 1); cbor_encode_text_stringz(&amap, "example.com");
+    cbor_encode_int(&amap, 2); uint8_t cdh[32]; memset(cdh, 0xDD, 32); cbor_encode_byte_string(&amap, cdh, 32);
+    cbor_encode_int(&amap, 3); CborEncoder arr; cbor_encoder_create_array(&amap, &arr, 1);
+    CborEncoder e; cbor_encoder_create_map(&arr, &e, 2);
+    cbor_encode_text_stringz(&e, "id");   cbor_encode_byte_string(&e, bogus, 60);
+    cbor_encode_text_stringz(&e, "type"); cbor_encode_text_stringz(&e, "public-key");
+    cbor_encoder_close_container(&arr, &e); cbor_encoder_close_container(&amap, &arr);
+    cbor_encoder_close_container(&enc, &amap);
+    size_t an = cbor_encoder_get_buffer_size(&enc, areq + 1); areq[0] = 0x02;
+    uint8_t out[128]; ctap2_handle(&cfg, areq, (uint16_t)(an + 1), out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x2E, out[0]);           // CTAP2_ERR_NO_CREDENTIALS
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -179,6 +238,8 @@ int main(int, char **) {
     RUN_TEST(test_authdata_flags_counter);
     RUN_TEST(test_makecred_packed);
     RUN_TEST(test_makecred_denied);
+    RUN_TEST(test_getassert_nonresident);
+    RUN_TEST(test_getassert_no_cred);
     return UNITY_END();
 }
 

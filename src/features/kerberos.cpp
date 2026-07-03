@@ -136,6 +136,7 @@ void feat_kerberos(void) {
     s_c2.att_cert = KERB_ATT_CERT; s_c2.att_cert_len = KERB_ATT_CERT_LEN;
     s_c2.att_priv = KERB_ATT_PRIV;
     s_c2.user_present = kerberos_user_present; s_c2.ui = nullptr;
+    s_c2.counter = &s_counter;            // shared with U2F; persisted by persist_counter()
     s_c2.store = nullptr;                 // resident credentials wired in a later task
     kerberos_hid_set_cbor_handler(ctap2_msg_thunk, &s_c2);
 

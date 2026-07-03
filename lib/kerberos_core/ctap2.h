@@ -14,6 +14,7 @@ typedef struct {
     const uint8_t *att_priv;       // 32-byte attestation key (unused by self attestation)
     bool         (*user_present)(void *ui);
     void          *ui;
+    uint32_t      *counter;        // global signature counter (shared with U2F); persisted by caller
     struct cred_store *store;      // resident credentials; may be null
 } ctap2_cfg_t;
 
