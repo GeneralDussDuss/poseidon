@@ -52,6 +52,7 @@
 <nav id="mainNav">
   <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
   <ul class="nav-links">
+    <li><a href="demo/">Demo</a></li>
     <li><a href="arsenal.html">Arsenal</a></li>
     <li><a href="codex.html">Codex</a></li>
     <li><a href="hardware.html">Hardware</a></li>
@@ -142,6 +143,20 @@
         <span id="trident-flash-unsupported" hidden style="color:#f87171;font-size:.85rem;">This browser can't flash — open this page in Chrome or Edge.</span>
         <span id="trident-flash-notallowed" hidden style="color:#f87171;font-size:.85rem;">Web flashing needs HTTPS — use the live site, not a local file.</span>
       </div>
+    </div>
+
+    <!-- ⚗ EXPERIMENT (local A/B test): the EXACT Cardputer mechanism — esp-web-tools
+         (stub path) — pointed at the C5 manifest. If this flashes the C5 cleanly,
+         the C5 stub-over-USB works in 10.2.1 and we drop the custom no-stub flasher
+         for this. If it dies on "Flash ID: 0", the C5 stub bug is confirmed. -->
+    <div id="c5-ewt-experiment" style="padding:1.1rem 1.2rem;border:1px dashed rgba(125,211,252,.45);border-radius:12px;background:rgba(6,10,22,.35);max-width:540px;margin-bottom:1.2rem;">
+      <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.18em;color:#7dd3fc;margin-bottom:.4rem;">⚗ EXPERIMENT · esp-web-tools (same engine as the Cardputer)</div>
+      <div style="color:#94a3b8;font-size:.88rem;margin-bottom:.9rem;">One-click via the stub path. If this one works, it's the clean route.</div>
+      <esp-web-install-button manifest="flash/manifest-trident-c5.json">
+        <button slot="activate" style="font-family:var(--font-mono);background:#7dd3fc;color:#041a11;border:none;padding:.7rem 1.2rem;border-radius:8px;font-weight:700;letter-spacing:.08em;cursor:pointer;">▸ FLASH C5 · esp-web-tools</button>
+        <span slot="unsupported" style="color:#f87171;font-size:.85rem;">Use Chrome or Edge.</span>
+        <span slot="not-allowed" style="color:#f87171;font-size:.85rem;">Needs HTTPS or localhost.</span>
+      </esp-web-install-button>
     </div>
 
     <p style="color:#94a3b8;font-size:.9rem;line-height:1.55;margin-bottom:1.2rem;">Prefer the command line, or on Firefox/Safari? The three <code style="background:rgba(52,211,153,.12);padding:.1rem .3rem;border-radius:3px;color:#34d399;font-family:var(--font-mono);">.bin</code> files and a manual route are under <b>Advanced</b> below.</p>

@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POSEIDON — Interactive Demo</title>
+<meta name="description" content="Play with a faithful in-browser emulator of the POSEIDON Cardputer firmware: the real ~150-entry menu tree, all six themes, boot sequence, and screensavers.">
+<meta name="theme-color" content="#07080c">
+<link rel="icon" href="../assets/icon.png">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;}
+  *{box-sizing:border-box;}
+  @keyframes causticDrift{0%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-4%,3%) scale(1.16)}100%{transform:translate(0,0) scale(1.1)}}
+  @keyframes rippleAnim{from{transform:translate(-50%,-50%) scale(0);opacity:.85}to{transform:translate(-50%,-50%) scale(11);opacity:0}}
+  @keyframes hintBlink{0%,100%{opacity:.25}50%{opacity:.9}}
+  @keyframes sigilBreath{0%,100%{filter:drop-shadow(0 0 8px rgba(217,70,239,0.5));opacity:.92}50%{filter:drop-shadow(0 0 22px rgba(217,70,239,0.95));opacity:1}}
+  @keyframes powerPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(217,70,239,0.3))}50%{filter:drop-shadow(0 0 16px rgba(217,70,239,0.6))}}
+  @keyframes bloomFlicker{0%,100%{opacity:.55}47%{opacity:.6}48%{opacity:.36}49%{opacity:.66}50%{opacity:.55}}
+  @keyframes rimGlow{0%,100%{box-shadow:0 44px 120px rgba(0,0,0,0.88), 0 14px 44px rgba(0,0,0,0.72), 0 0 55px rgba(217,70,239,0.2), 0 0 120px rgba(34,211,238,0.12), inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 80px rgba(18,20,28,0.4)}50%{box-shadow:0 44px 120px rgba(0,0,0,0.88), 0 14px 44px rgba(0,0,0,0.72), 0 0 94px rgba(217,70,239,0.34), 0 0 175px rgba(34,211,238,0.22), inset 0 1px 0 rgba(255,255,255,0.17), inset 0 0 90px rgba(24,26,36,0.5)}}
+  @keyframes pedestalPulse{0%,100%{opacity:.6}50%{opacity:1}}
+  @keyframes traceFlow{0%{background-position:0 0}100%{background-position:0 -220px}}
+  @keyframes haloPulse{0%,100%{opacity:.65;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+  @keyframes ledBlink{0%,100%{opacity:.35}50%{opacity:1}}
+  @keyframes scanSweep{0%{top:-16%}100%{top:116%}}
+  @keyframes ticker{to{transform:translateX(-50%)}}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes keyGlowA{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 5px rgba(0,0,0,0.55), 0 0 11px rgba(217,70,239,0.09)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 5px rgba(0,0,0,0.55), 0 0 22px rgba(217,70,239,0.22)}}
+  @keyframes keyGlowB{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 5px rgba(0,0,0,0.55), 0 0 9px rgba(217,70,239,0.05)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 5px rgba(0,0,0,0.55), 0 0 17px rgba(217,70,239,0.14)}}
+</style>
+</helmet>
+<div style="min-height:100vh;width:100%;position:relative;display:flex;align-items:center;justify-content:center;padding:48px 20px;overflow:hidden;background:#000;font-family:'Rajdhani',sans-serif;">
+  <canvas ref="{{ bgCanvasRef }}" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+
+  <div ref="{{ scalerRef }}" style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:16px;width:820px;max-width:100%;transform-origin:top center;will-change:transform;">
+
+    <sc-if value="{{ hudChrome }}" hint-placeholder-val="{{ true }}">
+      <div style="position:relative;z-index:3;width:100%;overflow:hidden;display:flex;gap:16px;align-items:center;padding:8px 14px 8px 18px;border:1px solid rgba(217,70,239,0.2);border-radius:8px;background:rgba(6,4,14,0.85);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#64748b;flex-wrap:wrap;">
+        <span style="position:absolute;left:0;top:0;height:100%;width:3px;background:linear-gradient(180deg,#d946ef,#22d3ee);box-shadow:0 0 8px #e833c0;"></span>
+        <span style="color:#22c55e;">[OK]</span>
+        <span>core=<span style="color:#d946ef;">abyssal</span></span>
+        <span>depth=<span style="color:#d946ef;">-2000m</span></span>
+        <span>arsenal=<span style="color:#d946ef;">ready</span></span>
+        <span>link=<span style="color:#22c55e;">stable</span></span>
+        <span>theme=<span style="color:#fbbf24;">{{ hudTheme }}</span></span>
+        <span>clk=<span style="color:#22d3ee;">{{ clockStr }}</span></span>
+        <span style="color:#7bf6b0;letter-spacing:1.5px;">EDU // AUTHORIZED USE ONLY</span>
+        <span style="color:#d946ef;animation:blink 1.2s infinite;">&#9656;</span>
+      </div>
+    </sc-if>
+
+    <div style="position:relative;width:100%;">
+      <div style="position:absolute;inset:-46px;border-radius:48px;background:radial-gradient(58% 58% at 42% 40%, rgba(217,70,239,0.32), transparent 70%),radial-gradient(54% 54% at 74% 64%, rgba(34,211,238,0.24), transparent 72%),radial-gradient(46% 40% at 62% 30%, rgba(240,171,252,0.16), transparent 70%);filter:blur(38px);pointer-events:none;animation:haloPulse 6.5s ease-in-out infinite;"></div>
+
+      <div style="position:absolute;left:50%;bottom:-58px;transform:translateX(-50%);width:118%;height:150px;pointer-events:none;">
+        <div style="position:absolute;inset:0;border-radius:0 0 40% 40%;background:radial-gradient(80% 120% at 50% 0%, rgba(217,70,239,0.18), rgba(34,211,238,0.08) 45%, transparent 72%);filter:blur(10px);animation:pedestalPulse 5s ease-in-out infinite;"></div>
+        <div style="position:absolute;left:8%;right:8%;top:0;height:100%;overflow:hidden;opacity:.6;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);mask-image:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);background-image:repeating-linear-gradient(90deg, rgba(217,70,239,0.35) 0 1px, transparent 1px 30px), repeating-linear-gradient(0deg, rgba(34,211,238,0.28) 0 1px, transparent 1px 26px);background-size:30px 26px;animation:traceFlow 3.2s linear infinite;transform:perspective(300px) rotateX(62deg);transform-origin:top;"></div>
+      </div>
+
+      <div ref="{{ panelRef }}" style="position:relative;width:100%;border-radius:24px;padding:13px 18px 16px;background:linear-gradient(158deg,#101319,#0a0c11 55%,#0d1016);border:1px solid rgba(214,228,248,0.13);animation:rimGlow 7s ease-in-out infinite;will-change:transform;">
+        <div style="position:absolute;inset:0;border-radius:26px;overflow:hidden;pointer-events:none;">
+          <div style="position:absolute;inset:-20%;background:radial-gradient(38% 30% at 20% 16%, rgba(34,211,238,0.12), transparent 60%),radial-gradient(34% 28% at 82% 26%, rgba(217,70,239,0.1), transparent 60%),radial-gradient(46% 36% at 55% 88%, rgba(240,171,252,0.08), transparent 60%);mix-blend-mode:screen;animation:causticDrift 20s ease-in-out infinite;"></div>
+        </div>
+
+        <div style="position:relative;display:flex;align-items:center;gap:14px;padding:0 4px 12px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2px;color:#64748b;white-space:nowrap;">EXT 2.54-14P</span>
+          <div style="flex:1;display:flex;gap:6px;justify-content:flex-end;">
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+            <span style="width:8px;height:10px;border-radius:2px;background:linear-gradient(#9fb0c2,#3e4c5c);box-shadow:0 0 4px rgba(148,163,184,0.3),inset 0 1px 0 rgba(255,255,255,0.3);"></span>
+          </div>
+        </div>
+
+        <div style="position:relative;display:flex;gap:20px;align-items:stretch;">
+
+          <div style="flex:0 0 178px;position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:14px 14px 13px;border-radius:14px;background:linear-gradient(165deg, rgba(30,10,42,0.55), rgba(12,6,20,0.6));border:1px solid rgba(217,70,239,0.3);box-shadow:0 0 16px rgba(217,70,239,0.16), 0 0 34px rgba(34,211,238,0.08), inset 0 0 24px rgba(162,28,175,0.12), inset 0 1px 0 rgba(240,171,252,0.07);overflow:hidden;">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(120deg, rgba(217,70,239,0.04) 0 1px, transparent 1px 13px);pointer-events:none;"></div>
+            <div onClick="{{ onSigil }}" style="position:relative;flex:1 1 auto;min-height:0;margin:-14px -14px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+              <img src="assets/poseidon-crop.png" alt="POSEIDON" style="width:100%;height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 0 10px rgba(217,70,239,0.4)) drop-shadow(0 0 20px rgba(34,211,238,0.22));animation:sigilBreath 5s ease-in-out infinite;"/>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(217,70,239,0.18);position:relative;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.9);animation:ledBlink 2.4s ease-in-out infinite;"></span><span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#64748b;">PWR</span></div>
+              <div style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,0.85);animation:ledBlink 3.1s ease-in-out infinite;"></span><span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#64748b;">CHG</span></div>
+              <div style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#3a1414,#120606);box-shadow:inset 0 0 3px rgba(0,0,0,0.8),0 0 5px rgba(190,40,40,0.35);"></span><span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#64748b;">IR</span></div>
+              <div onClick="{{ onToggleSound }}" style="display:flex;align-items:center;gap:5px;cursor:pointer;"><span style="{{ sfxDotStyle }}"></span><span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#64748b;">SFX</span></div>
+            </div>
+          </div>
+
+          <div style="flex:1 1 auto;position:relative;padding:10px;border-radius:14px;background:linear-gradient(180deg,#0a0510,#0d0818);border:1px solid rgba(217,70,239,0.14);box-shadow:inset 0 2px 10px rgba(0,0,0,0.85), 0 0 26px rgba(217,70,239,0.12);display:flex;align-items:center;justify-content:center;">
+            <div style="position:absolute;bottom:7px;right:11px;font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1.5px;color:rgba(148,163,184,0.4);pointer-events:none;">1.14&Prime; TFT &middot; 240&times;135 &middot; 16:9</div>
+            <div style="position:relative;height:198px;aspect-ratio:16 / 9;border-radius:9px;overflow:hidden;background:#010306;box-shadow:inset 0 0 44px rgba(0,0,0,0.92), 0 0 0 1px rgba(0,0,0,0.6), 0 0 22px rgba(217,70,239,0.14);">
+              <canvas ref="{{ screenCanvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+
+              <div style="position:absolute;inset:0;padding:9px 11px;color:#cbd5e1;">
+                <sc-if value="{{ powered }}" hint-placeholder-val="{{ true }}">
+                 <div style="{{ screenVars }}">
+                  <sc-if value="{{ chromeVisible }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;height:11px;pointer-events:none;font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:0.5px;">
+                      <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="color:var(--pacc,#5ee6f5);font-weight:600;">{{ themeName }}</span>
+                        <span style="display:flex;gap:3px;align-items:center;">
+                          <span style="width:5px;height:5px;border-radius:50%;background:var(--pacc,#5ee6f5);"></span>
+                          <span style="width:5px;height:5px;border-radius:50%;background:var(--pacc2,#f0abfc);opacity:.75;"></span>
+                          <span style="width:5px;height:5px;border-radius:50%;background:var(--pgood,#7bf6b0);opacity:.55;"></span>
+                        </span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;color:var(--pdim,#5f93a6);">
+                        <span>&#8982; {{ gpsStr }}</span>
+                        <span style="display:flex;align-items:center;gap:3px;">
+                          <span style="position:relative;display:inline-block;width:13px;height:7px;border:1px solid var(--pdim,#5f93a6);border-radius:1px;">
+                            <span style="position:absolute;right:-2.5px;top:1.5px;width:1.5px;height:3px;background:var(--pdim,#5f93a6);"></span>
+                            <span style="{{ battFillStyle }}"></span>
+                          </span>
+                          <span>{{ battPct }}</span>
+                        </span>
+                        <span style="color:var(--pfg,#eaf6ff);">{{ clockStr }}</span>
+                      </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;height:15px;margin-top:1px;pointer-events:none;">
+                      <span style="font-family:'Orbitron',sans-serif;font-weight:600;font-size:11px;letter-spacing:1px;color:var(--pacc,#5ee6f5);text-shadow:0 0 8px rgba(94,230,245,0.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ menuTitle }}</span>
+                      <sc-if value="{{ isRootPill }}" hint-placeholder-val="{{ true }}">
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:0.5px;padding:2px 6px;border-radius:999px;border:1px solid var(--pacc,#5ee6f5);color:var(--pdim,#6d94a6);white-space:nowrap;flex-shrink:0;opacity:.85;">&#9737; C5 not paired</span>
+                      </sc-if>
+                      <sc-if value="{{ countShow }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:1px;color:var(--pdim,#6d94a6);flex-shrink:0;">{{ menuCount }}</span>
+                      </sc-if>
+                    </div>
+                    <div style="height:2px;margin-top:2px;background:linear-gradient(90deg,var(--prule,#e833c0),transparent);border-radius:2px;pointer-events:none;"></div>
+
+                    <div style="position:absolute;left:11px;right:11px;top:40px;bottom:14px;overflow:hidden;">
+                      <sc-if value="{{ notPaper }}" hint-placeholder-val="{{ true }}">
+                        <div style="position:absolute;left:-11px;right:-11px;top:-6px;bottom:-4px;background:linear-gradient(180deg,rgba(3,1,8,0.42),rgba(3,1,8,0.12));pointer-events:none;"></div>
+                      </sc-if>
+
+                      <sc-if value="{{ showTerminal }}" hint-placeholder-val="{{ true }}">
+                        <div style="position:relative;display:flex;flex-direction:column;gap:2px;pointer-events:auto;">
+                          <sc-for list="{{ rows }}" as="row" hint-placeholder-count="7">
+                            <sc-if value="{{ row.active }}" hint-placeholder-val="{{ false }}">
+                              <div onClick="{{ row.onClick }}" style="display:flex;align-items:center;gap:6px;height:17px;padding:0 6px;border-radius:4px;background:var(--pselbg,rgba(46,12,64,0.92));border:1px solid var(--pselbd,#e833c0);cursor:pointer;transform:translateX(2px);">
+                                <span style="{{ row.dotStyle }}"></span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--pkey,#7ff0fb);flex-shrink:0;">[{{ row.key }}]</span>
+                                <span style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12.5px;letter-spacing:0.3px;color:var(--ptxta,#eaf6ff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.label }}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--pacc2,#f0abfc);flex-shrink:0;">{{ row.glyph }}</span>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ row.inactive }}" hint-placeholder-val="{{ true }}">
+                              <div onClick="{{ row.onClick }}" style="display:flex;align-items:center;gap:6px;height:17px;padding:0 6px;border-radius:4px;cursor:pointer;">
+                                <span style="{{ row.dotStyle }}"></span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--pdim,#3f8a9c);flex-shrink:0;">[{{ row.key }}]</span>
+                                <span style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12.5px;letter-spacing:0.3px;color:var(--ptxti,#83aaba);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.label }}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--pdim,#3f6675);flex-shrink:0;">{{ row.glyph }}</span>
+                              </div>
+                            </sc-if>
+                          </sc-for>
+                        </div>
+                        <sc-if value="{{ scrollUp }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-1px;right:-1px;color:var(--pacc2,#f0abfc);font-size:8px;pointer-events:none;">&#9650;</div></sc-if>
+                        <sc-if value="{{ scrollDown }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;bottom:15px;right:-1px;color:var(--pacc2,#f0abfc);font-size:8px;pointer-events:none;">&#9660;</div></sc-if>
+                        <div style="position:absolute;left:0;right:0;bottom:0;font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:0.2px;color:var(--pdim,#5f93a6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;">&raquo; {{ hint }}</div>
+                      </sc-if>
+
+                      <sc-if value="{{ showCarousel }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;inset:0;display:flex;align-items:center;gap:6px;pointer-events:auto;">
+                          <div onClick="{{ onPrev }}" style="font-size:15px;color:var(--pacc2,#f0abfc);cursor:pointer;flex-shrink:0;padding:4px;">&#8249;</div>
+                          <div onClick="{{ onOpenCard }}" style="position:relative;flex:1;height:100%;border-radius:8px;border:1px solid var(--pselbd,#e833c0);background:var(--pselbg,rgba(46,12,64,0.5));display:flex;flex-direction:column;justify-content:center;padding:10px 12px;cursor:pointer;overflow:hidden;">
+                            <div style="position:absolute;top:6px;left:8px;width:10px;height:10px;border-top:2px solid var(--pacc,#5ee6f5);border-left:2px solid var(--pacc,#5ee6f5);"></div>
+                            <div style="position:absolute;top:6px;right:8px;width:10px;height:10px;border-top:2px solid var(--pacc,#5ee6f5);border-right:2px solid var(--pacc,#5ee6f5);"></div>
+                            <div style="position:absolute;bottom:6px;left:8px;width:10px;height:10px;border-bottom:2px solid var(--pacc,#5ee6f5);border-left:2px solid var(--pacc,#5ee6f5);"></div>
+                            <div style="position:absolute;bottom:6px;right:8px;width:10px;height:10px;border-bottom:2px solid var(--pacc,#5ee6f5);border-right:2px solid var(--pacc,#5ee6f5);"></div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                              <div style="width:38px;height:38px;border-radius:8px;border:2px solid var(--pkey,#7ff0fb);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(0,0,0,0.25);"><span style="{{ card.badgeStyle }}">{{ card.key }}</span></div>
+                              <div style="min-width:0;">
+                                <div style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:15px;color:var(--ptxta,#eaf6ff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ card.label }}</div>
+                                <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--pdim,#5f93a6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ card.desc }}</div>
+                              </div>
+                            </div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:9px;">
+                              <span style="{{ card.catStyle }}">{{ card.catLabel }}</span>
+                              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--pacc,#5ee6f5);">{{ card.glyph }}</span>
+                            </div>
+                          </div>
+                          <div onClick="{{ onNext }}" style="font-size:15px;color:var(--pacc2,#f0abfc);cursor:pointer;flex-shrink:0;padding:4px;">&#8250;</div>
+                        </div>
+                        <div style="position:absolute;bottom:-1px;left:0;right:0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);pointer-events:none;">{{ card.idxStr }}</div>
+                      </sc-if>
+
+                      <sc-if value="{{ viewInfo }}" hint-placeholder-val="{{ false }}">
+                        <div onClick="{{ onDismissInfo }}" style="position:absolute;inset:0;overflow-y:auto;pointer-events:auto;cursor:pointer;padding-right:4px;">
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--pkey,#7ff0fb);flex-shrink:0;">[{{ infoKey }}]</span>
+                            <span style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.2px;color:var(--pacc2,#f0abfc);">{{ infoLabel }}</span>
+                            <span style="{{ infoChipStyle }}">{{ infoCatLabel }}</span>
+                            <sc-if value="{{ infoHasCve }}" hint-placeholder-val="{{ false }}"><span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:0.5px;padding:1px 6px;border-radius:999px;color:var(--pwarn,#fbbf24);border:1px solid var(--pwarn,#fbbf24);flex-shrink:0;">{{ infoCve }}</span></sc-if>
+                          </div>
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:0.2px;color:var(--pdim,#5f93a6);margin-top:3px;">{{ infoHint }}</div>
+                          <div style="height:1px;margin:5px 0 6px;background:var(--prule,#e833c0);opacity:.5;"></div>
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin-bottom:2px;">WHAT IT DOES</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-weight:500;font-size:12px;line-height:1.32;color:var(--ptxta,#d7ebf7);">{{ infoWhat }}</div>
+                          <sc-if value="{{ infoHasDefend }}" hint-placeholder-val="{{ true }}">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pgood,#4ade80);margin:9px 0 2px;">DEFEND AGAINST IT</div>
+                            <div style="font-family:'Rajdhani',sans-serif;font-weight:500;font-size:12px;line-height:1.32;color:var(--pgood,#a7f3c8);">{{ infoDefend }}</div>
+                          </sc-if>
+                          <sc-if value="{{ infoIsCategory }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.3px;color:var(--pdim,#5f93a6);margin-top:9px;">{{ infoCount }} entries inside &middot; &#9166; to open</div>
+                          </sc-if>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{ viewTheme }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;inset:0;overflow-y:auto;pointer-events:auto;">
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin-bottom:4px;">PALETTE &middot; live preview</div>
+                          <div style="display:flex;flex-direction:column;gap:3px;">
+                            <sc-for list="{{ themeRows }}" as="tr" hint-placeholder-count="6">
+                              <sc-if value="{{ tr.active }}" hint-placeholder-val="{{ false }}">
+                                <div onClick="{{ tr.onClick }}" style="display:flex;align-items:center;gap:7px;height:19px;padding:0 7px;border-radius:4px;background:var(--pselbg,rgba(46,12,64,0.92));border:1px solid var(--pselbd,#e833c0);cursor:pointer;">
+                                  <span style="{{ tr.sw1Style }}"></span><span style="{{ tr.sw2Style }}"></span><span style="{{ tr.sw3Style }}"></span>
+                                  <span style="flex:1;font-family:'Orbitron',sans-serif;font-weight:600;font-size:11px;letter-spacing:0.5px;color:var(--ptxta,#eaf6ff);">{{ tr.name }}</span>
+                                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--pacc,#5ee6f5);">&#9166;</span>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ tr.inactive }}" hint-placeholder-val="{{ true }}">
+                                <div onClick="{{ tr.onClick }}" style="display:flex;align-items:center;gap:7px;height:19px;padding:0 7px;border-radius:4px;cursor:pointer;">
+                                  <span style="{{ tr.sw1Style }}"></span><span style="{{ tr.sw2Style }}"></span><span style="{{ tr.sw3Style }}"></span>
+                                  <span style="flex:1;font-family:'Orbitron',sans-serif;font-weight:600;font-size:11px;letter-spacing:0.5px;color:var(--ptxti,#83aaba);">{{ tr.name }}</span>
+                                </div>
+                              </sc-if>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{ viewSaverpick }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;inset:0;overflow-y:auto;pointer-events:auto;">
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin-bottom:4px;">SCREENSAVER</div>
+                          <div style="display:flex;flex-direction:column;gap:2px;">
+                            <sc-for list="{{ saverRows }}" as="sr" hint-placeholder-count="9">
+                              <sc-if value="{{ sr.active }}" hint-placeholder-val="{{ false }}">
+                                <div onClick="{{ sr.onClick }}" style="display:flex;align-items:center;gap:7px;height:16px;padding:0 7px;border-radius:4px;background:var(--pselbg,rgba(46,12,64,0.92));border:1px solid var(--pselbd,#e833c0);cursor:pointer;">
+                                  <span style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;color:var(--ptxta,#eaf6ff);">{{ sr.name }}</span>
+                                  <span style="font-family:'JetBrains Mono',monospace;font-size:7px;color:var(--pacc,#5ee6f5);">{{ sr.tag }}</span>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ sr.inactive }}" hint-placeholder-val="{{ true }}">
+                                <div onClick="{{ sr.onClick }}" style="display:flex;align-items:center;gap:7px;height:16px;padding:0 7px;border-radius:4px;cursor:pointer;">
+                                  <span style="flex:1;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;color:var(--ptxti,#83aaba);">{{ sr.name }}</span>
+                                  <span style="font-family:'JetBrains Mono',monospace;font-size:7px;color:var(--pdim,#5f93a6);">{{ sr.tag }}</span>
+                                </div>
+                              </sc-if>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{ viewAbout }}" hint-placeholder-val="{{ false }}">
+                        <div ref="{{ aboutRef }}" style="position:absolute;inset:0;overflow-y:auto;pointer-events:auto;padding-right:4px;">
+                          <div style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:15px;background:linear-gradient(135deg,var(--pacc,#5ee6f5),var(--pacc2,#f0abfc));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">POSEIDON</div>
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);margin-top:1px;">Cardputer Advanced &middot; ESP32-S3 &middot; v3.9</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);margin-top:6px;line-height:1.3;">A pocket multi-radio security workbench &mdash; WiFi, BLE, sub-GHz, LoRa, nRF24, IR, USB-HID &amp; LAN, with a defense note for every tool.</div>
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin:9px 0 3px;">CREDITS &amp; RESEARCH</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxti,#a7c0cc);line-height:1.5;">
+                            SaltyJack &mdash; @7h30th3r0n3 (Evil-M5Project) &amp; RaspyJack<br>
+                            SourApple &mdash; ECTO-1A / research community<br>
+                            WhisperPair &mdash; COSIC KU Leuven (CVE-2025-36911)<br>
+                            BlueDucky &mdash; Marc Newlin / pentestfunctions (CVE-2023-45866)<br>
+                            MouseJack &mdash; Bastille Research<br>
+                            Meshtastic &middot; hashcat &middot; WiGLE &mdash; ecosystems used
+                          </div>
+                          <div style="display:flex;align-items:center;gap:9px;margin-top:9px;padding-top:8px;border-top:1px solid var(--prule,#e833c0);">
+                            <img src="{{ qrUrl }}" alt="repo QR" width="46" height="46" style="border-radius:4px;image-rendering:pixelated;flex-shrink:0;background:#fff;display:block;"/>
+                            <div style="min-width:0;">
+                              <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);">SCAN FOR REPO</div>
+                              <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ptxta,#d7ebf7);margin-top:2px;white-space:nowrap;">{{ repoUrl }}</div>
+                              <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pgood,#7bf6b0);margin-top:4px;">EDU // authorized use only</div>
+                            </div>
+                          </div>
+                          <div style="height:6px;"></div>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{ viewSearch }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;inset:0;pointer-events:auto;display:flex;flex-direction:column;">
+                          <div style="display:flex;align-items:center;gap:5px;height:17px;border-bottom:1px solid var(--prule,#e833c0);padding-bottom:3px;margin-bottom:3px;flex-shrink:0;">
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--pacc,#5ee6f5);">&#128269;</span>
+                            <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ptxta,#eaf6ff);white-space:nowrap;overflow:hidden;">{{ searchQuery }}<span style="color:var(--pacc2,#f0abfc);animation:blink 1.1s infinite;">_</span></span>
+                          </div>
+                          <div style="flex:1;overflow:hidden;">
+                            <sc-if value="{{ searchHasResults }}" hint-placeholder-val="{{ true }}">
+                              <div style="display:flex;flex-direction:column;gap:1px;">
+                                <sc-for list="{{ searchRows }}" as="sr" hint-placeholder-count="6">
+                                  <sc-if value="{{ sr.active }}" hint-placeholder-val="{{ false }}">
+                                    <div onClick="{{ sr.onClick }}" style="display:flex;align-items:center;gap:6px;height:18px;padding:0 6px;border-radius:4px;background:var(--pselbg,rgba(46,12,64,0.92));border:1px solid var(--pselbd,#e833c0);cursor:pointer;">
+                                      <span style="{{ sr.dotStyle }}"></span>
+                                      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--pacc2,#f0abfc);flex-shrink:0;width:8px;text-align:center;">{{ sr.key }}</span>
+                                      <span style="font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;color:var(--ptxta,#eaf6ff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sr.label }}</span>
+                                      <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);white-space:nowrap;flex-shrink:0;">{{ sr.parent }}</span>
+                                    </div>
+                                  </sc-if>
+                                  <sc-if value="{{ sr.inactive }}" hint-placeholder-val="{{ true }}">
+                                    <div onClick="{{ sr.onClick }}" style="display:flex;align-items:center;gap:6px;height:18px;padding:0 6px;border-radius:4px;cursor:pointer;">
+                                      <span style="{{ sr.dotStyle }}"></span>
+                                      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--pdim,#3f6675);flex-shrink:0;width:8px;text-align:center;">{{ sr.key }}</span>
+                                      <span style="font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;color:var(--ptxti,#83aaba);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sr.label }}</span>
+                                      <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);white-space:nowrap;flex-shrink:0;">{{ sr.parent }}</span>
+                                    </div>
+                                  </sc-if>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ searchEmpty }}" hint-placeholder-val="{{ false }}">
+                              <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:var(--pdim,#5f93a6);padding:8px 4px;">No match &mdash; try &ldquo;deauth&rdquo;, &ldquo;tracker&rdquo;, &ldquo;lora&rdquo;&hellip;</div>
+                            </sc-if>
+                          </div>
+                        </div>
+                      </sc-if>
+                    </div>
+
+                    <div style="position:absolute;left:0;right:0;bottom:2px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.3px;color:var(--pdim,#5f7a88);pointer-events:none;">{{ footerHint }}</div>
+                  </sc-if>
+
+                  <sc-if value="{{ helpOpen }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ onHelp }}" style="position:absolute;inset:0;z-index:5;background:rgba(3,1,8,0.93);display:flex;flex-direction:column;padding:11px 13px;cursor:pointer;pointer-events:auto;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:12px;color:var(--pacc,#5ee6f5);">HELP</span>
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pdim,#5f93a6);">? or &#9166; to close</span>
+                      </div>
+                      <div style="height:1px;margin:5px 0 7px;background:var(--prule,#e833c0);opacity:.5;"></div>
+                      <div style="display:flex;gap:14px;">
+                        <div style="flex:1;">
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pacc,#5ee6f5);margin-bottom:4px;">KEYS</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxta,#d7ebf7);line-height:1.5;">; / . &mdash; move<br>letter &mdash; jump to item<br>&#9166; &mdash; open<br>= &mdash; info + defense<br>&#96; &mdash; back</div>
+                        </div>
+                        <div style="flex:1;">
+                          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--pgood,#7bf6b0);margin-bottom:4px;">LEGEND</div>
+                          <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--ptxti,#a7c0cc);line-height:1.7;">
+                            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff6b8b;"></span> attack&nbsp;&nbsp;<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#5ee6f5;"></span> passive<br>
+                            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7bf6b0;"></span> defense&nbsp;&nbsp;<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#9fb0c2;"></span> utility<br>
+                            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;"></span> prank&nbsp;&nbsp;<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#c9a3ff;"></span> module
+                          </div>
+                        </div>
+                      </div>
+                      <div style="margin-top:auto;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--pgood,#7bf6b0);">Demo &mdash; tools explain &amp; defend, they don't transmit. EDU // authorized use only.</div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ attractOn }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:50%;bottom:3px;transform:translateX(-50%);z-index:6;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--pacc,#5ee6f5);background:rgba(3,1,8,0.72);border:1px solid var(--pacc,#5ee6f5);border-radius:999px;padding:2px 9px;pointer-events:none;white-space:nowrap;">&#9656; ATTRACT &middot; press any key</div>
+                  </sc-if>
+                 </div>
+                </sc-if>
+                <sc-if value="{{ dormant }}" hint-placeholder-val="{{ true }}">
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                    <div style="text-align:center;">
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:5px;color:#5a6b80;">&mdash; DORMANT &mdash;</div>
+                      <div style="margin-top:13px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#d946ef;animation:hintBlink 1.8s ease-in-out infinite;">PRESS &#9798; TO AWAKEN</div>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="position:absolute;left:0;right:0;height:44px;pointer-events:none;background:linear-gradient(rgba(217,70,239,0), rgba(217,70,239,0.06), rgba(217,70,239,0));animation:scanSweep 6s linear infinite;"></div>
+              <sc-if value="{{ scanlines }}" hint-placeholder-val="{{ true }}">
+                <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(6,0,10,0.30) 3px);"></div>
+              </sc-if>
+              <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:repeating-linear-gradient(0deg, rgba(217,70,239,0.028) 0 1px, transparent 1px 3px);mix-blend-mode:screen;transform:translateX(0.7px);"></div>
+              <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:radial-gradient(120% 120% at 50% 50%, transparent 52%, rgba(0,0,0,0.6) 100%);"></div>
+              <sc-if value="{{ notPaper }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:radial-gradient(85% 65% at 50% 22%, rgba(217,70,239,0.10), transparent 70%);mix-blend-mode:screen;animation:bloomFlicker 5s linear infinite;"></div></sc-if>
+              <div style="position:absolute;inset:0;pointer-events:none;border-radius:9px;background:linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 32%);"></div>
+            </div>
+          </div>
+
+          <div style="flex:0 0 98px;display:flex;flex-direction:column;gap:8px;align-items:stretch;">
+            <div style="height:38px;border-radius:9px;background:radial-gradient(circle at 32% 30%, #181228, #08060f);box-shadow:inset 0 0 12px rgba(0,0,0,0.85), 0 0 0 1px rgba(217,70,239,0.14);position:relative;overflow:hidden;">
+              <div style="position:absolute;inset:6px;border-radius:6px;background-image:radial-gradient(circle, rgba(217,70,239,0.35) 1px, transparent 1.7px);background-size:6px 6px;opacity:.5;"></div>
+            </div>
+            <div style="position:relative;flex:1;border-radius:11px;background:linear-gradient(150deg,#120c1e,#0a0714);border:1px solid rgba(217,70,239,0.22);box-shadow:0 8px 20px rgba(0,0,0,0.6), inset 0 0 22px rgba(162,28,175,0.1);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#5e1268,#a21caf);box-shadow:0 0 6px rgba(217,70,239,0.32);"></div>
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg, rgba(217,70,239,0.05) 0 1px, transparent 1px 8px);"></div>
+              <div style="position:relative;width:48px;height:48px;border-radius:6px;background:linear-gradient(145deg,#161030,#0a0716);border:1px solid rgba(34,211,238,0.4);box-shadow:0 0 13px rgba(34,211,238,0.28), inset 0 0 8px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.5px;color:#7ff0fb;text-shadow:0 0 7px rgba(34,211,238,0.8);">S3</span>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:7px;letter-spacing:1px;color:#94a3b8;margin-top:8px;">ESP32-S3</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:6px;letter-spacing:1px;color:#64748b;margin-top:2px;">STAMP-S3A</span>
+              <span style="position:absolute;bottom:6px;font-size:11px;color:#d946ef;filter:drop-shadow(0 0 5px rgba(217,70,239,0.6));">&#128246;</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:relative;margin-top:11px;display:grid;grid-template-columns:repeat(14,1fr);gap:5px;">{{ keyboardNode }}</div>
+
+        <div style="position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 4px;">
+          <span style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:11px;letter-spacing:2px;color:#d946ef;">POSEIDON</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2.5px;color:#64748b;">CARDPUTER &middot; ADV &middot; ESP32-S3</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2px;color:#64748b;">v3.9 // 56-KEY</span>
+        </div>
+      </div>
+
+      <sc-if value="{{ hudChrome }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute;top:-7px;left:-7px;width:20px;height:20px;border-top:2px solid #e833c0;border-left:2px solid #e833c0;box-shadow:-2px -2px 10px rgba(217,70,239,0.4);pointer-events:none;z-index:3;"></div>
+        <div style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-top:2px solid #e833c0;border-right:2px solid #e833c0;box-shadow:2px -2px 10px rgba(217,70,239,0.4);pointer-events:none;z-index:3;"></div>
+        <div style="position:absolute;bottom:-7px;left:-7px;width:20px;height:20px;border-bottom:2px solid #e833c0;border-left:2px solid #e833c0;box-shadow:-2px 2px 10px rgba(217,70,239,0.4);pointer-events:none;z-index:3;"></div>
+        <div style="position:absolute;bottom:-7px;right:-7px;width:20px;height:20px;border-bottom:2px solid #e833c0;border-right:2px solid #e833c0;box-shadow:2px 2px 10px rgba(217,70,239,0.4);pointer-events:none;z-index:3;"></div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ hudChrome }}" hint-placeholder-val="{{ true }}">
+      <div style="position:relative;z-index:3;width:100%;overflow:hidden;border-top:1px solid rgba(217,70,239,0.12);border-bottom:1px solid rgba(217,70,239,0.12);background:rgba(6,4,14,0.5);padding:7px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);">
+        <div style="display:flex;gap:38px;width:max-content;animation:ticker 28s linear infinite;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1px;color:#64748b;white-space:nowrap;">
+          <span>WIFI <span style="color:#38bdf8;">online</span></span><span>BLE <span style="color:#a78bfa;">online</span></span><span>SUB-GHZ <span style="color:#fbbf24;">online</span></span><span>NRF24 <span style="color:#22d3ee;">online</span></span><span>LORA <span style="color:#34d399;">online</span></span><span>NETWORK <span style="color:#f59e0b;">online</span></span><span>IR&#47;USB <span style="color:#7dd3fc;">online</span></span><span>HUNT <span style="color:#f0abfc;">armed</span></span><span>TRIDENT-C5 <span style="color:#2dd4bf;">linked</span></span>
+          <span>WIFI <span style="color:#38bdf8;">online</span></span><span>BLE <span style="color:#a78bfa;">online</span></span><span>SUB-GHZ <span style="color:#fbbf24;">online</span></span><span>NRF24 <span style="color:#22d3ee;">online</span></span><span>LORA <span style="color:#34d399;">online</span></span><span>NETWORK <span style="color:#f59e0b;">online</span></span><span>IR&#47;USB <span style="color:#7dd3fc;">online</span></span><span>HUNT <span style="color:#f0abfc;">armed</span></span><span>TRIDENT-C5 <span style="color:#2dd4bf;">linked</span></span>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1000,&quot;height&quot;:800},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;poseidon&quot;,&quot;options&quot;:[&quot;poseidon&quot;,&quot;matrix&quot;,&quot;eink&quot;,&quot;synthwave&quot;,&quot;phantom&quot;,&quot;blood&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;terminal&quot;,&quot;options&quot;:[&quot;terminal&quot;,&quot;carousel&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;showScanlines&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;screensaver&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screensaver&quot;},&quot;idleSeconds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:40,&quot;min&quot;:8,&quot;max&quot;:180,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Screensaver&quot;},&quot;attractMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;hudChrome&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;HUD&quot;},&quot;sound&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sound&quot;},&quot;autoBoot&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+// ================= POSEIDON ARSENAL =================
+// Faithful mirror of src/menu.cpp: same hotkeys, labels, order, hints.
+// Every leaf carries plain-language "w" (what it does) + "d" (defend).
+// Submenu nodes carry children (c) + a category "w".
+const WIFI=[
+ {k:"s",l:"Scan",sim:"wscan",h:"Scan + list nearby APs",w:"Actively scans 2.4 GHz and lists nearby access points \u2014 SSID, BSSID, channel, signal and encryption. ENTER on an AP hands it to the attack tools.",d:"You can't hide from a scan; networks must broadcast. Use WPA3 and never treat a hidden SSID as security."},
+ {k:"l",l:"Clients",h:"Hunt ALL clients (all channels)",w:"Channel-hops 1\u201313 in monitor mode and catalogs every client-to-AP pairing it sees, so you learn which devices sit on which network.",d:"Passive discovery can't be blocked. Use WPA3 / 802.11w so the follow-on deauth and tracking fail."},
+ {k:"o",l:"AP Clients",h:"List STAs on last-scanned AP",w:"Locks to one chosen AP and lists only its associated clients \u2014 faster than the global hunt when you already have a target.",d:"Also passive. WPA3 + Protected Management Frames neutralize what an attacker does with the list."},
+ {k:"d",l:"Deauth",sim:"deauth",h:"Jam target AP (typed or picked)",w:"Sends spoofed 802.11 deauthentication frames as the AP, repeatedly knocking its clients offline.",d:"Enable WPA3 with 802.11w (PMF) \u2014 it signs management frames so forged deauths are ignored."},
+ {k:"x",l:"Deauth all",h:"Broadcast deauth all clients",w:"Broadcast deauth to FF:FF:FF:FF:FF:FF kicks every client of an AP at once \u2014 often paired with handshake capture on reconnect.",d:"802.11w (mandatory in WPA3) makes broadcast deauth ineffective; enable PMF on WPA2 where supported."},
+ {k:"e",l:"Deauth det.",h:"Passive deauth frame detector",w:"Passively sniffs the air for deauth / disassoc frames and shows the live rate and source \u2014 it catches other attackers near you.",d:"This is a defensive tool. A spike in deauth frames means someone is jamming \u2014 move to a PMF network."},
+ {k:"c",l:"AP Clone",h:"Mirror scanned AP, lure clients",w:"Stands up a soft-AP reusing a real network's SSID so devices that saved the original may auto-roam onto the rogue.",d:"Turn off auto-join for open/known networks; enterprise EAP binds clients to a server cert a clone can't forge."},
+ {k:"p",l:"Portal",sim:"portal",h:"Evil captive portal (16 templates)",w:"Captive portal with DNS hijack serving fake login pages (Google, Microsoft, Apple, hotel / airport WiFi) and logs whatever is typed.",d:"Never type credentials into a captive portal. Check the URL and certificate; real logins use HTTPS on the real domain."},
+ {k:"i",l:"Evil Twin",h:"Clone AP + portal + auto-deauth",w:"One-button chain that time-slices between deauthing a target AP and beaconing a rogue clone with a captive portal to harvest credentials.",d:"WPA3/PMF blocks the deauth half; enterprise EAP with cert validation blocks the clone. Verify portals before entering anything."},
+ {k:"t",l:"AP Signal Test",h:"Diagnostic: is the AP broadcasting?",w:"Diagnostic that brings up a known test SSID to confirm the soft-AP radio path actually transmits \u2014 isolates hardware from feature bugs.",d:"Diagnostic tool, not an attack \u2014 no defensive action needed."},
+ {k:"k",l:"Karma",h:"Auto-respond to probe requests",w:"Listens for the networks phones are searching for, then instantly impersonates one so saved-network auto-join connects the victim to the attacker.",d:"Disable auto-join for open networks and forget old saved SSIDs; phones that randomize probes resist Karma."},
+ {k:"b",l:"Beacon spam",h:"Broadcast fake SSIDs",w:"Floods the air with hundreds of fake network names, cluttering everyone's WiFi list (meme lists plus custom entries).",d:"Mostly a nuisance. Keep client firmware updated and never auto-connect to unfamiliar SSIDs."},
+ {k:"r",l:"Probe sniff",h:"Log probe requests + clients",w:"Passively logs which network names each nearby device hunts for, revealing the networks a person has saved \u2014 a profiling goldmine.",d:"Update devices to randomize MACs and stop naming saved networks in probes; forget networks you don't need."},
+ {k:"m",l:"PMKID cap",h:"EAPOL M1 -> hashcat 22000",w:"Captures the PMKID and/or full 4-way handshake in hashcat-22000 format for offline cracking; a HUNT mode deauths APs to force reconnects.",d:"Use a long random passphrase and WPA3-SAE \u2014 SAE removes the offline-crackable handshake this relies on."},
+ {k:"g",l:"Spectrum",sim:"spectrum",h:"2.4 GHz channel activity bars",w:"Real-time 2.4 GHz spectrum: hops channels 1\u201313 and shows peak signal per channel as colored bars.",d:"Passive RF visualization \u2014 nothing to defend. Useful for spotting congestion or a jammer."},
+ {k:"w",l:"Wardrive",h:"Channel hop + GPS -> WiGLE CSV",w:"Logs every beacon it hears with a GPS coordinate to WiGLE-format CSV, mapping where networks physically are.",d:"Only public beacon data is logged; nothing client-side to fix \u2014 it maps the network's own broadcasts."},
+ {k:"n",l:"Connect",h:"Join saved WiFi network",w:"Saves an SSID/password and joins as a normal client \u2014 required before the LAN / Network tools can run.",d:"Utility, not an attack. Keep your own passphrase strong and secret."},
+ {k:"y",l:"DefMon",h:"Defensive WiFi+BLE monitor",w:"Passive detector for deauth floods, evil twins, beacon spam, Karma and BLE spoof/flood \u2014 logs alerts with GPS and chirps on each new class.",d:"This IS the defense. Run it in hostile spaces to detect active WiFi/BLE attacks around you in real time."},
+ {k:"u",l:"Cable Guard",h:"Detect malicious USB cable implants",w:"Two-phase RF scan: baseline the room with a suspect cable unplugged, plug it in, and flag any radio that switched on \u2014 scored against known implant signatures (O.MG etc.).",d:"Only use cables and chargers you trust; this catches active implants, but a dormant one can hide \u2014 buy from reputable sources."},
+ {k:"v",l:"Surveil",h:"Flock/Raven surveillance detector",w:"Passively fingerprints Flock Safety ALPR cameras and ShotSpotter gunshot sensors by OUI / SSID / probe patterns and GPS-tags each hit.",d:"Awareness tool \u2014 use it to learn where fixed surveillance sensors are; nothing to defend beyond knowing."},
+ {k:"z",l:"CIW Zeroclick",h:"SSID injection payload broadcast",w:"Broadcasts beacons whose SSID field carries exploit payloads (command injection, buffer overflow, XSS, Log4Shell) aimed at buggy WiFi-driver and UI parsers.",d:"Keep device and router firmware patched \u2014 these target unsanitized SSID parsing that vendors fix over time."},
+];
+const BLE=[
+ {k:"s",l:"Scan",h:"Discover BLE devices",w:"Passive BLE scan that identifies nearby devices; ENTER opens details where GATT / clone / HID / flood / spam hotkeys target that device.",d:"Turn Bluetooth off when unused; modern OSes rotate BLE MACs to resist tracking \u2014 keep them updated."},
+ {k:"p",l:"Spam",h:"Apple/Samsung/etc popups",w:"Broadcasts fake pairing adverts that trigger native connect popups on nearby phones (AirPods, SmartTag, Fast Pair, Swift Pair).",d:"Update iOS/Android/Windows \u2014 vendors patched much of the popup spam; ignore unexpected pairing prompts."},
+ {k:"h",l:"Bad-KB",h:"BLE HID keyboard attack",w:"Advertises as a Bluetooth keyboard under a disguised name; once a target pairs it can type keystrokes, lock the screen or run scripts.",d:"Don't pair unknown Bluetooth keyboards; review paired devices and remove ones you don't recognize."},
+ {k:"t",l:"Tracker",sim:"btrack",h:"Detect AirTag/SmartTag/Tile",w:"Scans for Apple Find My, Samsung SmartTag and Tile trackers, showing distance class, signal and MAC; new hits flash and chirp.",d:"This is a defense \u2014 run periodic scans to catch an unwanted tracker planted on you or your vehicle."},
+ {k:"f",l:"Finder",h:"Hunt a rogue tracker (geiger)",w:"Pick a tracker, then a geiger-style proximity meter beeps faster as you close in \u2014 used to physically locate a tracker following you.",d:"Defensive tool. If you find a tracker you don't own, locate it and involve authorities if it was planted."},
+ {k:"d",l:"Drone RID",h:"Detect FAA Remote ID broadcasts",w:"Passively decodes ASTM Remote ID beacons from compliant drones \u2014 UAS ID plus drone and operator GPS location.",d:"Awareness tool \u2014 use it to know when a Remote-ID drone is nearby and roughly where the pilot is."},
+ {k:"n",l:"Sniffer",h:"Log all BLE adv -> SD CSV",w:"Dumps every BLE advertisement to CSV (time, MAC, RSSI, name, raw hex) for passive recon or offline analysis.",d:"Passive capture of public adverts. Disable Bluetooth when idle to reduce what you broadcast."},
+ {k:"b",l:"iBeacon",h:"Broadcast an iBeacon",w:"Broadcasts a standard iBeacon advertisement (UUID plus major/minor) that beacon apps will detect.",d:"Harmless beacon broadcast \u2014 no attack surface to defend."},
+ {k:"c",l:"Clone",h:"Rebroadcast last scanned MAC",w:"Rebroadcasts a scanned device's MAC and name as a connectable advert with a minimal GATT server \u2014 handy for honeypots and impersonation.",d:"Devices that verify a signed identity (not just MAC/name) resist impersonation; bond only with trusted peripherals."},
+ {k:"g",l:"GATT",cat:"attack",h:"Connect + enumerate + r/w",w:"A pocket nRF-Connect: connects, walks services and characteristics and reads or writes raw values \u2014 key for probing smart locks and IoT.",d:"Require bonded, encrypted characteristics; don't expose sensitive read/write handles to unauthenticated connections."},
+ {k:"x",l:"Flood",h:"DoS connection storm to target",w:"Hammers a target's BLE connection queue with rapid connects from random MACs \u2014 effective against locks, speakers and trackers that hold few connections.",d:"Keep peripheral firmware updated; devices with connection rate-limiting resist the flood."},
+ {k:"k",l:"Karma",h:"Rotate identity, lure pairings",w:"Cycles popular device names, each a connectable AP with a fresh random MAC, so phones hunting a known device may auto-pair with the attacker.",d:"Disable auto-reconnect for accessories you don't have with you; remove stale bonds."},
+ {k:"a",l:"SourApple",h:"Multi-vendor BLE spam",w:"Rotating BLE spam across seven packet types (Apple proximity/AirTag, Samsung EasySetup, Swift Pair, Google Fast Pair) so every nearby device gets popup-bombed.",d:"Update your OS \u2014 the crash variants are patched; dismiss and ignore unexpected pairing modals."},
+ {k:"y",l:"Find My",cat:"attack",h:"Fake AirTag broadcaster",w:"Broadcasts fake Apple Find My / AirTag adverts with rotating keys; passing iPhones relay the tags to iCloud location \u2014 a covert location channel.",d:"Keep iOS updated (Apple tightened Find My anti-abuse); run tracker detection if you suspect you're followed."},
+ {k:"d",l:"Salty Deep",h:"Wireless toy scanner + controller",w:"Scans for and connects to consumer intimate devices (Lovense / WeVibe etc.), exposing that many ship with no pairing authentication at all.",d:"Only pair such devices in private; prefer products that require app-level authentication and encryption."},
+ {k:"w",l:"WhisperPair",cat:"attack",cve:"CVE-2025-36911",h:"CVE-2025-36911 Fast Pair probe",w:"Probes Google Fast Pair earbuds by writing a bogus Key-Based Pairing blob; a response means vulnerable, a silent drop means patched.",d:"Update earbud firmware through the manufacturer app \u2014 patches are rolling out unevenly."},
+ {k:"q",l:"BlueDucky",cve:"CVE-2023-45866",h:"BLE HID inject (CVE-2023-45866)",w:"Exploits CVE-2023-45866: advertises as a BLE keyboard and injects keystrokes into unpatched Android without the pairing dialog being confirmed.",d:"Install the December-2023-or-later Android security patch; turn Bluetooth off when not needed."},
+];
+const IR_PRANKS=[
+ {k:"b",l:"Power Bomb",h:"All 27 brands' power codes",w:"Fires every brand's power-off code back-to-back, covering most TVs, projectors and soundbars in a room within a few seconds.",d:"Prank \u2014 block line-of-sight to the IR emitter or power-cycle the display."},
+ {k:"c",l:"Ch Scramble",h:"Spam Ch+ on Samsung+LG",w:"Rapidly spams Channel-Up on Samsung and LG, flipping through dozens of channels before the victim can react.",d:"Prank \u2014 grab the real remote or block the IR path."},
+ {k:"v",l:"Volume Bomb",h:"Vol+ x30 on Samsung+LG",w:"Slams Volume-Up about thirty times on Samsung and LG, driving TVs and soundbars toward max.",d:"Prank \u2014 mute at the source or block line-of-sight."},
+ {k:"r",l:"Source Roulette",h:"Cycle TV inputs 12x",w:"Presses Source twelve times with human-like delays, cycling inputs so the screen shows No Signal.",d:"Prank \u2014 just reselect the correct input."},
+ {k:"m",l:"Mute Torture",h:"Toggle mute every 800ms",w:"Toggles mute every 800 ms for 30 seconds, stuttering audio on a maddening cadence.",d:"Prank \u2014 power-cycle or block the IR path."},
+ {k:"p",l:"Permanent Off",h:"Power-bomb every 3s for 5 min",w:"Fires the full 27-brand power bomb every 3 seconds for five minutes so the display can't stay on.",d:"Prank \u2014 unplug briefly or block line-of-sight to reset."},
+ {k:"o",l:"Cable Flakes",h:"3 input-loss cycles, 45s apart",w:"Three input-loss simulations about 45 seconds apart, mimicking a cable box that keeps losing signal.",d:"Prank \u2014 reselect the input; there is no lasting effect."},
+ {k:"a",l:"Caption Chaos",h:"Toggle CC every 600ms",w:"Rapidly toggles closed captions (and sometimes caption language) every 600 ms.",d:"Prank \u2014 turn captions off from the real remote."},
+ {k:"s",l:"Sleep 180",h:"Samsung sleep timer to 180 min",w:"Cycles the Samsung sleep timer to 180 minutes so the TV powers off hours later with no obvious cause.",d:"Prank \u2014 open the TV menu and clear the sleep timer."},
+ {k:"k",l:"AC Chaos",h:"Daikin/Mitsubishi/LG AC toggle",w:"Replays captured Daikin / Mitsubishi / LG air-conditioner power-toggle states \u2014 office HVAC roulette.",d:"Prank \u2014 use the real A/C remote to restore state."},
+];
+const IR=[
+ {k:"t",l:"TV-B-Gone",h:"Kill nearby TVs",w:"Cycles power-off IR codes for major TV brands \u2014 point the top edge at a TV to turn it off.",d:"IR needs line of sight \u2014 a prank. Nothing to defend beyond blocking the IR path."},
+ {k:"r",l:"Remote",h:"Virtual Samsung remote",w:"A virtual Samsung TV remote: power, mute, volume, channel, digits, source, home and back over IR.",d:"Line-of-sight only; no security impact."},
+ {k:"c",l:"Clone",cat:"utility",h:"Multi-profile IR remote",w:"Pre-installed Samsung / LG / Sony remote profiles firing IR from the TX LED; a future update adds capture-from-real-remote and Flipper .ir import.",d:"IR is unauthenticated by design \u2014 keep IR-controlled gear out of a stranger's line-of-sight if it matters."},
+ {k:"p",l:"Pranks",h:"10 one-shot IR pranks",w:"Ten one-shot IR pranks layered on TV-B-Gone \u2014 power, volume, channel, source, mute, caption and sleep chaos plus A/C toggles.",c:IR_PRANKS},
+ {k:"x",l:"LED Test",h:"Verify IR LED pin + polarity",w:"Hardware diagnostic that drives candidate pins and polarities so you can confirm which lights the IR LED (view it through a phone camera).",d:"Diagnostic tool \u2014 no defensive action."},
+];
+const NRF52=[
+ {k:"s",l:"Scan",h:"BLE 5 full scan (all PHYs)",w:"Uses an add-on nRF52840 to actively scan BLE on 1M + 2M + Coded PHYs, catching BLE 5 long-range beacons the main chip can't see.",d:"Turn Bluetooth off when idle; there's no stopping passive scanning of what you advertise."},
+ {k:"l",l:"Long Range",h:"BLE 5 Coded PHY S=8 (4x range)",w:"Coded-PHY S=8 scan reaches about 4x normal BLE range to find distant long-range trackers, sensors and LE-Audio devices.",d:"Be aware LR-mode adverts travel far; disable broadcasting features you don't use."},
+ {k:"n",l:"Sniffer",h:"All BLE adv + decode + pcap",w:"Passively sniffs every BLE advertisement on every channel and dumps a pcap to SD for Wireshark.",d:"Passive capture of public data; minimize what your devices advertise."},
+ {k:"z",l:"Zigbee",h:"802.15.4 sniffer (Zigbee/Thread)",w:"IEEE 802.15.4 sniffer for Zigbee, Thread, OpenThread and Matter-over-Thread mesh traffic.",d:"Use non-default Zigbee network keys and rotate them so sniffed frames stay encrypted."},
+ {k:"m",l:"MITM",h:"BLE 5 connection follow + hijack",w:"Follows a live BLE connection, jams the peripheral on its hop channel and hijacks the link (BTLEJack-style with full BLE 5 PHY support).",d:"Use LE Secure Connections (numeric comparison) so a hijacked link can't complete pairing."},
+ {k:"r",l:"MITM Relay",h:"Active BLE GATT proxy",w:"Connects to a real peripheral while advertising a clone to the victim, relaying and logging every GATT operation between them.",d:"Require bonded, encrypted characteristics and verify device identity \u2014 a relay can't forge a valid bond."},
+ {k:"k",l:"Scout+Strike",h:"Recon -> pick -> kill workflow",w:"A two-phase pipeline: passively scan and classify BLE devices, pick a target, then jam / disconnect / deauth it.",d:"LE Secure Connections plus PMF-style protections limit the strike; keep firmware current."},
+ {k:"c",l:"WiFi+BLE Combo",h:"Deauth -> BLE pairing capture",w:"Deauths a smart-home device off WiFi with the main chip while the nRF52 captures the BLE provisioning handshake it falls back to \u2014 a unique cross-radio attack.",d:"Provision IoT over an encrypted channel and use WPA3 so the WiFi deauth that triggers BLE fallback fails."},
+];
+const BADUSB=[
+ {k:"b",l:"Built-in",h:"5 starter payloads",w:"The starter DuckyScript shortlist \u2014 types a greeting, opens Notepad, rickrolls via Run, locks the workstation or opens a terminal \u2014 for quick demos.",d:"Lock your screen when away; disable or whitelist USB HID on sensitive machines so a plugged-in keyboard can't type."},
+ {k:"p",l:"Pranks",h:"Vibe-organized chaos reel",w:"59 prank payloads across 7 vibes (gaslight, visible chaos, lockers, browser doom, fake hack, loud, classic), each tagged by target OS.",d:"Same as any BadUSB \u2014 screen lock, USB port control, and never leave a machine logged in and unattended."},
+ {k:"w",l:"Windows",h:"44 payloads",w:"44 Windows payloads: Run-dialog openers, local WiFi-profile dumps and system-info printouts \u2014 all self-contained with no exfil to attacker servers.",d:"Enforce screen lock and USB device-control policies; log and alert on new HID device enumeration."},
+ {k:"m",l:"macOS",h:"24 payloads",w:"24 macOS payloads: Spotlight openers, Terminal scripts, AppleScript snippets and system info to the Desktop \u2014 all local-only.",d:"Require a password after sleep; use MDM to restrict USB accessory access."},
+ {k:"l",l:"Linux",h:"19 payloads",w:"19 Linux payloads: terminal openers, harmless info commands (uname, ip a) and local file ops for desktop distros.",d:"Lock the session; udev rules can restrict which USB HID devices are allowed to attach."},
+ {k:"a",l:"Android",h:"11 payloads",w:"11 Android payloads over USB-OTG: app-drawer search openers, Settings deep-links and screenshot triggers \u2014 needs the phone to accept a HID keyboard.",d:"Don't grant USB access to unknown cables or hosts; keep the screen locked when charging in public."},
+ {k:"c",l:"ChromeOS",h:"8 payloads",w:"8 ChromeOS payloads: Chrome shortcuts, crosh terminal opener, Settings deep-links and screenshots for USB-C HID on Chromebooks.",d:"Enable USB-guard / admin policies on managed Chromebooks; lock the screen when away."},
+];
+const NET_ATTACKS=[
+ {k:"u",l:"UART Shell",h:"Serial bridge to UART1",w:"Bridges the keyboard to a UART port (or Grove pins) with auto or manual baud \u2014 a serial console to attached hardware.",d:"Disable or physically protect exposed UART / debug headers on production devices."},
+ {k:"t",l:"TCP Tunnel",h:"Reverse connect-back TCP client",w:"Opens an outbound TCP connection to a host and port and relays keyboard input as commands \u2014 a simple reverse-shell relay.",d:"Egress-filter outbound connections and alert on unexpected phone-home traffic."},
+ {k:"h",l:"Honeypot",h:"Fake telnet server on :23",w:"Runs a fake Ubuntu telnet login on port 23 and logs every username, password and command attempted.",d:"This is a deception / defense tool \u2014 deploy it to catch who's probing your network."},
+ {k:"d",l:"Dead Drop",h:"Hidden AP for anonymous drops",w:"Creates a hidden AP with a captive page for anonymous file uploads and notes, stored on SD.",d:"Scan for unexpected hidden APs \u2014 this is a covert exfiltration channel to be aware of."},
+ {k:"p",l:"Printer",h:"Scan + print to network printers",w:"Scans the /24 for open port 9100 (JetDirect) and sends a file to a chosen printer.",d:"Firewall port 9100, require authenticated printing and isolate printers on their own VLAN."},
+ {k:"s",l:"SSDP Poison",h:"Flood LAN with fake UPnP devices",w:"Broadcasts fake SSDP alive packets and answers M-SEARCH with spoofed device descriptions, polluting UPnP device lists.",d:"Disable UPnP/SSDP where unneeded and segment IoT so poisoned discovery can't reach clients."},
+];
+const NET=[
+ {k:"p",l:"Port scan",h:"TCP portscan a host",w:"Connects to a range of TCP ports on a host to find open services (requires joining a WiFi network first).",d:"Firewall unused ports and run IDS / host monitoring to flag scan bursts."},
+ {k:"i",l:"Ping",h:"ICMP echo loop",w:"Live ICMP ping showing round-trip time and sequence until you exit.",d:"Drop ICMP echo at the firewall if you want hosts to stay quiet to basic probes."},
+ {k:"d",l:"DNS",h:"Lookup a hostname",w:"Resolves a hostname to its A record over the joined network.",d:"Utility \u2014 use DNS-over-HTTPS/TLS to keep your own lookups private."},
+ {k:"c",l:"Connect",h:"Join saved WiFi network",w:"Joins a WiFi network as a client (same as WiFi > Connect) so the LAN tools can run.",d:"Utility \u2014 protect your own credentials."},
+ {k:"r",l:"Responder",h:"Poison LLMNR/NBT-NS/mDNS",w:"When DNS fails, Windows/macOS/Linux fall back to LLMNR / NBT-NS / mDNS \u2014 this answers every query with our IP and logs the NTLM challenge for hashcat 5600.",d:"Disable LLMNR and NBT-NS via Group Policy and require SMB signing so captured challenges are useless."},
+ {k:"a",l:"LAN Recon",h:"Auto sweep + portscan + banners",w:"Drop-box auto recon: ARP-sweeps the /24, port-scans each host, grabs HTTP/SSH/Telnet banners, does OUI vendor lookup and exports a full CSV.",d:"Segment the LAN with VLANs, disable unused services and monitor for sweep patterns."},
+ {k:"u",l:"UPnP scan",h:"Discover LAN UPnP devices",w:"Sends SSDP M-SEARCH and pulls each device's description XML to map internal IoT: routers, printers, TVs, cameras, NAS, Chromecasts.",d:"Disable UPnP/SSDP on devices that don't need it and put IoT on an isolated VLAN."},
+ {k:"v",l:"CCTV Toolkit",h:"IP camera recon + default creds",w:"Scans for open camera ports, fingerprints the brand, sprays a default-credential list on 401s and walks common RTSP stream paths.",d:"Change default camera passwords immediately, keep firmware patched and keep cameras off the public internet."},
+ {k:"x",l:"Attacks",h:"UART/TCP/honeypot/printer/SSDP",w:"Offensive LAN services: UART shell bridge, reverse TCP tunnel, telnet honeypot, WiFi dead drop, printer print and SSDP poisoner.",c:NET_ATTACKS},
+ {k:"h",l:"DHCP Starve",h:"Exhaust DHCP pool via random MACs",w:"Floods DHCP DISCOVERs from spoofed random MACs until the server's pool is exhausted and it starts NAKing legitimate clients.",d:"Enable DHCP snooping and switchport MAC limiting (port-security) on managed switches."},
+ {k:"g",l:"Rogue DHCP STA",h:"Hijack gateway+DNS via STA",w:"After starvation, answers DHCP requests with an attacker-controlled gateway and DNS (plus a WPAD URL) to pivot client traffic through the device.",d:"DHCP snooping drops rogue offers; watch for a second DHCP server on the LAN."},
+ {k:"j",l:"Rogue DHCP AP",h:"Hijack gateway+DNS via AP",w:"Creates a soft-AP and serves its own DHCP, handing every client that joins an attacker gateway and DNS.",d:"Don't join open APs; use DHCP snooping and 802.1X on trusted networks."},
+ {k:"k",l:"Net Hijack",h:"Starve+Rogue+Portal auto chain",w:"One-button MitM chain: starve the real DHCP pool, serve rogue DHCP, then launch the captive portal for credential capture.",d:"DHCP snooping plus dynamic ARP inspection defeats the chain; never enter credentials into a portal."},
+ {k:"w",l:"WPAD Abuse",h:"Proxy autoconfig NTLM capture",w:"Serves a wpad.dat routing traffic through our proxy, then issues an NTLM 407 challenge to capture NTLMv2 hashes for hashcat 5600.",d:"Disable WPAD (WinHttpAutoProxySvc) or set an explicit proxy / no-proxy policy via Group Policy."},
+ {k:"e",l:"Autodiscover",h:"Exchange cred capture (Basic+NTLM)",w:"Fakes an Exchange Autodiscover endpoint, offering Basic auth (plaintext) with NTLM fallback and returning valid XML so Outlook thinks it worked.",d:"Block external Autodiscover, disable Basic auth and require modern auth (OAuth) for mail clients."},
+];
+const SALTY=[
+ {k:"i",l:"About",h:"Homage + arsenal overview",w:"Credits @7h30th3r0n3's Evil-M5Project and RaspyJack firmware and lists the ported LAN attacks in this suite.",d:"Informational page \u2014 no attack surface."},
+ {k:"s",l:"DHCP Starve",h:"Exhaust DHCP pool w/ random MACs",w:"Spews DHCP Discover/Request with random plausible client MACs until the real server exhausts its pool and NAKs new clients.",d:"Enable DHCP snooping and port-security MAC limits on managed switches."},
+ {k:"g",l:"Rogue DHCP (STA)",h:"Race real DHCP, poison leases",w:"Binds port 67 and races the real DHCP server; our lease says we are gateway, DNS and WPAD, so client traffic pivots through us.",d:"DHCP snooping drops the rogue server; alert on duplicate DHCP servers on the LAN."},
+ {k:"j",l:"Rogue DHCP (AP)",h:"Evil-twin SoftAP + DHCP server",w:"Stands up an open POSEIDON-SaltyJack soft-AP and serves DHCP itself, owning gateway, DNS and WPAD for anyone who joins.",d:"Don't join open APs; use 802.1X and DHCP snooping on trusted networks."},
+ {k:"r",l:"Responder",sim:"saltyjack",h:"Poison LLMNR/NBNS, SMB hashes",w:"Answers LLMNR (5355), NBT-NS (137) and SMB (445) name lookups pointing clients at us, then runs the NTLMv2 dance and saves hashcat-format hashes.",d:"Disable LLMNR/NBT-NS via Group Policy and require SMB signing."},
+ {k:"w",l:"WPAD NTLM",h:"PAC + 407 Proxy NTLM harvest",w:"Serves a /wpad.dat PAC telling browsers to proxy through us, then returns HTTP 407 Proxy-Authenticate: NTLM; domain Windows auto-sends creds we decode to hashcat format.",d:"Disable WPAD (WinHttpAutoProxySvc) or set an explicit proxy policy."},
+ {k:"c",l:"NTLMv2 Crack",h:"On-device HMAC-MD5 wordlist",w:"Reads captured hashes and brute-forces each on-device with HMAC-MD5 and MD4 against a wordlist \u2014 no PC needed.",d:"Long, unique passphrases resist offline wordlist cracking even after a hash leaks."},
+];
+const LORA=[
+ {k:"s",l:"Scan",h:"Passive RX on selected band",w:"Tunes the SX1262 to 433/868/915 MHz or Meshtastic LongFast and logs LoRa packets with RSSI, SNR and payload.",d:"Encrypt payloads at the app layer \u2014 the LoRa PHY is visible to any listener by design."},
+ {k:"b",l:"Beacon",h:"TX POSEIDON ping every 3s",w:"Transmits a POSEIDON ping with uptime and GPS every 3 seconds for range testing with a second LoRa device.",d:"Only beacon your position on channels and nodes you intend to share it with."},
+ {k:"m",l:"Mesh LF",h:"Meshtastic LongFast US listener",w:"Listens on Meshtastic LongFast US params (SF11 BW250) and parses packet headers (from/to node, packet ID).",d:"Use Meshtastic channel PSKs so only trusted nodes can read your traffic."},
+ {k:"a",l:"Analyzer",h:"Spectrum + waterfall + scope",w:"Three LoRa-band views: bar spectrum with peak-hold, waterfall heatmap and a live oscilloscope across 430\u2013930 MHz.",d:"Passive RF visualization \u2014 nothing to defend."},
+ {k:"c",l:"Mesh Chat",h:"Meshtastic text chat",w:"Joins as a real Meshtastic node to send and receive text on the LongFast channel.",d:"Set a channel PSK and treat default-channel chat as public."},
+ {k:"n",l:"Mesh Nodes",h:"Live roster of seen nodes",w:"Live roster of seen Meshtastic nodes with name, ID, SNR/RSSI, hops, last-seen and a GPS indicator.",d:"Unencrypted NodeInfo is public \u2014 use PSK channels if that matters."},
+ {k:"p",l:"Mesh Page",h:"Direct message a node",w:"Sends a direct (unicast) Meshtastic message to a specific node ID.",d:"DMs still ride the shared channel \u2014 use PSKs and don't assume privacy."},
+ {k:"g",l:"Mesh Pos",h:"Toggle position broadcasts",w:"Toggles broadcasting our own NodeInfo/Position so we appear as a pin on nearby Meshtastic apps.",d:"Leave position off unless you intend to share your location."},
+];
+const SUBGHZ=[
+ {k:"b",l:"Broadcast",cat:"attack",h:"Categorized .sub TX library",w:"Browses a categorized library of Flipper .sub files (cars, garages, home automation) on SD and transmits them.",d:"Only fixed-code devices are replayable \u2014 upgrade to rolling-code remotes."},
+ {k:"s",l:"Scan/Copy",h:"Freq scanner + signal decoder",w:"Sweeps 300\u2013928 MHz, locks the strongest signal and decodes it with RCSwitch (value, protocol, RSSI).",d:"Rolling-code and encrypted remotes can't be usefully copied."},
+ {k:"r",l:"Record RAW",h:"RMT pulse capture (up to 20s)",w:"Captures raw RF pulse timing via the RMT peripheral at 1 microsecond resolution and saves a Flipper-compatible .sub.",d:"Rolling-code remotes make a raw recording useless to replay."},
+ {k:"p",l:"Play .sub",cat:"attack",h:"Replay any .sub file from SD",w:"Replays any .sub file's raw pulses through the CC1101 transmitter (Flipper and Bruce formats).",d:"Rolling-code garage and car remotes invalidate a code the moment it is used once."},
+ {k:"a",l:"Analyzer",sim:"waterfall",h:"Spectrum + waterfall + scope",w:"Bar spectrum with peak-hold, waterfall heatmap and a live scope for sub-GHz bands.",d:"Passive visualization \u2014 nothing to defend."},
+ {k:"f",l:"Brute force",h:"Came/Nice/Linear/Chamberlain",w:"Iterates the entire keyspace of fixed-code protocols (Came, Nice, Chamberlain, Linear, Holtek, Ansonic) and transmits each.",d:"Replace fixed-code gates and garages with rolling-code hardware."},
+ {k:"j",l:"Jammer",h:"Sub-GHz intermittent + full TX",w:"Intermittent or continuous-carrier transmit on a chosen frequency with a 20-second safety cap.",d:"Jamming is illegal in most countries \u2014 use Jam Detect to spot it, never to cause it."},
+ {k:"h",l:"Finder",h:"Hot/cold signal locator",w:"A hot/cold thermometer bar and quickening beep to home in on a hidden sub-GHz transmitter (fob, camera, bug).",d:"Defensive tool \u2014 use it to locate a rogue emitter near you."},
+ {k:"d",l:"Jam Detect",h:"RSSI anomaly monitor",w:"Learns the noise floor, then alerts (overlay, siren and CSV log) on sustained spikes \u2014 the signature of a jammer.",d:"This IS the defense \u2014 it warns you when your band is being jammed."},
+];
+const NRF24=[
+ {k:"s",l:"Sniffer",h:"Promiscuous ESB discovery",w:"Goodspeed promiscuous trick to discover 2.4 GHz wireless HID (Logitech / Microsoft / Dell) with CRC-validated capture and fingerprinting.",d:"Prefer Bluetooth or encrypted receivers over legacy unencrypted ESB dongles."},
+ {k:"m",l:"MouseJack",h:"HID keystroke injection",w:"Injects keystrokes into vulnerable wireless keyboards and mice (Logitech Unifying, Microsoft) as if typed on the target.",d:"Patch dongle firmware (Logitech has a fix) or switch to Bluetooth peripherals."},
+ {k:"b",l:"BLE Spam",h:"Fake BLE adverts via nRF24",w:"Broadcasts spoofed BLE ADV_IND packets with random MACs and fake names using full CRC24 and whitening from a cheap nRF24.",d:"Keep OS Bluetooth stacks patched; ignore unexpected pairing popups."},
+ {k:"a",l:"Scanner",h:"2.4 GHz spectrum + protocol ID",w:"126-channel RPD sweep with gradient bars, peak-hold and protocol markers (WiFi 1/6/11, BLE adv, Zigbee).",d:"Passive energy scan \u2014 nothing to defend."},
+ {k:"j",l:"Jammer",h:"CW carrier + data flood presets",w:"Continuous-wave carrier or data flood with presets (BLE, WiFi 1/6/11, Zigbee, drone RC, HID) and a 20-second cap.",d:"Jamming is illegal \u2014 detect interference with the scanner instead of causing it."},
+ {k:"h",l:"Finder",h:"Hot/cold 2.4 GHz locator",w:"A hot/cold meter and quickening beep to locate a 2.4 GHz emitter \u2014 hidden cameras, rogue APs, dongles.",d:"Defensive tool \u2014 use it to find a rogue 2.4 GHz source near you."},
+];
+const RADIO=[
+ {k:"l",l:"LoRa",h:"SX1262 sub-GHz long range",w:"LoRa features for the CAP-LoRa1262 hat: passive scan, beacon TX, Meshtastic listener, chat, node roster and a spectrum analyzer.",c:LORA},
+ {k:"s",l:"Sub-GHz",h:"CC1101 scan/record/replay",w:"CC1101 sub-GHz radio: frequency scanner with decode, RAW record, .sub replay, spectrum and waterfall, brute force and jammer.",c:SUBGHZ},
+ {k:"n",l:"nRF24",h:"2.4 GHz spectrum/MouseJack/jam",w:"nRF24L01+ 2.4 GHz radio: spectrum analyzer, MouseJack sniff and inject, BLE spam, band jammer and a hot/cold finder.",c:NRF24},
+ {k:"g",l:"GPS fix",h:"Live GNSS position page",w:"Shows the current GNSS fix from the GPS module: lat, lon, alt, sats, HDOP, speed and UTC.",d:"Local receiver only \u2014 no network exposure."},
+ {k:"t",l:"SATCOM",h:"Satellite tracker (TLE + SGP4)",w:"Live satellite tracking: auto-fetches TLEs, runs SGP4 and shows a polar skyplot with az/el and next-pass predictions for ISS, NOAA and ham birds.",d:"Passive tracking of public orbital data \u2014 nothing to defend."},
+];
+const HUNT=[
+ {k:"b",l:"BLE tracker",h:"Geiger-style BLE tracker hunt",w:"Geiger-style proximity hunt homing in on a chosen BLE tracker.",d:"Defensive \u2014 locate a tracker planted on you."},
+ {k:"t",l:"Tracker scan",h:"Detect AirTag/SmartTag/Tile",w:"Passive scan for Apple Find My, Samsung SmartTag and Tile with distance class and signal.",d:"Defensive \u2014 run periodically to catch unwanted trackers early."},
+ {k:"g",l:"Sub-GHz finder",h:"CC1101 hot/cold locator",w:"Hot/cold CC1101 locator for sub-GHz fobs, remotes and hidden transmitters.",d:"Defensive \u2014 find a rogue sub-GHz emitter near you."},
+ {k:"n",l:"2.4 GHz finder",h:"nRF24 hot/cold locator",w:"Hot/cold nRF24 locator for 2.4 GHz HID, dongles and ISM-band sources.",d:"Defensive \u2014 locate a rogue 2.4 GHz source near you."},
+];
+const TOOLS=[
+ {k:"h",l:"Hunt",h:"Unified hot/cold hunter",w:"Every RF proximity locator in one submenu \u2014 BLE tracker hunt, BLE tracker scan, sub-GHz finder and 2.4 GHz finder.",c:HUNT},
+ {k:"l",l:"Flashlight",h:"Full-screen white torch",w:"Fills the screen white as a panic light.",d:"Utility \u2014 no security surface."},
+ {k:"s",l:"Stopwatch",h:"Timer with laps",w:"A stopwatch with start/stop, up to four laps and reset.",d:"Utility \u2014 no security surface."},
+ {k:"d",l:"Dice/8ball",h:"Dice, coin flip, magic 8-ball",w:"Randomizer: 2d6 dice sum, coin flip or magic 8-ball answer.",d:"Utility \u2014 no security surface."},
+ {k:"m",l:"Morse",h:"Type text, sends in morse",w:"Types a string and blinks the screen plus beeps it in Morse code.",d:"Utility \u2014 no security surface."},
+ {k:"r",l:"MAC rand",h:"Randomize WiFi MAC",w:"Generates a random locally-administered MAC and applies it to the WiFi interface (resets on reboot).",d:"Randomizing your own MAC aids privacy; defensively, never rely on MAC allow-lists alone."},
+ {k:"c",l:"Calc",h:"Simple calculator",w:"A simple left-to-right calculator on a typed expression.",d:"Utility \u2014 no security surface."},
+ {k:"t",l:"Screen test",h:"RGB cycle + gradient",w:"Cycles solid R/G/B/W/K/cyan/amber and a gradient bar to check the display.",d:"Diagnostic \u2014 no security surface."},
+ {k:"f",l:"SD format",h:"WIPE microSD card",w:"Deep-deletes every file on the SD card (requires typing YES; irreversible).",d:"Utility \u2014 back up before wiping; no attack surface."},
+];
+const MESH=[
+ {k:"s",l:"Status",h:"Live peer table + broadcast",w:"ESP-NOW presence beacon: broadcasts name, heap and GPS every 5 s and shows a live peer table; the foundation for the multi-device C2 concept.",d:"ESP-NOW is unauthenticated broadcast \u2014 treat presence data as public."},
+];
+const C5=[
+ {k:"s",l:"Status",h:"Show connected C5 nodes",w:"Live peer table of ESP32-C5 drop-nodes; auto-connects over ESP-NOW, pings peers and can broadcast STOP.",d:"Awareness of paired nodes; the ESP-NOW HELLO is unauthenticated."},
+ {k:"5",l:"Scan 5G+2G",h:"Remote dual-band WiFi scan",w:"Commands every C5 to run a dual-band (2.4 + 5 GHz) WiFi scan and stream results back \u2014 the first pocket tool that sees 5 GHz APs.",d:"Ensure your 5 GHz network runs WPA3 too, not just 2.4 GHz."},
+ {k:"z",l:"Zigbee sniff",h:"Remote 802.15.4 capture",w:"Puts the C5's 802.15.4 radio in promiscuous mode and streams Zigbee/Thread frame summaries back over ESP-NOW.",d:"Use non-default Zigbee keys so sniffed frames stay opaque."},
+ {k:"d",l:"Deauth 5G",h:"5 GHz deauth attack via C5",w:"Uses the C5 to deauth 5 GHz APs the main ESP32-S3 physically can't reach \u2014 the first pocket tool to deauth 5 GHz.",d:"Enable WPA3 / 802.11w PMF on the 5 GHz band so forged deauths are ignored."},
+ {k:"p",l:"PMKID 5G",h:"5 GHz PMKID capture via C5",w:"The C5 locks its 5 GHz receiver to a target and captures EAPOL M1 / PMKID, writing WPA*01* lines to hashcat.22000.",d:"Use WPA3-SAE on 5 GHz \u2014 it removes the offline-crackable handshake."},
+ {k:"n",l:"Nuke 5G + HS",h:"Deauth-all + handshake, 5 GHz",w:"Rotates through every 5 GHz AP: a 4 s broadcast deauth then a 5 s handshake capture, so kicked clients re-auth into the window; hits go to hashcat.22000.",d:"WPA3-SAE plus PMF on 5 GHz defeats both the deauth and the crackable-handshake capture."},
+];
+const SYS=[
+ {k:"f",l:"Files",h:"SD card browser",w:"A simple SD card tree browser: open directories, delete files and go up a level.",d:"Utility \u2014 no attack surface."},
+ {k:"c",l:"Clock",h:"Uptime / GPS clock",w:"A large uptime and GPS clock display.",d:"Utility \u2014 no attack surface."},
+ {k:"s",l:"Settings",h:"Config + preferences",w:"Manage saved WiFi, clear the creds log, reset preferences and reboot.",d:"Clear captured creds when done and protect physical access to the device."},
+ {k:"t",l:"Theme",act:"theme",h:"6 curated palettes",w:"Six curated palettes (POSEIDON, MATRIX, E-INK, SYNTHWAVE, PHANTOM, BLOOD) with live preview.",d:"Cosmetic \u2014 no security surface."},
+ {k:"b",l:"Ambient",act:"toggle-ambient",h:"Live ambient motion preview",w:"Live preview of the active theme's ambient motion (TRON grid and motes, MATRIX rain) with a global on/off toggle.",d:"Cosmetic \u2014 no security surface."},
+ {k:"l",l:"Layout",act:"toggle-layout",h:"Terminal / Carousel toggle",w:"Flips the menu render style between the dense TERMINAL list and the big-card CAROUSEL; both keep letter mnemonics.",d:"Cosmetic \u2014 no security surface."},
+ {k:"v",l:"Screensaver",act:"toggle-saver",h:"Toggle 2-min idle takeover",w:"Toggles the 2-minute idle screensaver takeover; any key wakes it.",d:"Cosmetic \u2014 no security surface."},
+ {k:"p",l:"Saver Pick",act:"saverpick",h:"Choose screensaver / shuffle",w:"Choose from 10 themed screensavers (wardrive cinema, matrix rain, sonar, hex cascade, fake hashcat crack) or shuffle.",d:"Cosmetic \u2014 no security surface."},
+ {k:"n",l:"Sound",act:"toggle-sound",h:"Volume + mute + SFX test",w:"Adjust SFX volume 0\u201310 and toggle mute; every menu action, capture and boot has a tone.",d:"Cosmetic \u2014 no security surface."},
+ {k:"a",l:"About",act:"about",h:"Build info",w:"Shows version, tagline and repo URL.",d:"Informational \u2014 no security surface."},
+ {k:"x",l:"Attract",act:"toggle-attract",h:"Self-driving demo loop",w:"Auto-tours the menu, launches simulations and cycles themes hands-free \u2014 ideal for a booth screen or a README capture. Any key hands control back.",d:"Cosmetic \u2014 no security surface."},
+ {k:"d",l:"Postcard",act:"postcard",h:"Export a shareable PNG",w:"Renders the current screen into a framed POSEIDON postcard image and downloads it \u2014 great for a README hero shot or sharing a build.",d:"Cosmetic \u2014 no security surface."},
+];
+const ROOT={l:"POSEIDON",c:[
+ {k:"w",l:"WiFi",h:"WiFi recon + attacks + wardrive",acc:"#38bdf8",w:"2.4 GHz WiFi recon and attacks \u2014 scanning, handshake capture, evil portal, deauth, beacon spam, client hunting, spectrum and GPS wardriving.",c:WIFI},
+ {k:"b",l:"Bluetooth",h:"BLE scan / spam / HID / tracker",acc:"#a78bfa",w:"Bluetooth LE toolkit \u2014 scan and identify, GATT explorer, HID spoofing, notification spam, tracker detection and hunting, and live CVE probes.",c:BLE},
+ {k:"i",l:"IR",h:"Infrared blaster + remote",acc:"#7dd3fc",w:"Infrared blaster \u2014 TV-B-Gone, virtual and multi-brand remotes and a one-shot prank library.",c:IR},
+ {k:"t",l:"Argus",sim:"argus",h:"gotchi pet that hunts handshakes",acc:"#f472b6",w:"An autonomous gotchi companion that channel-hops, sniffs EAPOLs, deauths seen APs to force reconnects and captures PMKIDs and handshakes on its own \u2014 with a mood face and a reinforcement-learning layer that favors productive channels.",d:"Same as handshake capture \u2014 WPA3-SAE removes the crackable handshake and PMF blocks the deauths it uses to force them."},
+ {k:"f",l:"Feather",h:"nRF52840 BLE5 / Zigbee / MITM",acc:"#2dd4bf",w:"Add-on nRF52840 radio \u2014 BLE 5 raw-PHY sniffing (incl. long-range Coded), 802.15.4 / Zigbee / Thread and BLE connection MITM the main chip can't do.",c:NRF52},
+ {k:"u",l:"BadUSB",h:"USB-HID runner + 165+ payloads",acc:"#f59e0b",w:"USB-HID keyboard emulator \u2014 appears as a real keyboard and types DuckyScript payloads; 165+ built-in and per-OS scripts plus a prank reel.",c:BADUSB},
+ {k:"n",l:"Network",h:"Port scan / ping / DNS / connect",acc:"#fb923c",w:"LAN tools that need a WiFi join first \u2014 port scan, ping, DNS, recon, UPnP and CCTV discovery and DHCP / WPAD / Autodiscover attacks.",c:NET},
+ {k:"j",l:"SaltyJack",h:"LAN attack suite (homage 7h30th3r0n3)",acc:"#f87171",w:"LAN credential-attack suite (homage to @7h30th3r0n3) \u2014 DHCP starvation, rogue DHCP, LLMNR/NBNS Responder, WPAD NTLM harvest and an on-device cracker.",c:SALTY},
+ {k:"r",l:"Radio",h:"LoRa sub-GHz + GNSS (CAP-LoRa)",acc:"#34d399",w:"Sub-GHz LoRa and GPS from the CAP-LoRa hat plus CC1101 and nRF24 radios \u2014 scan, record and replay, analyze and satellite tracking.",c:RADIO},
+ {k:"o",l:"Tools",h:"Flashlight / stopwatch / dice",acc:"#f0abfc",w:"Utilities in the Flipper tradition \u2014 the unified RF proximity hunter plus flashlight, stopwatch, dice, morse, MAC randomizer and more.",c:TOOLS},
+ {k:"m",l:"Mesh",h:"PigSync ESP-NOW peer mesh",acc:"#22d3ee",w:"ESP-NOW presence mesh \u2014 broadcast name, heap and GPS to nearby POSEIDON devices; the foundation for the multi-device C2 concept.",c:MESH},
+ {k:"5",l:"C5 nodes",h:"Remote 5GHz + Zigbee via C5",acc:"#2dd4bf",w:"Control ESP32-C5 drop-nodes over ESP-NOW \u2014 the only ESP chip with 5 GHz WiFi and 802.15.4, enabling remote 5 GHz scan, deauth and PMKID plus Zigbee sniff.",c:C5},
+ {k:"x",l:"MIMIR",h:"Control MIMIR drop-box via USB-C",acc:"#c084fc",w:"Connects to the MIMIR pentest drop-box over USB-C to drive scans and attacks (deauth, handshake, PMKID, evil twin, beacon spam) and retrieve cracked creds \u2014 no wireless link, for opsec.",d:"A controller for a separate device; defenses match the underlying WiFi attacks \u2014 WPA3, PMF and strong passphrases."},
+ {k:"p",l:"PC Bridge",h:"TRIDENT screen mirror + remote KB",acc:"#60a5fa",w:"Streams the Cardputer screen to the TRIDENT desktop app over USB-C at 10 fps and lets the PC send keystrokes back \u2014 a remote screen and keyboard bridge.",d:"Utility for a trusted PC link \u2014 keep the USB host trusted."},
+ {k:"s",l:"System",h:"Files, clock, settings",acc:"#94a3b8",w:"Device utilities \u2014 SD browser, clock, settings, theme, ambient and layout, screensaver, sound and about.",c:SYS},
+ {k:"d",l:"Mass Storage",h:"microSD -> USB drive",acc:"#cbd5e1",w:"Exposes the microSD to a USB host as a removable drive \u2014 the Cardputer becomes a card reader for drag-and-drop transfer; ESC ejects cleanly.",d:"Utility; be mindful what's on the card when plugging into an untrusted host."},
+]};
+
+// ---- category taxonomy (badges) ----
+const CATS={
+ attack:{lb:"ATTACK",c:"#ff6b8b"},
+ passive:{lb:"PASSIVE",c:"#5ee6f5"},
+ defense:{lb:"DEFENSE",c:"#7bf6b0"},
+ utility:{lb:"UTILITY",c:"#9fb0c2"},
+ prank:{lb:"PRANK",c:"#fbbf24"},
+ category:{lb:"MODULE",c:"#c9a3ff"}
+};
+function classify(it){
+ if(!it)return "utility";
+ if(it.cat)return it.cat;
+ if(it.c)return "category";
+ const s=((it.l||"")+" "+(it.h||"")+" "+(it.w||"")).toLowerCase();
+ if(/prank|tv-b-gone|torture|scramble|roulette|\bchaos\b|rickroll|gaslight/.test(s))return "prank";
+ if(/detect|defmon|guard|geiger|hot\/cold|locator|finder|jam detect|honeypot|deception|surveil|monitor|awareness|defensive|defense/.test(s))return "defense";
+ if(/deauth|evil|portal|karma|spam|inject|flood|jammer|\bjam\b|brute|rogue|starv|poison|responder|wpad|autodiscover|mousejack|hijack|nuke|crack|pmkid|handshake|dead drop|exploit|payload|spoof|clone|mitm|bad-?kb|blueducky|sourapple|whisperpair|attack/.test(s))return "attack";
+ if(/scan|sniff|spectrum|analyz|wardrive|probe|roster|listen|discover|recon|waterfall|passive|\blog\b|tracker|drone rid|find my|satellite|\bgps\b|\bsat\b|beacon|mesh|node/.test(s))return "passive";
+ return "utility";
+}
+// ---- screensaver registry (ids match drawSaver switch) ----
+const SAVERS=[
+ {id:"shuffle",name:"Shuffle"},
+ {id:"wardrive",name:"Wardrive.cinema"},
+ {id:"matrix",name:"Matrix Rain"},
+ {id:"deepscan",name:"Deep Scan"},
+ {id:"crack",name:"Terminal Crack"},
+ {id:"hex",name:"Hex Cascade"},
+ {id:"neural",name:"Neural Arc"},
+ {id:"tide",name:"Tide Waves"},
+ {id:"glitch",name:"Glitch BSOD"},
+];
+// ---- six curated palettes (from src/theme.cpp) ----
+const THEMES=[
+ {id:"poseidon",name:"POSEIDON",paper:false,b1:"#0a0410",b2:"#040207",fg:"#eaf6ff",dim:"#5f93a6",acc:"#5ee6f5",key:"#7ff0fb",acc2:"#f0abfc",good:"#7bf6b0",warn:"#fbbf24",bad:"#ff6b8b",selbg:"rgba(46,12,64,0.92)",selbd:"#e833c0",rule:"#e833c0",txta:"#eaf6ff",txti:"#83aaba",ca1:"217,70,239",ca2:"34,211,238"},
+ {id:"matrix",name:"MATRIX",paper:false,b1:"#031007",b2:"#010603",fg:"#c9ffd2",dim:"#2f9f57",acc:"#39ff88",key:"#8bffb0",acc2:"#b6ff3a",good:"#39ff88",warn:"#eaff00",bad:"#ff4d4d",selbg:"rgba(6,44,20,0.92)",selbd:"#39ff88",rule:"#0c8a3a",txta:"#d6ffd6",txti:"#3fae63",ca1:"0,255,90",ca2:"150,255,40"},
+ {id:"eink",name:"E-INK",paper:true,b1:"#f6f6f1",b2:"#e7e7e1",fg:"#0a0a0a",dim:"#6b6b6b",acc:"#141414",key:"#242424",acc2:"#3a3a3a",good:"#2a2a2a",warn:"#404040",bad:"#101010",selbg:"#d6d6cf",selbd:"#141414",rule:"#8a8a8a",txta:"#0a0a0a",txti:"#6b6b6b",ca1:"60,60,60",ca2:"120,120,120"},
+ {id:"synthwave",name:"SYNTHWAVE",paper:false,b1:"#1a1030",b2:"#0c0720",fg:"#ffdff7",dim:"#a99fe0",acc:"#ff5bd0",key:"#7df0ff",acc2:"#22e0ff",good:"#5ffbd0",warn:"#ffe6a0",bad:"#ff6b9a",selbg:"rgba(60,20,66,0.92)",selbd:"#ff5bd0",rule:"#ff5bd0",txta:"#ffe3fb",txti:"#a99fd6",ca1:"255,91,208",ca2:"34,224,255"},
+ {id:"phantom",name:"PHANTOM",paper:false,b1:"#100a28",b2:"#0a0518",fg:"#e2ecff",dim:"#8b7fb8",acc:"#b66dff",key:"#c9a3ff",acc2:"#9a5cff",good:"#4ade80",warn:"#ffcc55",bad:"#ff5a5a",selbg:"rgba(48,20,74,0.92)",selbd:"#b66dff",rule:"#8a3dff",txta:"#e6dbff",txti:"#9a8fc0",ca1:"182,109,255",ca2:"120,60,255"},
+ {id:"blood",name:"BLOOD",paper:false,b1:"#120303",b2:"#080101",fg:"#ecd6d6",dim:"#8a5a5a",acc:"#ff3b3b",key:"#ff8a8a",acc2:"#ff5a5a",good:"#4ea36a",warn:"#ffa200",bad:"#ff0000",selbg:"rgba(64,10,10,0.92)",selbd:"#ff3b3b",rule:"#e70000",txta:"#f0d6d6",txti:"#a06a6a",ca1:"231,0,0",ca2:"150,10,10"},
+];
+function themeVars(th){return {"--pfg":th.fg,"--pdim":th.dim,"--pacc":th.acc,"--pkey":th.key,"--pacc2":th.acc2,"--pgood":th.good,"--pwarn":th.warn,"--pbad":th.bad,"--pselbg":th.selbg,"--pselbd":th.selbd,"--prule":th.rule,"--ptxta":th.txta,"--ptxti":th.txti};}
+
+// ---- flattened search index (fuzzy find across the whole tree) ----
+function buildIndex(){
+  const out=[];
+  (function walk(node,path,parent){
+    if(!node.c)return;
+    node.c.forEach((it,i)=>{
+      out.push({label:it.l,hint:it.h||"",parent:parent,path:path.slice(),index:i,isCat:!!it.c,sim:it.sim||null,act:it.act||null,cat:classify(it)});
+      if(it.c)walk(it,path.concat(i),it.l);
+    });
+  })(ROOT,[],"POSEIDON");
+  return out;
+}
+const SEARCH_INDEX=buildIndex();
+// ---- decorative QR (finder patterns + seeded modules; looks the part) ----
+function buildQR(seed){
+  const N=25,m=Array.from({length:N},()=>new Array(N).fill(0));
+  const fp=(ox,oy)=>{for(let y=0;y<7;y++)for(let x=0;x<7;x++)m[oy+y][ox+x]=((x===0||x===6||y===0||y===6)||(x>=2&&x<=4&&y>=2&&y<=4))?1:0;};
+  fp(0,0);fp(N-7,0);fp(0,N-7);
+  for(let i=8;i<N-8;i++){m[6][i]=i%2;m[i][6]=i%2;}
+  m[N-9][N-9]=1;for(let y=0;y<5;y++)for(let x=0;x<5;x++)m[N-9+y]&&(m[N-9+y][N-9+x]=((x===0||x===4||y===0||y===4)||(x===2&&y===2))?1:0);
+  let s=5381;for(let i=0;i<seed.length;i++)s=((s*33)^seed.charCodeAt(i))>>>0;
+  const rnd=()=>{s=(s*1103515245+12345)>>>0;return (s>>17)&1;};
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){ if((x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9)||(x>N-10&&y>N-10)||x===6||y===6)continue; m[y][x]=rnd(); }
+  return m;
+}
+function makeQRDataUrl(str){
+  try{ const N=25,px=5,pad=10,c=document.createElement("canvas"); c.width=c.height=N*px+pad*2; const g=c.getContext("2d");
+    g.fillStyle="#ffffff";g.fillRect(0,0,c.width,c.height); g.fillStyle="#0a0a0f"; const m=buildQR(str);
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(m[y][x])g.fillRect(pad+x*px,pad+y*px,px,px);
+    return c.toDataURL("image/png"); }catch(e){ return ""; }
+}
+const REPO_URL="github.com/poseidon-cardputer";
+
+const SHIFT_MAP={"!":"1","@":"2","#":"3","$":"4","%":"5","^":"6","&":"7","*":"8","(":"9",")":"0","_":"-","+":"=","{":"[","}":"]","|":"\\",":":";","\"":"'","<":",",">":".","?":"/","~":"`"};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function env(now,at,k){if(!at)return 0;const dt=(now-at)/1000;return dt<0?0:Math.exp(-dt*k);}
+
+function buildKeyboard(){
+  const K=[
+    ["`","char","~"],["1","char","!"],["2","char","@"],["3","char","#"],["4","char","$"],["5","char","%"],["6","char","^"],["7","char","&"],["8","char","*"],["9","char","("],["0","char",")"],["-","char","_"],["=","char","+"],["\u232b","del"],
+    ["tab","mod"],["q"],["w"],["e"],["r"],["t"],["y"],["u"],["i"],["o"],["p"],["[","char","{"],["]","char","}"],["\\","char","|"],
+    ["fn","mod"],["shift","mod"],["a"],["s"],["d"],["f"],["g"],["h"],["j"],["k"],["l"],[";","up",":"],["'","char","\""],["\u23ce","enter"],
+    ["ctrl","mod"],["opt","mod"],["alt","mod"],["z"],["x"],["c"],["v"],["b"],["n"],["m"],[",","left","<"],[".","down",">"],["/","right","?"],["space","space"]
+  ];
+  const arrows={up:"\u25b2",down:"\u25bc",left:"\u25c4",right:"\u25ba"};
+  const byId={};
+  const keys=K.map(function(spec){
+    const label=spec[0], role=spec[1]||"char", sub=spec[2]||null;
+    const id=(role==="char"||role==="mod")?label.toLowerCase():role;
+    const meta={id:id,label:label,role:role,sub:sub,arrow:arrows[role]||null};
+    byId[id]=meta;return meta;
+  });
+  return {keys:keys,byId:byId};
+}
+
+function keyStyle(meta,pressed,i){
+  const r=meta.role;
+  const dpad=(r==="up"||r==="down"||r==="left"||r==="right");
+  const action=(r==="enter"||r==="space");
+  const mod=(r==="mod"||r==="del");
+  let color,bg,border,shadow,anim=null;
+  if(pressed){color="#fce7f6";bg="linear-gradient(180deg,#c026a8,#5c1250)";border="rgba(240,171,252,0.95)";shadow="0 0 24px rgba(217,70,239,0.95),0 0 58px rgba(34,211,238,0.4),inset 0 0 14px rgba(240,171,252,0.4),inset 0 1px 0 rgba(255,255,255,0.2)";}
+  else if(dpad){color="#f0abfc";bg="linear-gradient(180deg,#2a0a37,#160622)";border="rgba(217,70,239,0.45)";shadow="inset 0 1px 0 rgba(255,255,255,0.05),inset 0 0 11px rgba(217,70,239,0.16),0 2px 5px rgba(0,0,0,0.6)";}
+  else if(action){color="#7ff0fb";bg="linear-gradient(180deg,#0a2a33,#06181f)";border="rgba(34,211,238,0.5)";shadow="inset 0 1px 0 rgba(255,255,255,0.05),inset 0 0 11px rgba(34,211,238,0.16),0 2px 5px rgba(0,0,0,0.6)";}
+  else if(mod){color="#6a7488";bg="linear-gradient(180deg,#0e1119,#080a0f)";border="rgba(217,70,239,0.2)";shadow="inset 0 1px 0 rgba(255,255,255,0.04),0 0 9px rgba(217,70,239,0.05),0 2px 5px rgba(0,0,0,0.55)";anim="keyGlowB";}
+  else{color="#a9b2c4";bg="linear-gradient(180deg,#161a23,#0e1118)";border="rgba(217,70,239,0.26)";shadow="inset 0 1px 0 rgba(255,255,255,0.06),0 0 11px rgba(217,70,239,0.09),0 2px 5px rgba(0,0,0,0.55)";anim="keyGlowA";}
+  const st={
+    width:"100%",aspectRatio:"1 / 0.84",minWidth:"0",borderRadius:"7px",
+    display:"flex",alignItems:"center",justifyContent:"center",position:"relative",cursor:"pointer",userSelect:"none",overflow:"hidden",
+    fontFamily:'"JetBrains Mono", monospace',fontSize:(meta.label.length>2?"9.5px":"13px"),letterSpacing:"0.3px",
+    color:color, background:bg, border:"1px solid "+border, boxShadow:shadow,
+    transform: pressed?"scale(0.93)":"none",
+    transition:"transform 0.1s ease, box-shadow 0.35s ease, background 0.25s ease, color 0.2s ease, border-color 0.3s ease"
+  };
+  if(anim){st.animation=anim+" 4.2s ease-in-out infinite";st.animationDelay=(-(((Math.floor((i||0)/14))+((i||0)%14))*0.11)).toFixed(2)+"s";}
+  return st;
+}
+
+class Component extends DCLogic {
+  kb=buildKeyboard();
+  byId=this.kb.byId;
+  bgRef=React.createRef();
+  screenRef=React.createRef();
+  panelRef=React.createRef();
+  scalerRef=React.createRef();
+  timers={};
+  parallax={x:0,y:0,tx:0,ty:0};
+  lastInput=performance.now();
+  state={power:"off",path:[],cursor:0,view:"menu",pressed:{},muted:false,
+    themeIdx:0,themePrev:null,layout:"terminal",help:false,
+    saverOn:true,saverActive:false,saverSel:0,pickCursor:0,tick:0,
+    query:"",searchCursor:0,attract:false};
+
+  get accent(){return this.theme().acc;}
+  theme(){var i=this.state.themePrev!=null?this.state.themePrev:this.state.themeIdx;return THEMES[i]||THEMES[0];}
+  reduced(){try{return window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;}catch(e){return false;}}
+  markInput(){this.lastInput=performance.now();if(this.state.saverActive)this.wakeSaver();if(this.attract)this.stopAttract();}
+  wakeSaver(){if(this.state.saverActive){this.setState({saverActive:false});this.lastInput=performance.now();if(this.audioEnabled())this.sfxBack();}}
+
+  /* ===================== AUDIO ENGINE ===================== */
+  audioEnabled(){return this.actx && this.props.sound!==false && !this.state.muted;}
+  initAudio(){
+    if(this.actx){ if(this.actx.state==="suspended"){try{this.actx.resume();}catch(e){}} return; }
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;
+      const ctx=new AC(); this.actx=ctx;
+      this.master=ctx.createGain(); this.master.gain.value=0.9;
+      this.comp=ctx.createDynamicsCompressor();
+      this.comp.threshold.value=-18; this.comp.knee.value=24; this.comp.ratio.value=4; this.comp.attack.value=0.003; this.comp.release.value=0.25;
+      this.warm=ctx.createBiquadFilter(); this.warm.type="lowpass"; this.warm.frequency.value=9200;
+      this.master.connect(this.comp); this.comp.connect(this.warm); this.warm.connect(ctx.destination);
+      this.makeNoise(); this.makeReverb();
+    }catch(e){}
+  }
+  makeNoise(){
+    const ctx=this.actx; const len=Math.floor(ctx.sampleRate*2);
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    this.noiseBuf=buf;
+  }
+  makeReverb(){
+    const ctx=this.actx; const len=Math.floor(ctx.sampleRate*1.3);
+    const buf=ctx.createBuffer(2,len,ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++){d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6);}}
+    const cv=ctx.createConvolver(); cv.buffer=buf;
+    const rg=ctx.createGain(); rg.gain.value=0.22;
+    cv.connect(rg); rg.connect(this.master);
+    this.reverb=cv;
+  }
+  tone(o){
+    o=o||{}; const ctx=this.actx; if(!ctx)return;
+    const freq=o.freq||440, type=o.type||"sine", dur=o.dur||0.15, gain=o.gain||0.1;
+    const attack=o.attack||0.005, release=o.release||0.08;
+    const osc=ctx.createOscillator(); osc.type=type; osc.frequency.setValueAtTime(freq,ctx.currentTime);
+    if(o.glideTo)osc.frequency.exponentialRampToValueAtTime(Math.max(1,o.glideTo),ctx.currentTime+dur);
+    if(o.detune)osc.detune.value=o.detune;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,gain),ctx.currentTime+attack);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur+release);
+    osc.connect(g); g.connect(this.master); if(o.space&&this.reverb)g.connect(this.reverb);
+    osc.start(); osc.stop(ctx.currentTime+dur+release+0.03);
+  }
+  noise(o){
+    o=o||{}; const ctx=this.actx; if(!ctx||!this.noiseBuf)return;
+    const dur=o.dur||0.1, gain=o.gain||0.1, type=o.type||"lowpass", freq=o.freq||1000, q=o.q||1;
+    const s=ctx.createBufferSource(); s.buffer=this.noiseBuf; s.loop=true;
+    const f=ctx.createBiquadFilter(); f.type=type; f.frequency.setValueAtTime(freq,ctx.currentTime); f.Q.value=q;
+    if(o.freqEnd)f.frequency.linearRampToValueAtTime(o.freqEnd,ctx.currentTime+dur);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.linearRampToValueAtTime(gain,ctx.currentTime+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur);
+    s.connect(f); f.connect(g); g.connect(this.master); if(o.space&&this.reverb)g.connect(this.reverb);
+    s.start(); s.stop(ctx.currentTime+dur+0.05);
+  }
+  sfxKey(meta){
+    if(!this.audioEnabled())return;
+    const r=meta.role;
+    const hp=(r==="enter"||r==="space")?2600:(r==="up"||r==="down"||r==="left"||r==="right")?1900:2200;
+    this.noise({dur:0.028,gain:0.045,type:"highpass",freq:hp,q:0.7});
+    this.tone({freq:r==="mod"?150:180,type:"sine",dur:0.018,gain:0.032,attack:0.001,release:0.03});
+  }
+  sfxNav(dir){ if(!this.audioEnabled())return; const base=520; this.tone({freq:base,type:"triangle",dur:0.05,gain:0.07,attack:0.002,release:0.05,glideTo:base+(dir>0?-70:120)}); }
+  sfxSelect(){ if(!this.audioEnabled())return; this.ping(); }
+  sfxBack(){ if(!this.audioEnabled())return; this.tone({freq:300,type:"sawtooth",dur:0.05,gain:0.05,glideTo:180,attack:0.002,release:0.05}); }
+  ping(){
+    this.tone({freq:720,type:"sine",dur:0.5,gain:0.1,glideTo:660,attack:0.002,release:0.5,space:true});
+    this.tone({freq:1440,type:"sine",dur:0.28,gain:0.028,glideTo:1320,release:0.3,space:true});
+  }
+  sfxPowerOn(){
+    if(!this.audioEnabled())return;
+    this.tone({freq:55,type:"sine",dur:0.9,gain:0.14,glideTo:110,attack:0.15,release:0.5,space:true});
+    this.tone({freq:110,type:"triangle",dur:1.0,gain:0.05,glideTo:220,attack:0.2,release:0.6,space:true});
+    this.noise({dur:1.1,gain:0.05,type:"bandpass",freq:280,freqEnd:4200,q:0.8,space:true});
+  }
+  sfxReady(){
+    if(!this.audioEnabled())return;
+    this.tone({freq:392,type:"sine",dur:0.5,gain:0.06,attack:0.01,release:0.5,space:true});
+    this.tone({freq:587,type:"sine",dur:0.55,gain:0.05,attack:0.02,release:0.5,space:true});
+  }
+  sfxPowerOff(){
+    if(!this.audioEnabled())return;
+    this.tone({freq:240,type:"sine",dur:0.5,gain:0.1,glideTo:38,attack:0.005,release:0.4,space:true});
+    this.noise({dur:0.4,gain:0.04,type:"lowpass",freq:1200,freqEnd:180,q:0.7});
+  }
+  startAmbient(){
+    if(!this.actx||this.props.sound===false||this.ambient)return;
+    const ctx=this.actx, t=ctx.currentTime; const nodes=[];
+    const lfo=(freq,depth,param,base)=>{ const o=ctx.createOscillator(); o.type="sine"; o.frequency.value=freq; const g=ctx.createGain(); g.gain.value=depth; o.connect(g); g.connect(param); if(base!==undefined)param.value=base; o.start(); nodes.push(o); };
+    const bus=ctx.createGain(); bus.gain.setValueAtTime(0.0001,t); bus.gain.linearRampToValueAtTime(0.062,t+4.0); bus.connect(this.master);
+    lfo(0.026,0.012,bus.gain);
+    if(this.reverb){const rs=ctx.createGain(); rs.gain.value=0.42; bus.connect(rs); rs.connect(this.reverb);}
+    const subBus=ctx.createGain(); subBus.gain.value=0.5; subBus.connect(bus);
+    const sub1=ctx.createOscillator(); sub1.type="sine"; sub1.frequency.value=41.2;
+    const sub2=ctx.createOscillator(); sub2.type="sine"; sub2.frequency.value=61.74;
+    const sub2g=ctx.createGain(); sub2g.gain.value=0.42;
+    sub1.connect(subBus); sub2.connect(sub2g); sub2g.connect(subBus);
+    sub1.start(); sub2.start(); nodes.push(sub1,sub2);
+    lfo(0.04,3.5,sub1.detune,0); lfo(0.031,4.5,sub2.detune,0);
+    const oct=ctx.createOscillator(); oct.type="triangle"; oct.frequency.value=82.4;
+    const octg=ctx.createGain(); oct.connect(octg); octg.connect(bus);
+    const fif=ctx.createOscillator(); fif.type="sine"; fif.frequency.value=123.5;
+    const fifg=ctx.createGain(); fif.connect(fifg); fifg.connect(bus);
+    oct.start(); fif.start(); nodes.push(oct,fif);
+    lfo(0.11,0.035,octg.gain,0.14); lfo(0.045,0.085,fifg.gain,0.085);
+    const surf=ctx.createBufferSource(); surf.buffer=this.noiseBuf; surf.loop=true;
+    const surfF=ctx.createBiquadFilter(); surfF.type="lowpass"; surfF.Q.value=0.7;
+    const surfG=ctx.createGain(); surf.connect(surfF); surfF.connect(surfG); surfG.connect(bus);
+    surf.start(); nodes.push(surf);
+    lfo(0.055,250,surfF.frequency,470); lfo(0.021,120,surfF.frequency); lfo(0.09,0.04,surfG.gain,0.075); lfo(0.037,0.025,surfG.gain);
+    const deep=ctx.createBufferSource(); deep.buffer=this.noiseBuf; deep.loop=true;
+    const deepF=ctx.createBiquadFilter(); deepF.type="lowpass"; deepF.Q.value=0.9;
+    const deepG=ctx.createGain(); deep.connect(deepF); deepF.connect(deepG); deepG.connect(bus);
+    deep.start(); nodes.push(deep);
+    lfo(0.034,0.055,deepG.gain,0.08); lfo(0.013,55,deepF.frequency,110);
+    this.ambient={g:bus,nodes:nodes};
+  }
+  stopAmbient(){
+    if(!this.ambient||!this.actx)return;
+    const ctx=this.actx, amb=this.ambient;
+    try{amb.g.gain.cancelScheduledValues(ctx.currentTime);amb.g.gain.setValueAtTime(amb.g.gain.value,ctx.currentTime);amb.g.gain.linearRampToValueAtTime(0.0001,ctx.currentTime+1.3);}catch(e){}
+    setTimeout(function(){amb.nodes.forEach(function(n){try{n.stop();}catch(e){}});},1450);
+    this.ambient=null;
+  }
+
+  componentDidMount(){
+    this.initScene(); this.resize(); this.applyScale();
+    var ti=THEMES.findIndex(t=>t.id===this.props.theme); if(ti>=0)this.setState({themeIdx:ti});
+    if(this.props.layout==="carousel")this.setState({layout:"carousel"});
+    if(this.props.screensaver===false)this.setState({saverOn:false});
+    this.idleMs=Math.max(8000,(this.props.idleSeconds||40)*1000);
+    this.battStart=performance.now(); this.battPct0=87;
+    this.qrUrl=makeQRDataUrl(REPO_URL);
+    this.logoImg=new Image(); this.logoImg.src="assets/poseidon-crop.png";
+    this._onResize=()=>{this.resize();this.applyScale();}; window.addEventListener("resize",this._onResize);
+    this.onKeyDown=this.onKeyDown.bind(this); window.addEventListener("keydown",this.onKeyDown);
+    this._onMove=(e)=>{this.markInput();this.onPointer(e);}; window.addEventListener("mousemove",this._onMove);
+    this._onDown=()=>this.markInput(); window.addEventListener("pointerdown",this._onDown);
+    this._onHash=()=>this.applyHash(); window.addEventListener("hashchange",this._onHash);
+    this.pendingHash=this.parseHash();
+    this.clockTimer=setInterval(()=>{if(this.state.power==="on"&&!this.state.saverActive)this.setState(s=>({tick:(s.tick+1)%86400}));},1000);
+    this.t0=performance.now(); this.loop=this.loop.bind(this);
+    try{this.drawBG(this.bgctx,this.bw,this.bh,0);this.drawOff(this.sctx,this.sw,this.sh,0);}catch(e){}
+    this.raf=requestAnimationFrame(this.loop);
+    if(this.props.autoBoot!==false){this.bootDelay=setTimeout(()=>{if(this.state.power==="off")this.togglePower();},700);}
+  }
+
+  componentWillUnmount(){
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.bootTimer);clearTimeout(this.bootDelay);
+    Object.keys(this.timers).forEach(k=>clearTimeout(this.timers[k]));
+    window.removeEventListener("resize",this._onResize);
+    window.removeEventListener("keydown",this.onKeyDown);
+    window.removeEventListener("mousemove",this._onMove);
+    window.removeEventListener("pointerdown",this._onDown);
+    window.removeEventListener("hashchange",this._onHash);
+    clearInterval(this.clockTimer);
+    this.stopAmbient();
+    try{if(this.actx)this.actx.close();}catch(e){}
+  }
+  // ---------- deep links (hash <-> path) ----------
+  parseHash(){try{var h=(location.hash||"").replace(/^#/,"");if(!h)return null;return h.split("/").filter(Boolean);}catch(e){return null;}}
+  writeHash(){try{var segs=this.state.path.map((idx,d)=>{var node=ROOT,p=this.state.path.slice(0,d);for(var i=0;i<p.length;i++){node=node.c[p[i]];}return node.c[idx].k;});var nh=segs.join("/");if(("#"+nh)===location.hash)return;this._selfHash=true;location.hash=nh;}catch(e){}}
+  applyHash(){if(this._selfHash){this._selfHash=false;return;}var segs=this.parseHash();if(!segs){if(this.state.path.length)this.setState({path:[],cursor:0,view:"menu"});return;}var node=ROOT,path=[];for(var i=0;i<segs.length;i++){if(!node.c)break;var idx=node.c.findIndex(x=>x.k&&x.k.toLowerCase()===segs[i].toLowerCase());if(idx<0)break;path.push(idx);node=node.c[idx];}this.setState({path:path,cursor:0,view:"menu"});}
+  applyPending(){if(this.pendingHash&&this.pendingHash.length){var segs=this.pendingHash;this.pendingHash=null;var node=ROOT,path=[];for(var i=0;i<segs.length;i++){if(!node.c)break;var idx=node.c.findIndex(x=>x.k&&x.k.toLowerCase()===segs[i].toLowerCase());if(idx<0)break;path.push(idx);node=node.c[idx];}if(path.length)this.setState({path:path});}}
+  // ---------- responsive scale + pointer parallax ----------
+  applyScale(){try{var el=this.scalerRef.current;if(!el)return;var vw=window.innerWidth,vh=window.innerHeight;var s=Math.min(1,(vw-24)/860,(vh-24)/720);if(s<0.32)s=0.32;el.style.transform="scale("+s+")";el.style.transformOrigin="top center";this._scale=s;}catch(e){}}
+  onPointer(e){try{var el=this.panelRef.current;if(!el)return;var r=el.getBoundingClientRect();var cx=r.left+r.width/2,cy=r.top+r.height/2;this.parallax.tx=Math.max(-1,Math.min(1,(e.clientX-cx)/(r.width/2)));this.parallax.ty=Math.max(-1,Math.min(1,(e.clientY-cy)/(r.height/2)));}catch(e2){}}
+
+  initScene(){
+    this.parts=[];
+    for(let i=0;i<80;i++){const roll=Math.random();this.parts.push({x:Math.random(),y:Math.random(),r:Math.random()*2.2+0.6,s:Math.random()*0.012+0.004,ph:Math.random()*6.28,dr:Math.random()*0.3-0.15,c:roll<0.55?"217,70,239":(roll<0.82?"34,211,238":"240,171,252")});}
+    this.stars=[];
+    for(let i=0;i<30;i++){this.stars.push({x:Math.random(),y:Math.random()*0.55+0.02,vx:(Math.random()-0.5)*0.0006,vy:(Math.random()-0.5)*0.0006});}
+    this.nextBolt=3+Math.random()*5;this.boltHue="217,70,239";
+    this.ambParts=Array.from({length:16},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.6+0.5,s:Math.random()*0.01+0.003,ph:Math.random()*6.28}));
+  }
+  resize(){
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const bg=this.bgRef.current;
+    if(bg){bg.width=window.innerWidth*dpr;bg.height=window.innerHeight*dpr;this.bgctx=bg.getContext("2d");this.bgctx.setTransform(dpr,0,0,dpr,0,0);this.bw=window.innerWidth;this.bh=window.innerHeight;}
+    const sc=this.screenRef.current;
+    if(sc){const r=sc.getBoundingClientRect();this.sw=r.width;this.sh=r.height;sc.width=Math.max(1,r.width*dpr);sc.height=Math.max(1,r.height*dpr);this.sctx=sc.getContext("2d");this.sctx.setTransform(dpr,0,0,dpr,0,0);}
+  }
+
+  onKeyDown(e){
+    this.initAudio(); this.markInput();
+    if(this.state.saverActive){e.preventDefault();return;}
+    if(this.state.power==="booting"){this.finishBoot();e.preventDefault();return;}
+    if(this.state.view==="search"){this.searchKey(e);return;}
+    if(e.key==="Tab"){e.preventDefault();if(this.state.power==="on")this.openSearch();return;}
+    if(e.key==="Control"){this.pressKey("ctrl");return;}
+    if(e.key==="Meta"||e.key==="OS")return;
+    if(e.metaKey||e.ctrlKey)return;
+    const k=e.key;
+    if(k==="?"){e.preventDefault();if(this.state.power==="on")this.toggleHelp();return;}
+    if(this.state.help){if(k==="Enter"||k===" "||k==="Escape"||k==="`"){e.preventDefault();this.setState({help:false});}return;}
+    if(k==="Escape"){e.preventDefault();this.togglePower();return;}
+    const SPECIAL={"Enter":"enter"," ":"space","Spacebar":"space","ArrowUp":"up","ArrowDown":"down","ArrowLeft":"left","ArrowRight":"right","Backspace":"del","Tab":"tab","Shift":"shift","Alt":"alt"};
+    const DPAD={";":"up",".":"down",",":"left","/":"right"};
+    let id=SPECIAL[k];
+    if(!id && k.length===1){
+      const base=SHIFT_MAP[k]||k.toLowerCase();
+      if(DPAD[base]!==undefined)id=DPAD[base];
+      else if(this.byId[base])id=base;
+    }
+    if(!id)return;
+    if(["up","down","left","right","space","tab","del","alt"].indexOf(id)>=0)e.preventDefault();
+    if(e.repeat && ["up","down","left","right"].indexOf(id)<0)return;
+    this.pressKey(id);
+  }
+  pressKey(id){
+    const meta=this.byId[id];if(!meta)return;
+    this.initAudio(); this.markInput();
+    if(this.state.saverActive){return;}
+    const stamp=Date.now();
+    this.setState(s=>({pressed:Object.assign({},s.pressed,{[id]:stamp})}));
+    clearTimeout(this.timers[id]);
+    this.timers[id]=setTimeout(()=>{this.setState(s=>{const p=Object.assign({},s.pressed);delete p[id];return{pressed:p};});},430);
+    this.sfxKey(meta);
+    this.act(meta);
+  }
+
+  currentNode(){ let node=ROOT; for(const i of this.state.path){ if(node.c&&node.c[i])node=node.c[i]; } return node; }
+  currentChildren(){ return this.currentNode().c||[]; }
+  sectionAccent(){ var th=this.theme(); if(th.id!=="poseidon")return th.acc; if(this.state.path.length===0)return th.acc; const top=ROOT.c[this.state.path[0]]; return (top&&top.acc)||th.acc; }
+
+  act(meta){
+    if(this.state.power!=="on"||this.state.saverActive)return;
+    const r=meta.role, id=meta.id;
+    const v=this.state.view;
+    if(v==="info"){
+      if(r==="left"||r==="right"||r==="enter"||r==="space"||id==="`"||id==="=")this.goBack();
+      return;
+    }
+    if(v==="about"){ if(r==="up")this.scrollAbout(-1); else if(r==="down")this.scrollAbout(1); else if(r==="left"||r==="enter"||r==="space"||id==="`")this.goBack(); return; }
+    if(v==="theme"){
+      if(r==="up"||r==="left")this.movePick(-1,THEMES.length,true);
+      else if(r==="down"||r==="right")this.movePick(1,THEMES.length,true);
+      else if(r==="enter"||r==="space")this.commitTheme();
+      else if(id==="`")this.cancelTheme();
+      return;
+    }
+    if(v==="saverpick"){
+      if(r==="up"||r==="left")this.movePick(-1,SAVERS.length,false);
+      else if(r==="down"||r==="right")this.movePick(1,SAVERS.length,false);
+      else if(r==="enter"||r==="space")this.commitSaver();
+      else if(id==="`")this.goBack();
+      return;
+    }
+    if(v==="sim"){ if(id==="`"||r==="left"||r==="enter"||r==="space")this.exitSim(); return; }
+    if(v==="search"){
+      if(id==="`")this.closeSearch();
+      else if(r==="enter")this.openSearchResult();
+      else if(r==="del")this.setState(s=>({query:s.query.slice(0,-1),searchCursor:0}));
+      else if(r==="up")this.moveSearch(-1);
+      else if(r==="down")this.moveSearch(1);
+      else if(r==="space")this.setState(s=>({query:(s.query+" ").slice(0,24),searchCursor:0}));
+      else if(r==="char"&&meta.label.length===1)this.setState(s=>({query:(s.query+meta.label).slice(0,24),searchCursor:0}));
+      return;
+    }
+    switch(r){
+      case "up":this.moveMenu(-1);this.sfxNav(-1);break;
+      case "down":this.moveMenu(1);this.sfxNav(1);break;
+      case "left":this.goBack();break;
+      case "right":this.select();break;
+      case "enter":case "space":this.select();break;
+      default:
+        if(r==="char"){
+          if(id==="`")this.goBack();
+          else if(id==="=")this.showInfo();
+          else this.handleLetter(id);
+        }
+        break;
+    }
+  }
+  moveMenu(d){ const n=this.currentChildren().length; if(!n)return; this.setState(s=>({cursor:(s.cursor+d+n)%n})); }
+  select(){
+    const menu=this.currentChildren(); const item=menu[this.state.cursor]; if(!item)return;
+    if(item.c){ this.setState(s=>({path:[...s.path,s.cursor],cursor:0,view:"menu"})); this.sfxSelect(); }
+    else if(item.act){ this.doAction(item.act); this.sfxSelect(); }
+    else if(item.sim){ this.launchSim(item.sim,item.l); }
+    else { this.setState({view:"info"}); this.sfxSelect(); }
+  }
+  launchSim(id,label){ this.initAudio(); this.simId=id; this.simLabel=label||""; this.simStart=performance.now(); this._simState=null; this.lastInput=performance.now(); this.setState({view:"sim",help:false}); this.sfxSelect(); if(this.audioEnabled())this.tone({freq:300,type:"sawtooth",dur:0.14,gain:0.05,glideTo:760,attack:0.005,release:0.1,space:true}); }
+  exitSim(){ this.setState({view:"menu"}); this.sfxBack(); }
+  drawQRTo(c){ try{ const g=c.getContext("2d"),N=25,W=c.width,px=Math.max(1,Math.floor((W-6)/N)),pad=Math.floor((W-px*N)/2); g.fillStyle="#ffffff";g.fillRect(0,0,W,c.height); g.fillStyle="#0a0a0f"; const m=buildQR(REPO_URL); for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(m[y][x])g.fillRect(pad+x*px,pad+y*px,px,px); }catch(e){} }
+  exportPostcard(){
+    try{
+      const th=this.theme(), rr=(g,a,b,ww,hh,r)=>{g.beginPath();g.moveTo(a+r,b);g.arcTo(a+ww,b,a+ww,b+hh,r);g.arcTo(a+ww,b+hh,a,b+hh,r);g.arcTo(a,b+hh,a,b,r);g.arcTo(a,b,a+ww,b,r);g.closePath();};
+      const W=1200,H=750,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+      const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"#0b0514");g.addColorStop(1,"#02010a");x.fillStyle=g;x.fillRect(0,0,W,H);
+      const rg=x.createRadialGradient(W/2,H*0.28,0,W/2,H*0.28,W*0.6);rg.addColorStop(0,"rgba("+th.ca1+",0.20)");rg.addColorStop(1,"rgba(0,0,0,0)");x.fillStyle=rg;x.fillRect(0,0,W,H);
+      x.textAlign="center";x.fillStyle="#ffffff";x.font='900 66px Orbitron, sans-serif';x.fillText("POSEIDON",W/2,112);
+      x.fillStyle="rgba("+th.ca2+",0.9)";x.font='500 21px "JetBrains Mono", monospace';x.fillText("CARDPUTER \u00b7 multi-radio security workbench",W/2,146);
+      const sw=780,sh=sw*9/16,sx=(W-sw)/2,sy=188;
+      x.strokeStyle="rgba("+th.ca1+",0.7)";x.lineWidth=3;rr(x,sx-9,sy-9,sw+18,sh+18,18);x.stroke();
+      x.save();rr(x,sx,sy,sw,sh,10);x.clip();
+      const sc=this.screenRef.current;if(sc)x.drawImage(sc,sx,sy,sw,sh);
+      if(this.state.view==="menu"){
+        x.textAlign="left";x.fillStyle="rgba("+th.ca2+",1)";x.font='600 24px Orbitron, sans-serif';
+        x.fillText(this.state.path.length?this.currentNode().l:"POSEIDON",sx+22,sy+38);
+        const menu=this.currentChildren(),cur=this.state.cursor;let first=Math.max(0,Math.min(cur-3,Math.max(0,menu.length-7)));
+        for(let r2=0;r2<7&&first+r2<menu.length;r2++){const i=first+r2,it=menu[i],yy=sy+72+r2*((sh-84)/7),act=i===cur;
+          if(act){x.fillStyle="rgba("+th.ca1+",0.22)";rr(x,sx+16,yy-19,sw-32,30,6);x.fill();}
+          x.fillStyle=CATS[classify(it)].c;x.beginPath();x.arc(sx+30,yy-5,4.5,0,6.28);x.fill();
+          x.fillStyle=act?"#ffffff":"rgba(200,215,230,0.72)";x.font=(act?"700 ":"500 ")+'21px Rajdhani, sans-serif';x.fillText("["+(it.k||"?").toUpperCase()+"] "+it.l,sx+44,yy);}
+      }
+      x.restore();
+      x.textAlign="center";x.fillStyle="rgba("+th.ca1+",1)";x.font='700 27px Orbitron, sans-serif';
+      const cap=this.state.view==="sim"?((this.simLabel||"tool")+" \u00b7 SIMULATED"):(this.state.path.length?this.currentNode().l:"POSEIDON");
+      x.fillText(cap.toUpperCase(),W/2,sy+sh+62);
+      x.fillStyle="#7bf6b0";x.font='500 18px "JetBrains Mono", monospace';x.fillText("EDU // authorized testing only",W/2,sy+sh+92);
+      x.fillStyle="rgba(148,163,184,0.75)";x.font='16px "JetBrains Mono", monospace';x.fillText(REPO_URL,W/2,H-28);
+      const a=document.createElement("a");a.download="poseidon-postcard.png";a.href=c.toDataURL("image/png");document.body.appendChild(a);a.click();a.remove();
+      this.sfxSelect();
+    }catch(e){}
+  }
+  // ---- fuzzy search ----
+  openSearch(){ this.initAudio(); this.setState({view:"search",query:"",searchCursor:0}); this.sfxSelect(); }
+  closeSearch(){ this.setState({view:"menu"}); this.sfxBack(); }
+  moveSearch(d){ const n=this.getSearchResults().length; if(!n)return; this.setState(s=>({searchCursor:Math.max(0,Math.min(n-1,s.searchCursor+d))})); this.sfxNav(d); }
+  searchKey(e){
+    const k=e.key; e.preventDefault();
+    if(k==="Escape"||k==="`"||k==="Tab"){ this.closeSearch(); return; }
+    if(k==="Backspace"){ this.setState(s=>({query:s.query.slice(0,-1),searchCursor:0})); return; }
+    if(k==="Enter"){ this.openSearchResult(); return; }
+    if(k==="ArrowUp"||k===";"){ this.moveSearch(-1); return; }
+    if(k==="ArrowDown"||k==="."){ this.moveSearch(1); return; }
+    if(k===" "){ this.setState(s=>({query:(s.query+" ").slice(0,24),searchCursor:0})); return; }
+    if(k.length===1){ this.setState(s=>({query:(s.query+k).slice(0,24),searchCursor:0})); if(this.audioEnabled())this.noise({dur:0.02,gain:0.03,type:"highpass",freq:2200}); }
+  }
+  getSearchResults(){ const q=(this.state.query||"").trim().toLowerCase(); if(!q)return SEARCH_INDEX.slice(0,60); return SEARCH_INDEX.filter(e=>(e.label+" "+e.hint+" "+e.parent).toLowerCase().indexOf(q)>=0).slice(0,60); }
+  openSearchResult(){
+    const res=this.getSearchResults(); const r=res[this.state.searchCursor]; if(!r)return;
+    if(r.isCat){ this.setState({path:r.path.concat(r.index),cursor:0,view:"menu",query:""}); this.sfxSelect(); }
+    else if(r.sim){ this.setState({path:r.path,cursor:r.index,view:"menu"}); this.launchSim(r.sim,r.label); }
+    else if(r.act){ this.setState({path:r.path,cursor:r.index}); this.doAction(r.act); this.sfxSelect(); }
+    else { this.setState({path:r.path,cursor:r.index,view:"info"}); this.sfxSelect(); }
+  }
+  // ---- attract mode (self-driving demo) ----
+  startAttract(){ this.attract=true; this.attractStep=0; this.setState({attract:true,help:false,saverActive:false}); this.attractTick(); }
+  stopAttract(){ if(!this.attract)return; this.attract=false; clearTimeout(this.attractTimer); this.setState({attract:false}); }
+  cycleThemeAttract(){ this.setState(s=>({themeIdx:(s.themeIdx+1)%THEMES.length,themePrev:null})); }
+  attractTick(){
+    if(!this.attract)return;
+    const steps=this.attractSteps();
+    const step=steps[this.attractStep%steps.length];
+    try{ step.fn(); }catch(err){}
+    this.attractStep++;
+    this.attractTimer=setTimeout(()=>this.attractTick(), step.wait);
+  }
+  attractSteps(){ const s=this;
+    return [
+      {fn:()=>s.setState({path:[],cursor:0,view:"menu",saverActive:false}),wait:1100},
+      {fn:()=>s.setState({path:[0],cursor:0,view:"menu"}),wait:1000},
+      {fn:()=>s.launchSim("wscan","Scan"),wait:4200},
+      {fn:()=>s.setState({view:"menu",cursor:14}),wait:900},
+      {fn:()=>s.launchSim("spectrum","Spectrum"),wait:3600},
+      {fn:()=>s.setState({view:"menu",cursor:3}),wait:800},
+      {fn:()=>s.launchSim("deauth","Deauth"),wait:3400},
+      {fn:()=>s.setState({view:"menu",path:[1],cursor:3}),wait:1000},
+      {fn:()=>s.launchSim("btrack","Tracker"),wait:3400},
+      {fn:()=>s.setState({view:"menu",path:[],cursor:3}),wait:900},
+      {fn:()=>s.launchSim("argus","Argus"),wait:4200},
+      {fn:()=>s.setState({view:"menu"}),wait:700},
+      {fn:()=>s.cycleThemeAttract(),wait:1500},
+      {fn:()=>s.setState({path:[0],cursor:7,view:"info"}),wait:3200},
+      {fn:()=>s.setState({view:"menu"}),wait:700},
+      {fn:()=>s.activateSaver(performance.now()),wait:5400},
+      {fn:()=>s.setState({saverActive:false}),wait:500},
+    ];
+  }
+  doAction(a){
+    if(a==="theme")this.setState(s=>({view:"theme",pickCursor:s.themeIdx,themePrev:s.themeIdx}));
+    else if(a==="about")this.setState({view:"about"});
+    else if(a==="saverpick")this.setState(s=>({view:"saverpick",pickCursor:s.saverSel}));
+    else if(a==="toggle-layout")this.setState(s=>({layout:s.layout==="terminal"?"carousel":"terminal"}));
+    else if(a==="toggle-saver")this.setState(s=>({saverOn:!s.saverOn}));
+    else if(a==="toggle-sound")this.toggleSound();
+    else if(a==="toggle-ambient")this.toggleAmbient();
+    else if(a==="toggle-attract")this.state.attract?this.stopAttract():this.startAttract();
+    else if(a==="postcard")this.exportPostcard();
+  }
+  toggleAmbient(){ if(this.ambient)this.stopAmbient(); else if(this.state.power==="on")this.startAmbient(); }
+  toggleHelp(){ this.initAudio(); this.setState(s=>({help:!s.help})); this.sfxSelect(); }
+  movePick(d,n,preview){ this.setState(s=>{var c=(s.pickCursor+d+n)%n; var ns={pickCursor:c}; if(preview)ns.themePrev=c; return ns;}); this.sfxNav(d); }
+  commitTheme(){ this.setState(s=>({themeIdx:s.pickCursor,themePrev:null,view:"menu"})); this.sfxSelect(); }
+  cancelTheme(){ this.setState({themePrev:null,view:"menu"}); this.sfxBack(); }
+  commitSaver(){ this.setState(s=>({saverSel:s.pickCursor,view:"menu"})); this.sfxSelect(); }
+  scrollAbout(d){ try{var el=this.aboutRef&&this.aboutRef.current; if(el)el.scrollTop+=d*30;}catch(e){} }
+  showInfo(){ const menu=this.currentChildren(); if(menu[this.state.cursor]){ this.setState({view:"info"}); this.sfxSelect(); } }
+  goBack(){
+    if(this.state.view==="info"){ this.setState({view:"menu"}); this.sfxBack(); return; }
+    if(this.state.path.length){ this.setState(s=>{ const p=s.path.slice(); const c=p.pop(); return {path:p,cursor:c,view:"menu"}; }); this.sfxBack(); }
+  }
+  handleLetter(ch){
+    const menu=this.currentChildren();
+    const idx=menu.findIndex(x=>x.k&&x.k.toLowerCase()===ch);
+    if(idx<0)return;
+    const item=menu[idx];
+    if(item.c){ this.setState(s=>({path:[...s.path,idx],cursor:0,view:"menu"})); this.sfxSelect(); }
+    else if(item.act){ this.setState({cursor:idx}); this.doAction(item.act); this.sfxSelect(); }
+    else if(item.sim){ this.setState({cursor:idx}); this.launchSim(item.sim,item.l); }
+    else { this.setState({cursor:idx,view:"info"}); this.sfxSelect(); }
+  }
+  clickRow(i){
+    if(this.state.power!=="on"||this.state.saverActive)return;
+    this.initAudio(); this.lastInput=performance.now();
+    const menu=this.currentChildren(); const item=menu[i]; if(!item)return;
+    if(item.c){ this.setState(s=>({path:[...s.path,i],cursor:0,view:"menu"})); this.sfxSelect(); }
+    else if(item.act){ this.setState({cursor:i}); this.doAction(item.act); this.sfxSelect(); }
+    else if(item.sim){ this.setState({cursor:i}); this.launchSim(item.sim,item.l); }
+    else { this.setState({cursor:i,view:"info"}); this.sfxSelect(); }
+  }
+  togglePower(){
+    this.initAudio();
+    const p=this.state.power;
+    if(p==="off"){this.bootAt=performance.now();this.setState({power:"booting"});this.sfxPowerOn();clearTimeout(this.bootTimer);this.bootTimer=setTimeout(()=>this.finishBoot(),this.reduced()?1500:3200);}
+    else if(p==="on"){this.setState({power:"off",view:"menu",help:false,saverActive:false});this.sfxPowerOff();this.stopAmbient();}
+  }
+  finishBoot(){ clearTimeout(this.bootTimer); if(this.state.power==="on")return; this.setState({power:"on",cursor:0,view:"menu"}); this.sfxReady(); this.lastInput=performance.now(); if(!this.state.muted)this.startAmbient(); this.applyPending(); if(this.props.attractMode)this.attractTimer=setTimeout(()=>this.startAttract(),1600); }
+  toggleSound(){
+    this.initAudio();
+    const m=!this.state.muted; this.setState({muted:m});
+    if(m){this.stopAmbient();} else if(this.state.power==="on"){this.startAmbient();}
+  }
+
+  loop(){
+    try{
+    const bg=this.bgRef.current;
+    if(bg){if(bg.width===0){this.resize();}else{this.bgctx=bg.getContext("2d");const dpr=Math.min(window.devicePixelRatio||1,2);this.bgctx.setTransform(dpr,0,0,dpr,0,0);this.bw=bg.width/dpr;this.bh=bg.height/dpr;}}
+    const sc=this.screenRef.current;
+    if(sc){this.sctx=sc.getContext("2d");const dpr=Math.min(window.devicePixelRatio||1,2);this.sctx.setTransform(dpr,0,0,dpr,0,0);this.sw=sc.width/dpr;this.sh=sc.height/dpr;}
+    const now=performance.now();const t=(now-this.t0)/1000;
+    if(this.state.power==="on"){const pk=this.state.path.join(",");if(pk!==this._pk){this._pk=pk;this.writeHash();}}
+    const pl=this.panelRef.current;
+    if(pl){ this.parallax.x+=(this.parallax.tx-this.parallax.x)*0.08; this.parallax.y+=(this.parallax.ty-this.parallax.y)*0.08; const rx=(-this.parallax.y*3.0).toFixed(2), ry=(this.parallax.x*3.8).toFixed(2); pl.style.transform="perspective(1500px) rotateX("+rx+"deg) rotateY("+ry+"deg)"; }
+    if(this.bgctx)this.drawBG(this.bgctx,this.bw,this.bh,t);
+    if(this.sctx){
+      const p=this.state.power;
+      if(p==="off")this.drawOff(this.sctx,this.sw,this.sh,t);
+      else if(p==="booting")this.drawBoot(this.sctx,this.sw,this.sh,(now-this.bootAt)/1000,t);
+      else{
+        if(!this.state.saverActive && this.state.saverOn && this.state.view!=="sim" && !this.attract && (now-this.lastInput)>this.idleMs)this.activateSaver(now);
+        if(this.state.saverActive)this.drawSaver(this.sctx,this.sw,this.sh,(now-this.saverStart)/1000,t);
+        else if(this.state.view==="sim"){ this.drawScreenBase(this.sctx,this.sw,this.sh,t,this.theme()); this.drawSim(this.sctx,this.sw,this.sh,(now-this.simStart)/1000,t); }
+        else{ this.drawScreenBase(this.sctx,this.sw,this.sh,t,this.theme()); this.drawCategoryAmbient(this.sctx,this.sw,this.sh,t,this.sectionAccent()); }
+      }
+    }
+    }catch(err){if(!this._logged){console.error("LOOP ERROR:",err);this._logged=true;}}
+    this.raf=requestAnimationFrame(this.loop);
+  }
+  activateSaver(now){ var idx,sel=this.state.saverSel; if(sel===0){ idx=1+Math.floor(Math.random()*(SAVERS.length-1)); var g=0; while(idx===this._lastSaver&&g<6&&SAVERS.length>2){idx=1+Math.floor(Math.random()*(SAVERS.length-1));g++;} } else idx=sel; this._lastSaver=idx; this.saverId=SAVERS[idx].id; this.saverStart=now; this._sv=null; this.setState({saverActive:true,help:false}); }
+
+  makeBolt(w,h){const pts=[];let x=w*(0.15+Math.random()*0.7),y=0;const seg=9;for(let i=0;i<seg;i++){pts.push({x:x,y:y});x+=(Math.random()-0.5)*w*0.07;y+=(h*0.5)/seg;}return pts;}
+  drawBG(ctx,w,h,t){
+    const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0b0514");g.addColorStop(0.34,"#08040f");g.addColorStop(0.62,"#050308");g.addColorStop(1,"#020207");
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    const hz=h*0.62;
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const rt=ctx.createRadialGradient(w*0.5,-h*0.12,0,w*0.5,-h*0.12,h*0.95);rt.addColorStop(0,"rgba(217,70,239,0.18)");rt.addColorStop(1,"rgba(217,70,239,0)");ctx.fillStyle=rt;ctx.fillRect(0,0,w,h);
+    const rb=ctx.createRadialGradient(w*0.5,h*1.05,0,w*0.5,h*1.05,h*0.7);rb.addColorStop(0,"rgba(34,211,238,0.09)");rb.addColorStop(1,"rgba(34,211,238,0)");ctx.fillStyle=rb;ctx.fillRect(0,0,w,h);
+    ctx.restore();
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const cxr=w*0.5;
+    for(let i=0;i<8;i++){const off=(i-3.5)/3.5;const sway=Math.sin(t*0.14+i*1.3)*w*0.014;const topX=cxr+off*w*0.14+sway;const botX=cxr+off*w*0.5+sway;const col=(i%3===0)?"34,211,238":"217,70,239";const sw=w*0.018+w*0.005*Math.abs(off);const grd=ctx.createLinearGradient(0,0,0,hz*0.92);grd.addColorStop(0,"rgba("+col+",0.06)");grd.addColorStop(0.6,"rgba("+col+",0.022)");grd.addColorStop(1,"rgba("+col+",0)");ctx.fillStyle=grd;ctx.beginPath();ctx.moveTo(topX-sw,0);ctx.lineTo(topX+sw,0);ctx.lineTo(botX+sw*2.2,hz*0.92);ctx.lineTo(botX-sw*2.2,hz*0.92);ctx.closePath();ctx.fill();}
+    ctx.restore();
+    this.drawConstellation(ctx,w,h,t);
+    ctx.save();ctx.globalCompositeOperation="lighter";ctx.textAlign="center";ctx.font="900 "+Math.round(w*0.06)+'px "Orbitron", sans-serif';
+    const wm=0.10+0.05*(Math.sin(t*0.8)*0.5+0.5);ctx.fillStyle="rgba(217,70,239,"+(wm*0.5)+")";ctx.strokeStyle="rgba(240,171,252,"+(wm+0.06)+")";ctx.lineWidth=1;ctx.shadowColor="rgba(217,70,239,0.5)";ctx.shadowBlur=24;ctx.fillText("POSEIDON",w*0.5,h*0.15);ctx.strokeText("POSEIDON",w*0.5,h*0.15);ctx.restore();
+    this.drawTronGrid(ctx,w,h,hz,t);
+    const dt=this._lb?clamp(t-this._lb,0,0.05):0.016;this._lb=t;
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    for(const p of this.parts){p.y-=p.s*dt*10;p.x+=Math.sin(t*0.3+p.ph)*0.0003+p.dr*0.0006;if(p.y<-0.02){p.y=1.02;p.x=Math.random();}
+      const px=p.x*w,py=p.y*h,a=0.5*(p.r/2.8);
+      const rg=ctx.createRadialGradient(px,py,0,px,py,p.r*3.2);rg.addColorStop(0,"rgba("+p.c+","+a+")");rg.addColorStop(1,"rgba("+p.c+",0)");ctx.fillStyle=rg;ctx.beginPath();ctx.arc(px,py,p.r*3.2,0,6.28);ctx.fill();}
+    ctx.restore();
+    const seat=ctx.createRadialGradient(w*0.5,h*0.5,0,w*0.5,h*0.5,Math.min(w,h)*0.66);seat.addColorStop(0,"rgba(2,2,7,0.72)");seat.addColorStop(0.5,"rgba(2,2,7,0.42)");seat.addColorStop(1,"rgba(2,2,7,0)");ctx.fillStyle=seat;ctx.fillRect(0,0,w,h);
+    const vg=ctx.createRadialGradient(w*0.5,h*0.46,Math.min(w,h)*0.28,w*0.5,h*0.5,Math.max(w,h)*0.72);vg.addColorStop(0,"rgba(2,2,8,0)");vg.addColorStop(1,"rgba(1,1,6,0.62)");ctx.fillStyle=vg;ctx.fillRect(0,0,w,h);
+    if(t>this.nextBolt){this.boltAt=performance.now();this.bolt=this.makeBolt(w,h);this.boltHue=Math.random()<0.5?"217,70,239":"34,211,238";this.nextBolt=t+6+Math.random()*8;}
+    const fl=env(performance.now(),this.boltAt,5.5);
+    if(fl>0.01){ctx.save();ctx.fillStyle="rgba("+this.boltHue+","+(fl*0.16)+")";ctx.fillRect(0,0,w,h);
+      if(this.bolt){ctx.globalCompositeOperation="lighter";ctx.strokeStyle="rgba("+this.boltHue+","+fl+")";ctx.lineWidth=2.2;ctx.shadowColor="rgba("+this.boltHue+",1)";ctx.shadowBlur=26;ctx.beginPath();ctx.moveTo(this.bolt[0].x,this.bolt[0].y);for(const pt of this.bolt)ctx.lineTo(pt.x,pt.y);ctx.stroke();}ctx.restore();}
+  }
+  drawConstellation(ctx,w,h,t){
+    const S=this.stars;if(!S)return;
+    for(const n of S){n.x+=n.vx;n.y+=n.vy;if(n.x<0.02||n.x>0.98)n.vx*=-1;if(n.y<0.02||n.y>0.6)n.vy*=-1;}
+    ctx.save();
+    for(let i=0;i<S.length;i++){for(let j=i+1;j<S.length;j++){const dx=(S[i].x-S[j].x)*w,dy=(S[i].y-S[j].y)*h,d=Math.hypot(dx,dy);if(d<165){ctx.strokeStyle="rgba(217,70,239,"+(0.2*(1-d/165))+")";ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(S[i].x*w,S[i].y*h);ctx.lineTo(S[j].x*w,S[j].y*h);ctx.stroke();}}}
+    for(const n of S){const px=n.x*w,py=n.y*h;ctx.fillStyle="rgba(232,51,192,0.7)";ctx.beginPath();ctx.arc(px,py,1.6,0,6.28);ctx.fill();ctx.fillStyle="rgba(232,51,192,0.08)";ctx.beginPath();ctx.arc(px,py,5,0,6.28);ctx.fill();}
+    ctx.globalCompositeOperation="lighter";
+    const cx=w*0.5,cy=h*0.24,maxR=Math.max(w,h)*0.5,now=performance.now()*0.001;
+    for(let k=0;k<2;k++){const rr=((now+k*1.7)%4.5)/4.5*maxR;ctx.strokeStyle="rgba(34,211,238,"+(0.15*(1-rr/maxR))+")";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,rr,0,6.28);ctx.stroke();}
+    ctx.restore();
+  }
+  drawTronGrid(ctx,w,h,hz,t){
+    const vx=w*0.5,span=w*1.25;
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const hg=ctx.createLinearGradient(0,hz-52,0,hz+52);hg.addColorStop(0,"rgba(217,70,239,0)");hg.addColorStop(0.5,"rgba(217,70,239,0.32)");hg.addColorStop(1,"rgba(34,211,238,0)");ctx.fillStyle=hg;ctx.fillRect(0,hz-52,w,104);
+    ctx.strokeStyle="rgba(240,171,252,0.5)";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,hz);ctx.lineTo(w,hz);ctx.stroke();
+    ctx.lineWidth=1.4;
+    for(let i=-18;i<=18;i++){const bx=vx+(i/18)*span;const hue=(i%2===0)?"217,70,239":"34,211,238";const grd=ctx.createLinearGradient(vx,hz,bx,h);grd.addColorStop(0,"rgba("+hue+",0)");grd.addColorStop(1,"rgba("+hue+",0.55)");ctx.strokeStyle=grd;ctx.beginPath();ctx.moveTo(vx,hz);ctx.lineTo(bx,h);ctx.stroke();}
+    const scroll=(t*0.3)%1;
+    for(let j=0;j<20;j++){const f=(j+scroll)/20;const y=hz+(h-hz)*(f*f);const a=f*0.6;ctx.strokeStyle="rgba(217,70,239,"+a+")";ctx.lineWidth=0.6+f*1.6;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    ctx.restore();
+  }
+  drawScreenBase(ctx,w,h,t,th){
+    th=th||THEMES[0];
+    const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,th.b1);g.addColorStop(1,th.b2);ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle=th.paper?"rgba(0,0,0,0.045)":"rgba("+th.ca1+",0.05)";ctx.lineWidth=1;
+    for(let x=0;x<w;x+=26){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=26){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  }
+  blend(a,b,t){a=a.match(/\d+/g).map(Number);b=b.match(/\d+/g).map(Number);return "rgb("+Math.round(a[0]+(b[0]-a[0])*t)+","+Math.round(a[1]+(b[1]-a[1])*t)+","+Math.round(a[2]+(b[2]-a[2])*t)+")";}
+  drawOff(ctx,w,h,t){
+    ctx.fillStyle="#050308";ctx.fillRect(0,0,w,h);
+    const s=(Math.sin(t*0.5)*0.5+0.5);ctx.fillStyle="rgba(60,20,70,"+(0.03+0.03*s)+")";ctx.fillRect(0,0,w,h);
+    const lg=this.logoImg;if(lg&&lg.complete&&lg.naturalWidth){const iw=lg.naturalWidth,ih=lg.naturalHeight;let dh=h*0.58,dw=dh*iw/ih;if(dw>w*0.42){dw=w*0.42;dh=dw*ih/iw;}ctx.save();ctx.globalAlpha=0.10+0.06*s;ctx.drawImage(lg,w/2-dw/2,h*0.5-dh/2,dw,dh);ctx.restore();}else this.drawTrident(ctx,w*0.5,h*0.5,52,0.05,t,"#2a1236",1);
+  }
+  drawTrident(ctx,cx,cy,s,glow,t,color,alpha){
+    alpha=alpha==null?1:alpha;
+    const breath=1+Math.sin((t||0)*1.6)*0.03;
+    ctx.save();ctx.translate(cx,cy);ctx.scale(breath,breath);ctx.globalAlpha=alpha;
+    const u=s;
+    ctx.save();ctx.globalCompositeOperation="lighter";const hg=ctx.createRadialGradient(0,0,0,0,0,u*1.7);hg.addColorStop(0,"rgba(34,211,238,"+(clamp(glow,0,1)*0.32)+")");hg.addColorStop(0.5,"rgba(34,211,238,"+(clamp(glow,0,1)*0.12)+")");hg.addColorStop(1,"rgba(34,211,238,0)");ctx.fillStyle=hg;ctx.beginPath();ctx.arc(0,0,u*1.7,0,6.28);ctx.fill();ctx.restore();
+    ctx.strokeStyle=color;ctx.lineCap="round";ctx.lineJoin="round";
+    ctx.shadowColor="rgba(34,211,238,"+clamp(glow,0,1)+")";ctx.shadowBlur=glow*44;
+    const lw=Math.max(2,s*0.09);ctx.lineWidth=lw;
+    ctx.beginPath();ctx.moveTo(0,-0.15*u);ctx.lineTo(0,1.15*u);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-0.28*u,0.55*u);ctx.lineTo(0.28*u,0.55*u);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,-0.15*u);ctx.lineTo(0,-0.95*u);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-0.09*u,-0.78*u);ctx.lineTo(0,-1.04*u);ctx.lineTo(0.09*u,-0.78*u);ctx.stroke();
+    for(const side of [-1,1]){
+      ctx.beginPath();ctx.moveTo(0,-0.02*u);ctx.quadraticCurveTo(side*0.42*u,-0.12*u,side*0.42*u,-0.55*u);ctx.lineTo(side*0.42*u,-0.92*u);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(side*0.33*u,-0.75*u);ctx.lineTo(side*0.42*u,-1.0*u);ctx.lineTo(side*0.51*u,-0.75*u);ctx.stroke();
+    }
+    ctx.beginPath();ctx.arc(0,1.15*u,lw*0.9,0,6.28);ctx.fillStyle=color;ctx.fill();
+    ctx.restore();
+  }
+  drawBoot(ctx,w,h,e,t){
+    const th=this.theme();const RGB=th.ca1;
+    const total=this.reduced()?1.5:3.2, postDur=total*0.5;
+    ctx.fillStyle="#050308";ctx.fillRect(0,0,w,h);
+    if(e<postDur){
+      ctx.textAlign="left";
+      ctx.fillStyle="rgba("+RGB+",0.95)";ctx.font='700 11px "Orbitron", sans-serif';ctx.fillText("POSEIDON",10,15);
+      ctx.fillStyle="rgba(150,170,190,0.7)";ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("abyssal core // self-test",90,15);
+      ctx.strokeStyle="rgba("+RGB+",0.45)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(10,20);ctx.lineTo(w-10,20);ctx.stroke();
+      const POST=[["WiFi 2.4GHz radio","OK"],["NimBLE host stack","OK"],["nRF52840 BLE5","OK"],["CC1101 sub-GHz","OK"],["SX1262 LoRa","OK"],["nRF24L01+","OK"],["GPS / GNSS","OK"],["ESP32-C5 5GHz","--"]];
+      const per=postDur/(POST.length+0.6);
+      const shown=Math.min(POST.length,Math.floor(e/per));
+      ctx.font='9px "JetBrains Mono", monospace';
+      for(let i=0;i<shown;i++){const y=33+i*12;
+        ctx.fillStyle="rgba(160,178,196,0.92)";ctx.fillText(POST[i][0],14,y);
+        const lx=14+ctx.measureText(POST[i][0]).width+3;ctx.fillStyle="rgba(120,140,160,0.3)";
+        for(let x=lx;x<w-40;x+=4)ctx.fillText("\u00b7",x,y);
+        const ok=POST[i][1]==="OK";ctx.fillStyle=ok?"#39ff88":"#fbbf24";ctx.fillText(ok?"[OK]":"[--]",w-36,y);}
+      if(shown<POST.length&&Math.floor(t*3)%2===0){ctx.fillStyle="rgba("+RGB+",0.9)";ctx.fillRect(14,33+shown*12-8,5,10);}
+    }else{
+      const p=Math.min(1,(e-postDur)/(total-postDur));
+      const lg=this.logoImg;
+      if(lg&&lg.complete&&lg.naturalWidth){const iw=lg.naturalWidth,ih=lg.naturalHeight;let dh=h*0.66,dw=dh*iw/ih;if(dw>w*0.52){dw=w*0.52;dh=dw*ih/iw;}ctx.save();ctx.globalAlpha=p;ctx.shadowColor="rgba("+RGB+",0.55)";ctx.shadowBlur=26*p;ctx.drawImage(lg,w/2-dw/2,h*0.44-dh/2,dw,dh);ctx.restore();}
+      else this.drawTrident(ctx,w/2,h*0.40,58,p,t,th.acc,p);
+      const n=48,bw=w/n;ctx.save();ctx.globalCompositeOperation="lighter";
+      for(let i=0;i<n;i++){const d=Math.abs(i-n/2)/(n/2);const amp=(1-d)*(Math.sin(t*8+i*0.5)*0.5+0.5)*32*p+2;ctx.fillStyle="rgba("+RGB+",0.7)";ctx.fillRect(i*bw,h-13-amp,bw-1.5,amp);}
+      ctx.restore();
+      ctx.textAlign="center";
+      ctx.fillStyle="rgba(123,246,176,"+(p*0.92)+")";ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("EDU // AUTHORIZED TESTING ONLY",w/2,h*0.9);
+      ctx.textAlign="left";
+    }
+  }
+  hexToRgb(hex){
+    const m=(hex||"#d946ef").replace("#","");
+    const r=parseInt(m.substring(0,2),16)||217,g=parseInt(m.substring(2,4),16)||70,b=parseInt(m.substring(4,6),16)||239;
+    return r+","+g+","+b;
+  }
+  drawCategoryAmbient(ctx,w,h,t,accentHex){
+    const rgb=this.hexToRgb(accentHex);
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const g1=ctx.createRadialGradient(w*0.86,h*0.1,0,w*0.86,h*0.1,w*0.6);
+    g1.addColorStop(0,"rgba("+rgb+",0.16)");g1.addColorStop(1,"rgba("+rgb+",0)");
+    ctx.fillStyle=g1;ctx.fillRect(0,0,w,h);
+    const g2=ctx.createRadialGradient(w*0.1,h*0.95,0,w*0.1,h*0.95,w*0.5);
+    g2.addColorStop(0,"rgba("+rgb+",0.08)");g2.addColorStop(1,"rgba("+rgb+",0)");
+    ctx.fillStyle=g2;ctx.fillRect(0,0,w,h);
+    if(this.ambParts){
+      for(const p of this.ambParts){
+        p.y-=p.s*0.4; if(p.y<-0.02)p.y=1.02;
+        const px=p.x*w+Math.sin(t*0.3+p.ph)*5, py=p.y*h;
+        ctx.fillStyle="rgba("+rgb+",0.4)";
+        ctx.beginPath();ctx.arc(px,py,p.r,0,6.283);ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ================= LIVE TOOL SIMULATIONS =================
+  simChrome(ctx,w,h,pal,title){
+    ctx.textAlign="left";ctx.fillStyle=pal.acc;ctx.font='9px "JetBrains Mono", monospace';
+    ctx.fillText("\u25b6 "+(title||"").toUpperCase(),4,11);
+    ctx.font='700 7px "JetBrains Mono", monospace';const bt="SIMULATED";const bw=ctx.measureText(bt).width+8;
+    ctx.fillStyle=pal.warn;ctx.globalAlpha=0.16;ctx.fillRect(w-bw-4,3,bw,10);ctx.globalAlpha=1;
+    ctx.strokeStyle=pal.warn;ctx.strokeRect(w-bw-4,3,bw,10);ctx.fillStyle=pal.warn;ctx.fillText(bt,w-bw,10.5);
+    ctx.strokeStyle=pal.acc2;ctx.globalAlpha=0.5;ctx.beginPath();ctx.moveTo(0,15);ctx.lineTo(w,15);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("\u0060 exit",4,h-4);
+  }
+  initSim(id,w,h){
+    const S={id:id};
+    if(id==="wscan"){S.aps=[];S.ch=1;S.tSpawn=0;S.tHop=0;}
+    if(id==="spectrum"){S.bars=new Array(14).fill(0.1);S.peak=new Array(14).fill(0.1);}
+    if(id==="deauth"){S.pkts=0;S.clients=6;S.tC=0;}
+    if(id==="btrack"){S.d=3.0;}
+    if(id==="argus"){S.hs=0;S.pmkid=0;S.ch=1;S.tHop=0;S.tCap=0;}
+    if(id==="portal"){S.log=[];S.tL=0;}
+    if(id==="waterfall"){S.rows=[];S.tRow=0;}
+    if(id==="saltyjack"){S.hashes=[];S.tH=0;S.tot=0;}
+    return S;
+  }
+  drawSim(ctx,w,h,e,t){
+    const pal=this.theme();
+    if(!this._simState||this._simState.id!==this.simId)this._simState=this.initSim(this.simId,w,h);
+    const S=this._simState;
+    switch(this.simId){
+      case "wscan":this.simWScan(ctx,w,h,e,t,pal,S);break;
+      case "spectrum":this.simSpectrum(ctx,w,h,e,t,pal,S);break;
+      case "deauth":this.simDeauth(ctx,w,h,e,t,pal,S);break;
+      case "btrack":this.simBTrack(ctx,w,h,e,t,pal,S);break;
+      case "argus":this.simArgus(ctx,w,h,e,t,pal,S);break;
+      case "portal":this.simPortal(ctx,w,h,e,t,pal,S);break;
+      case "waterfall":this.simWaterfall(ctx,w,h,e,t,pal,S);break;
+      case "saltyjack":this.simSaltyjack(ctx,w,h,e,t,pal,S);break;
+      default:this.simWScan(ctx,w,h,e,t,pal,S);
+    }
+    this.simChrome(ctx,w,h,pal,this.simLabel||this.simId);
+  }
+  simWScan(ctx,w,h,e,t,pal,S){
+    const SS=["Linksys_2G","ATT_Fiber_5G","xfinitywifi","HOME-A3F2","NETGEAR47","eero_deck","Pixel_7","tell_my_wifi","GUEST","MOTO-9981"];
+    const now=t*1000;
+    if(now-S.tHop>260){S.tHop=now;S.ch=1+((Math.random()*13)|0);}
+    if(now-S.tSpawn>430&&S.aps.length<8){S.tSpawn=now;S.aps.push({ssid:SS[(Math.random()*SS.length)|0],bssid:Array.from({length:3},()=>((Math.random()*256)|0).toString(16).padStart(2,"0")).join(":"),rssi:-32-((Math.random()*55)|0),ch:1+((Math.random()*13)|0),enc:["WPA2","WPA3","WPA2","OPEN"][(Math.random()*4)|0]});}
+    ctx.textAlign="left";
+    for(let i=0;i<S.aps.length;i++){const a=S.aps[i],y=27+i*17;
+      ctx.fillStyle=pal.fg;ctx.font='9px "JetBrains Mono", monospace';ctx.fillText(a.ssid.slice(0,13),4,y);
+      ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText(a.bssid+":\u00b7\u00b7:\u00b7\u00b7",4,y+8);
+      const st=a.rssi>=-45?4:a.rssi>=-60?3:a.rssi>=-75?2:1;for(let s=0;s<4;s++){ctx.fillStyle=s<st?pal.acc:pal.dim;ctx.globalAlpha=s<st?1:0.35;ctx.fillRect(w-96+s*5,y-6,3,7);}ctx.globalAlpha=1;
+      ctx.font='9px "JetBrains Mono", monospace';ctx.fillStyle=pal.dim;ctx.fillText("ch"+a.ch,w-66,y);
+      ctx.fillStyle=a.enc==="OPEN"?pal.warn:a.enc==="WPA3"?pal.acc2:pal.good;ctx.textAlign="right";ctx.fillText(a.enc,w-4,y);ctx.textAlign="left";}
+    ctx.fillStyle=pal.acc2;ctx.font='8px "JetBrains Mono", monospace';ctx.textAlign="right";ctx.fillText("scanning ch "+S.ch+" "+["|","/","-","\\"][(t*6|0)%4],w-4,h-4);ctx.textAlign="left";
+  }
+  simSpectrum(ctx,w,h,e,t,pal,S){
+    const N=14,pad=10,bw=(w-pad*2)/N,base=h-16;
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("2.4 GHz \u00b7 peak-hold",4,24);
+    for(let i=0;i<N;i++){const target=(Math.sin(t*2+i*0.9)*0.5+0.5)*(0.25+Math.random()*0.75);S.bars[i]+=(target-S.bars[i])*0.2;if(S.bars[i]>S.peak[i])S.peak[i]=S.bars[i];else S.peak[i]=Math.max(S.bars[i],S.peak[i]-0.006);
+      const bh=S.bars[i]*(base-30),x=pad+i*bw;
+      const g=ctx.createLinearGradient(0,base-bh,0,base);g.addColorStop(0,pal.acc);g.addColorStop(1,pal.acc2);ctx.fillStyle=g;ctx.fillRect(x+1,base-bh,bw-2,bh);
+      ctx.fillStyle=pal.fg;ctx.fillRect(x+1,base-S.peak[i]*(base-30)-1.5,bw-2,1.5);
+      ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.textAlign="center";ctx.fillText(String(i+1),x+bw/2,base+9);}
+    ctx.textAlign="left";
+  }
+  simDeauth(ctx,w,h,e,t,pal,S){
+    S.pkts+=((Math.random()*8)|0)+4;
+    if(t*1000-S.tC>950&&S.clients>0){S.tC=t*1000;S.clients--;}
+    ctx.textAlign="left";ctx.fillStyle=pal.fg;ctx.font='9px "JetBrains Mono", monospace';ctx.fillText("target: Linksys_2G",4,27);
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("AA:BB:CC:11:22:33 \u00b7 ch 6",4,36);
+    const pulse=(Math.sin(t*10)*0.5+0.5);ctx.globalAlpha=0.5+pulse*0.5;ctx.fillStyle=pal.bad;ctx.font='700 20px "Orbitron", sans-serif';ctx.textAlign="center";ctx.fillText("DEAUTH \u26a1",w/2,h/2+4);ctx.globalAlpha=1;
+    ctx.textAlign="left";ctx.font='9px "JetBrains Mono", monospace';ctx.fillStyle=pal.warn;ctx.fillText("pkts sent: "+S.pkts,4,h-28);ctx.fillText("rate: ~"+(((Math.random()*40)|0)+180)+"/s",4,h-18);
+    ctx.fillStyle=pal.acc;ctx.textAlign="right";ctx.fillText("clients: "+S.clients,w-4,h-28);
+    for(let i=0;i<6;i++){ctx.fillStyle=i<S.clients?pal.good:pal.dim;ctx.globalAlpha=i<S.clients?1:0.3;ctx.beginPath();ctx.arc(w-58+i*10,h-16,3,0,6.28);ctx.fill();}ctx.globalAlpha=1;ctx.textAlign="left";
+  }
+  simBTrack(ctx,w,h,e,t,pal,S){
+    const target=1.1+(Math.sin(t*0.8)*0.5+0.5)*3.6;S.d+=(target-S.d)*0.05;
+    const cx=w/2,cy=h/2+8,maxR=Math.min(w,h)/2+6,prox=1-Math.min(1,S.d/5);
+    for(let i=0;i<3;i++){const age=((t*(0.6+prox*1.6)+i*0.4)%1),r=age*maxR;ctx.strokeStyle=this.blend(pal.b1,pal.acc,1-age);ctx.beginPath();ctx.arc(cx,cy,r,0,6.28);ctx.stroke();}
+    ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(cx,cy,4,0,6.28);ctx.fill();
+    ctx.textAlign="left";ctx.fillStyle=pal.fg;ctx.font='9px "JetBrains Mono", monospace';ctx.fillText("AirTag \u00b7 Find My",4,27);
+    ctx.fillStyle=pal.warn;ctx.font='700 15px "Orbitron", sans-serif';ctx.textAlign="right";ctx.fillText("~"+S.d.toFixed(1)+"m",w-4,29);ctx.textAlign="left";
+    const barw=w-8;ctx.strokeStyle=pal.dim;ctx.strokeRect(4,h-12,barw,6);ctx.fillStyle=prox>0.7?pal.bad:prox>0.4?pal.warn:pal.acc;ctx.fillRect(5,h-11,(barw-2)*prox,4);
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("beep "+(prox>0.7?"\u25cf\u25cf\u25cf\u25cf":prox>0.4?"\u25cf\u25cf\u25cf":prox>0.2?"\u25cf\u25cf":"\u25cf"),4,h-16);
+  }
+  simArgus(ctx,w,h,e,t,pal,S){
+    const now=t*1000;
+    if(now-S.tHop>500){S.tHop=now;S.ch=1+((Math.random()*13)|0);}
+    if(now-S.tCap>2200){S.tCap=now;if(Math.random()<0.6)S.hs++;else S.pmkid++;}
+    const fx=w/2,fy=h/2-2,fs=50;
+    ctx.strokeStyle=pal.acc;ctx.lineWidth=2;ctx.strokeRect(fx-fs/2,fy-fs/2,fs,fs);
+    ctx.beginPath();ctx.moveTo(fx,fy-fs/2);ctx.lineTo(fx,fy-fs/2-8);ctx.stroke();ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(fx,fy-fs/2-10,2.5,0,6.28);ctx.fill();
+    const blink=(Math.floor(t*1.3)%6===0);ctx.fillStyle=pal.fg;
+    if(blink){ctx.fillRect(fx-15,fy-3,8,2);ctx.fillRect(fx+7,fy-3,8,2);}
+    else{ctx.fillRect(fx-15,fy-8,7,8);ctx.fillRect(fx+8,fy-8,7,8);}
+    ctx.strokeStyle=pal.acc2;ctx.lineWidth=2;ctx.beginPath();ctx.arc(fx,fy+7,9,0.12*Math.PI,0.88*Math.PI);ctx.stroke();ctx.lineWidth=1;
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("hunting ch "+S.ch,4,27);
+    ctx.fillStyle=pal.good;ctx.textAlign="right";ctx.fillText("handshakes: "+S.hs,w-4,27);
+    ctx.fillStyle=pal.acc2;ctx.fillText("PMKID: "+S.pmkid,w-4,37);
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.fillText("mood: on the hunt",4,h-15);
+    const rl=(Math.sin(t*0.5)*0.5+0.5);ctx.strokeStyle=pal.dim;ctx.strokeRect(4,h-11,60,5);ctx.fillStyle=pal.acc;ctx.fillRect(5,h-10,58*rl,3);
+  }
+  simPortal(ctx,w,h,e,t,pal,S){
+    const US=["j.martinez","a.chen","s.patel","d.hall","m.wilson","k.obrien"],PW=["Summer2025!","Passw0rd1","Welcome123","Winter#24","Corp!2024"];
+    const now=t*1000;
+    if(now-S.tL>1200){S.tL=now;S.log.unshift({u:US[(Math.random()*US.length)|0]+"@corp.com",p:PW[(Math.random()*PW.length)|0]});if(S.log.length>4)S.log.pop();}
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("captive portal \u00b7 accounts.google.com",4,25);
+    const fx=6,fy=31,fw=118;
+    ctx.strokeStyle=pal.dim;ctx.globalAlpha=0.5;ctx.strokeRect(fx,fy,fw,h-fy-8);ctx.globalAlpha=1;
+    ctx.fillStyle=pal.fg;ctx.font='11px "Rajdhani", sans-serif';ctx.fillText("Sign in",fx+9,fy+16);
+    ctx.strokeStyle=pal.acc2;ctx.strokeRect(fx+9,fy+22,fw-18,13);ctx.strokeRect(fx+9,fy+40,fw-18,13);
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("email",fx+12,fy+31);ctx.fillText("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",fx+12,fy+49);
+    ctx.fillStyle=pal.acc;ctx.fillRect(fx+9,fy+58,38,12);ctx.fillStyle=pal.b1;ctx.font='9px "Rajdhani", sans-serif';ctx.fillText("Next",fx+18,fy+67);
+    ctx.textAlign="left";ctx.fillStyle=pal.bad;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("\u25cf CAPTURED",fx+fw+12,fy+6);
+    for(let i=0;i<S.log.length;i++){const y=fy+22+i*18;ctx.fillStyle=pal.good;ctx.fillText(S.log[i].u,fx+fw+12,y);ctx.fillStyle=pal.warn;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("pw: "+S.log[i].p,fx+fw+12,y+8);ctx.font='8px "JetBrains Mono", monospace';}
+  }
+  simWaterfall(ctx,w,h,e,t,pal,S){
+    const cw=3,cols=Math.floor((w-8)/cw),now=t*1000;
+    if(now-S.tRow>85){S.tRow=now;const row=[];for(let i=0;i<cols;i++){const c1=Math.exp(-Math.pow((i-cols*0.3)/6,2)),c2=Math.exp(-Math.pow((i-cols*0.68)/4,2))*(Math.sin(t*4)*0.5+0.5);row.push(Math.min(1,c1*(0.6+Math.random()*0.5)+c2+Math.random()*0.12));}S.rows.unshift(row);if(S.rows.length>42)S.rows.pop();}
+    ctx.textAlign="left";ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("433.92 MHz \u00b7 waterfall + peak",4,24);
+    const top=28;
+    if(S.rows[0])for(let i=0;i<cols;i++){const bh=S.rows[0][i]*20;ctx.fillStyle=pal.acc;ctx.fillRect(4+i*cw,top+20-bh,cw-1,bh);}
+    for(let r=0;r<S.rows.length;r++){const row=S.rows[r],y=top+24+r*cw;if(y>h-6)break;for(let i=0;i<cols;i++){const v=row[i];if(v<0.14)continue;const c=v>0.78?pal.bad:v>0.52?pal.warn:v>0.32?pal.acc:pal.acc2;ctx.fillStyle=c;ctx.globalAlpha=Math.min(1,v+0.2);ctx.fillRect(4+i*cw,y,cw-1,cw);}}
+    ctx.globalAlpha=1;
+  }
+  simSaltyjack(ctx,w,h,e,t,pal,S){
+    const U=["ACME\\jdoe","ACME\\administrator","ACME\\s.kim","CORP\\m.rossi","CORP\\it_svc"];
+    const now=t*1000;
+    if(now-S.tH>1300){S.tH=now;S.tot++;S.hashes.unshift({u:U[(Math.random()*U.length)|0],h:Array.from({length:14},()=>"0123456789abcdef"[(Math.random()*16)|0]).join("")});if(S.hashes.length>5)S.hashes.pop();}
+    ctx.textAlign="left";ctx.fillStyle=pal.acc;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("Responder \u00b7 LLMNR/NBT-NS poison",4,25);
+    ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText("listening :5355 :137 :445",4,34);
+    ctx.font='8px "JetBrains Mono", monospace';
+    for(let i=0;i<S.hashes.length;i++){const y=47+i*18;ctx.fillStyle=pal.good;ctx.fillText("[+] NTLMv2 "+S.hashes[i].u,4,y);ctx.fillStyle=pal.dim;ctx.font='7px "JetBrains Mono", monospace';ctx.fillText(S.hashes[i].h+"\u2026 \u2192 hashcat 5600",4,y+8);ctx.font='8px "JetBrains Mono", monospace';}
+    ctx.fillStyle=pal.warn;ctx.textAlign="right";ctx.fillText("hashes: "+S.tot,w-4,25);ctx.textAlign="left";
+  }
+  // ================= SCREENSAVER POOL =================
+  saverChrome(ctx,w,h,pal,title,right){
+    ctx.fillStyle=pal.acc;ctx.font='9px "JetBrains Mono", monospace';ctx.textAlign="left";ctx.fillText(title,4,11);
+    if(right){ctx.fillStyle=pal.acc2;ctx.textAlign="right";ctx.fillText(right,w-4,11);ctx.textAlign="left";}
+    ctx.strokeStyle=pal.acc2;ctx.globalAlpha=0.5;ctx.beginPath();ctx.moveTo(0,15);ctx.lineTo(w,15);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("// any key to wake",4,h-4);
+  }
+  initSaver(id,w,h){
+    const S={id:id,seed:(Math.random()*65535)|0};
+    if(id==="matrix"||id==="hex"){const cw=id==="hex"?11:10;S.cw=cw;S.cols=[];const n=Math.ceil(w/cw);for(let i=0;i<n;i++)S.cols.push({y:id==="hex"?-(Math.random()*20):-(Math.random()*h),sp:id==="hex"?(1+Math.random()*1.5):(1+Math.random()*2.2),dec:0,txt:null});}
+    if(id==="wardrive"){S.aps=[];S.total=0;S.ch=1;S.tSpawn=0;S.tHop=0;S.tCap=0;}
+    if(id==="deepscan"){S.ct=[];S.tSp=0;}
+    if(id==="crack"){S.lines=[];S.tL=0;S.crackT=-1;S.crackPwd="";}
+    if(id==="neural"){S.nodes=[];const cols=7,rows=4,dx=w/(cols+1),dy=(h-30)/(rows+1);for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)S.nodes.push({x:dx*(c+1)+(Math.random()*8-4),y:16+dy*(r+1)+(Math.random()*6-3)});S.arc=0;S.arcA=0;S.arcB=1;}
+    if(id==="tide"){S.ph=[0,1.2,2.4,0.6];}
+    if(id==="glitch"){S.msg="";S.mt=0;S.dy=0;}
+    return S;
+  }
+  drawSaver(ctx,w,h,e,t){
+    const pal=this.theme();
+    if(!this._sv||this._sv.id!==this.saverId)this._sv=this.initSaver(this.saverId,w,h);
+    const S=this._sv;
+    ctx.fillStyle=pal.b1;ctx.fillRect(0,0,w,h);
+    switch(this.saverId){
+      case "wardrive":this.svWardrive(ctx,w,h,e,t,pal,S);break;
+      case "matrix":this.svMatrix(ctx,w,h,e,t,pal,S);break;
+      case "deepscan":this.svDeepScan(ctx,w,h,e,t,pal,S);break;
+      case "crack":this.svCrack(ctx,w,h,e,t,pal,S);break;
+      case "hex":this.svHex(ctx,w,h,e,t,pal,S);break;
+      case "neural":this.svNeural(ctx,w,h,e,t,pal,S);break;
+      case "tide":this.svTide(ctx,w,h,e,t,pal,S);break;
+      case "glitch":this.svGlitch(ctx,w,h,e,t,pal,S);break;
+      default:this.svMatrix(ctx,w,h,e,t,pal,S);
+    }
+  }
+  svWardrive(ctx,w,h,e,t,pal,S){
+    const SSIDS=["Linksys_2G","ATT_Home_5G","Xfinity_WiFi","FBI_Surveillance","Pretty_Fly_4WiFi","skynet","DEFCON-Open","PineappleAP","Apartment_4B","iPhone_of_dave","Starbucks-WPA","NOT_A_HONEYPOT","tell_my_wifi","mom_use_this","RING_Cam","vanlife_192"];
+    const now=t*1000;
+    if(now-S.tSpawn>480){S.tSpawn=now;S.aps.unshift({ssid:SSIDS[(Math.random()*SSIDS.length)|0],rssi:-30-((Math.random()*60)|0),ch:1+((Math.random()*13)|0),auth:(Math.random()*5)|0,cap:false});if(S.aps.length>9)S.aps.pop();S.total++;}
+    if(now-S.tHop>220){S.tHop=now;S.ch=1+((Math.random()*13)|0);}
+    if(now-S.tCap>2600&&S.aps.length){S.tCap=now;S.aps[(Math.random()*S.aps.length)|0].cap=true;}
+    this.saverChrome(ctx,w,h,pal,"WARDRIVE.cinema","ch:"+S.ch+"  APs:"+S.total);
+    const AL=["WPA3","WPA2","W23","OPEN","WEP"],AC=[pal.acc2,pal.acc,pal.good,pal.warn,pal.bad];
+    ctx.font='9px "JetBrains Mono", monospace';
+    for(let i=0;i<S.aps.length;i++){const a=S.aps[i],y=26+i*15;if(y>h-14)break;
+      ctx.fillStyle=a.cap?pal.bad:pal.fg;ctx.textAlign="left";ctx.fillText(a.ssid.slice(0,14),4,y);
+      const st=a.rssi>=-45?5:a.rssi>=-60?4:a.rssi>=-72?3:a.rssi>=-82?2:1;
+      for(let s=0;s<5;s++){ctx.fillStyle=s<st?(a.cap?pal.bad:pal.acc):pal.dim;ctx.globalAlpha=s<st?1:0.4;ctx.fillRect(w-98+s*5,y-7,3,7);}ctx.globalAlpha=1;
+      ctx.fillStyle=pal.dim;ctx.fillText(String(a.rssi),w-64,y);
+      const lab=a.cap?"PMKID":AL[a.auth];ctx.fillStyle=a.cap?pal.bad:AC[a.auth];ctx.textAlign="right";ctx.fillText(lab,w-4,y);ctx.textAlign="left";}
+  }
+  svMatrix(ctx,w,h,e,t,pal,S){
+    const G="ｦｱｳｴｵｶｷｹABCDEF0123456789$#*<>?";
+    ctx.font=S.cw+'px "JetBrains Mono", monospace';ctx.textAlign="left";
+    for(let i=0;i<S.cols.length;i++){const c=S.cols[i],x=i*S.cw;
+      for(let k=0;k<10;k++){const yy=Math.floor(c.y-k*S.cw);if(yy<0||yy>h)continue;const ch=G[(Math.random()*G.length)|0];
+        if(k===0)ctx.fillStyle=pal.fg;else{ctx.globalAlpha=Math.max(0.05,0.6-k*0.06);ctx.fillStyle=pal.acc;}
+        ctx.fillText(ch,x,yy);ctx.globalAlpha=1;}
+      c.y+=c.sp*2.4;if(c.y-10*S.cw>h){c.y=-Math.random()*40;c.sp=1+Math.random()*2.2;}}
+    ctx.fillStyle=pal.b1;ctx.fillRect(0,0,w,14);this.saverChrome(ctx,w,h,pal,"MATRIX.rain","");
+  }
+  svDeepScan(ctx,w,h,e,t,pal,S){
+    const NM=["CARGO-43","USS-PYTHIA","UNKNOWN-01","FERRY-N","GHOST-ECHO","VESSEL-117","POSEIDON-A","MIMIR-DROP","TRIDENT-1"];
+    const cx=w/2,cy=h/2+6,maxR=Math.min(w,h)/2+8,now=t*1000;
+    if(now-S.tSp>1100&&S.ct.length<6){S.tSp=now;S.ct.push({a:Math.random()*6.28,d:18+Math.random()*44,born:e,nm:NM[(Math.random()*NM.length)|0]});}
+    for(let i=0;i<3;i++){const age=((e+i*0.73)%2.2)/2.2,r=age*maxR;ctx.strokeStyle=this.blend(pal.b1,pal.acc,1-age);ctx.beginPath();ctx.arc(cx,cy,r,0,6.28);ctx.stroke();}
+    ctx.strokeStyle=pal.dim;ctx.beginPath();ctx.moveTo(cx-4,cy);ctx.lineTo(cx+5,cy);ctx.moveTo(cx,cy-4);ctx.lineTo(cx,cy+5);ctx.stroke();
+    ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(cx,cy,3,0,6.28);ctx.fill();
+    S.ct=S.ct.filter(c=>e-c.born<5.2);
+    ctx.font='8px "JetBrains Mono", monospace';
+    for(const c of S.ct){const age=e-c.born,x=cx+Math.cos(c.a)*c.d,y=cy+Math.sin(c.a)*c.d,al=age<4?1:Math.max(0,1-(age-4));ctx.globalAlpha=al;ctx.fillStyle=pal.acc2;ctx.beginPath();ctx.arc(x,y,2,0,6.28);ctx.fill();ctx.fillStyle=pal.fg;ctx.textAlign="left";ctx.fillText(c.nm,x+5,y-2);ctx.globalAlpha=1;}
+    this.saverChrome(ctx,w,h,pal,"DEEP SCAN // sonar","ctc:"+S.ct.length);
+  }
+  svCrack(ctx,w,h,e,t,pal,S){
+    const PW=["password","P@ssw0rd!","12345678","qwerty123","letmein","hunter2","dragon","P0seidon","RootMe!","deepblue","summer2024","ChangeMe1!","PwnThisOne"];
+    const LN=["Status...........: Running","Hash.Mode........: 22000 (WPA-PBKDF2-PMKID+EAPOL)","Guess.Base.......: File (rockyou.txt)","Progress.........: 1456384/14344392 (10.15%)","Recovered........: 0/1 (0.00%) Digests","Candidates.#1....: rockyou-30000.txt"];
+    const now=t*1000;
+    if(now-S.tL>240){S.tL=now;const roll=Math.random();let l;if(roll<0.4)l={s:"* attempt: "+PW[(Math.random()*PW.length)|0],c:pal.fg};else if(roll<0.85)l={s:LN[(Math.random()*LN.length)|0],c:pal.dim};else l={s:"Speed.#1.........: "+(8000+((Math.random()*9000)|0))+" H/s",c:pal.acc};S.lines.unshift(l);if(S.lines.length>14)S.lines.pop();}
+    ctx.fillStyle=pal.acc;ctx.font='9px "JetBrains Mono", monospace';ctx.textAlign="left";ctx.fillText("hashcat -m 22000 -a 0",4,11);
+    ctx.strokeStyle=pal.dim;ctx.beginPath();ctx.moveTo(0,15);ctx.lineTo(w,15);ctx.stroke();
+    for(let i=0;i<S.lines.length;i++){const y=25+i*11;if(y>h-6)break;ctx.fillStyle=S.lines[i].c;ctx.fillText(S.lines[i].s.slice(0,44),4,y);}
+    if(S.crackT<0&&e>4&&Math.random()<0.02){S.crackT=e;S.crackPwd=PW[(Math.random()*PW.length)|0];}
+    if(S.crackT>0&&e-S.crackT<1.9){const bx=8,by=h/2-14;ctx.fillStyle=pal.b1;ctx.fillRect(bx,by,w-16,28);ctx.strokeStyle=pal.good;ctx.strokeRect(bx,by,w-16,28);ctx.fillStyle=pal.good;ctx.fillText("CRACKED:",bx+6,by+12);ctx.fillStyle=pal.acc2;ctx.fillText(S.crackPwd,bx+64,by+12);ctx.fillStyle=pal.dim;ctx.fillText("hash: "+(S.seed.toString(16)+"abc1").slice(0,8),bx+6,by+23);}
+    else if(S.crackT>0&&e-S.crackT>=1.9)S.crackT=-1;
+    ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("// any key",4,h-4);
+  }
+  svHex(ctx,w,h,e,t,pal,S){
+    const REV=["POSEIDON","DEADBEEF","PWNED","EXPLOIT","PHANTOM","MIMIR","TRIDENT","PMKID","0xBADC0DE","OWNED"];
+    ctx.font='8px "JetBrains Mono", monospace';ctx.textAlign="left";
+    for(let i=0;i<S.cols.length;i++){const c=S.cols[i],x=i*S.cw;
+      for(let k=0;k<12;k++){const row=Math.floor(c.y)-k;if(row<2||row*8>h)continue;const y=row*8;
+        let col=k===0?pal.fg:k<3?pal.acc:k<6?pal.dim:null;if(!col)continue;
+        if(c.dec>0&&c.txt&&k<c.txt.length){ctx.fillStyle=pal.acc2;ctx.fillText(c.txt[k],x,y);}else{ctx.fillStyle=col;const b=((Math.random()*256)|0).toString(16).padStart(2,"0");ctx.fillText(b,x,y);}}
+      c.y+=c.sp;if(c.y*8>h+30){c.y=-Math.random()*4;c.sp=1+Math.random()*1.5;c.dec=0;}
+      if(!c.dec&&Math.random()<0.002){c.txt=REV[(Math.random()*REV.length)|0];c.dec=e;}
+      if(c.dec&&e-c.dec>1.5)c.dec=0;}
+    ctx.fillStyle=pal.b1;ctx.fillRect(0,0,w,14);this.saverChrome(ctx,w,h,pal,"HEX CASCADE","// decoded");
+  }
+  svNeural(ctx,w,h,e,t,pal,S){
+    for(let i=0;i<S.nodes.length;i++){let b1=-1,b2=-1,d1=1e9,d2=1e9;for(let j=0;j<S.nodes.length;j++){if(j===i)continue;const dx=S.nodes[i].x-S.nodes[j].x,dy=S.nodes[i].y-S.nodes[j].y,dd=dx*dx+dy*dy;if(dd<d1){d2=d1;b2=b1;d1=dd;b1=j;}else if(dd<d2){d2=dd;b2=j;}}
+      ctx.strokeStyle=pal.dim;ctx.globalAlpha=0.5;if(b1>=0){ctx.beginPath();ctx.moveTo(S.nodes[i].x,S.nodes[i].y);ctx.lineTo(S.nodes[b1].x,S.nodes[b1].y);ctx.stroke();}if(b2>=0){ctx.beginPath();ctx.moveTo(S.nodes[i].x,S.nodes[i].y);ctx.lineTo(S.nodes[b2].x,S.nodes[b2].y);ctx.stroke();}ctx.globalAlpha=1;}
+    for(let i=0;i<S.nodes.length;i++){const v=(Math.sin(e*4+i*0.7)+1)*0.5;ctx.globalAlpha=0.3+v*0.7;ctx.fillStyle=pal.acc;ctx.beginPath();ctx.arc(S.nodes[i].x,S.nodes[i].y,2,0,6.28);ctx.fill();ctx.globalAlpha=1;}
+    if(e-S.arc>0.5){S.arc=e;S.arcA=(Math.random()*S.nodes.length)|0;do{S.arcB=(Math.random()*S.nodes.length)|0;}while(S.arcB===S.arcA);}
+    if(e-S.arc<0.35){const a=S.nodes[S.arcA],b=S.nodes[S.arcB];ctx.strokeStyle=pal.acc2;ctx.lineWidth=1.4;let px=a.x,py=a.y;for(let s=1;s<=5;s++){let tx=a.x+(b.x-a.x)*s/5,ty=a.y+(b.y-a.y)*s/5;if(s<5){tx+=Math.random()*8-4;ty+=Math.random()*8-4;}ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(tx,ty);ctx.stroke();px=tx;py=ty;}ctx.lineWidth=1;ctx.fillStyle=pal.fg;ctx.beginPath();ctx.arc(a.x,a.y,3,0,6.28);ctx.fill();ctx.beginPath();ctx.arc(b.x,b.y,3,0,6.28);ctx.fill();}
+    this.saverChrome(ctx,w,h,pal,"NEURAL ARC // mesh","nodes:"+S.nodes.length);
+  }
+  svTide(ctx,w,h,e,t,pal,S){
+    const cy=h/2+4,WV=[{f:0.04,a:16,sp:0.012,c:pal.acc},{f:0.06,a:12,sp:0.018,c:pal.acc2},{f:0.025,a:20,sp:0.008,c:pal.fg},{f:0.08,a:9,sp:0.024,c:pal.dim}];
+    for(let wi=0;wi<4;wi++){S.ph[wi]+=WV[wi].sp;ctx.strokeStyle=WV[wi].c;ctx.globalAlpha=wi===2?0.5:0.85;ctx.beginPath();for(let x=0;x<w;x++){const y=cy+Math.sin(x*WV[wi].f+S.ph[wi])*WV[wi].a;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();ctx.globalAlpha=1;}
+    this.saverChrome(ctx,w,h,pal,"TIDE // waves","// poseidon");
+  }
+  svGlitch(ctx,w,h,e,t,pal,S){
+    const MSG=["ACCESS DENIED","ROOT GAINED","INTRUSION DETECTED","AUTH BYPASS","PORT 22 OPEN","HASH CRACKED","SYSTEM COMPROMISED","PMKID CAPTURED","DEAUTH BURST","PWNED","0xDEADBEEF"];
+    for(let i=0;i<20;i++){ctx.fillStyle=(Math.random()<0.5)?pal.dim:pal.acc;ctx.globalAlpha=0.5;ctx.fillRect((Math.random()*w)|0,(Math.random()*h)|0,1.5,1.5);}ctx.globalAlpha=1;
+    if(e-S.mt>1.4){S.mt=e;S.msg=MSG[(Math.random()*MSG.length)|0];S.dy=-3+((Math.random()*7)|0);}
+    if(e-S.mt<0.7){ctx.textAlign="center";ctx.font='700 15px "Orbitron", sans-serif';const sh=((Math.random()*3)|0)-1;
+      ctx.fillStyle=pal.acc;ctx.fillText(S.msg,w/2-2+sh,h/2+S.dy);ctx.fillStyle=pal.acc2;ctx.fillText(S.msg,w/2+2+sh,h/2+S.dy);ctx.fillStyle=pal.fg;ctx.fillText(S.msg,w/2+sh,h/2+S.dy);ctx.textAlign="left";
+      for(let s=0;s<4;s++){const y=(Math.random()*h)|0;ctx.strokeStyle=pal.acc2;ctx.globalAlpha=0.6;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.globalAlpha=1;}}
+    ctx.fillStyle=pal.b1;ctx.fillRect(0,0,w,14);ctx.fillStyle=pal.acc;ctx.font='9px "JetBrains Mono", monospace';ctx.textAlign="left";ctx.fillText("// SYSTEM",4,11);ctx.fillStyle=pal.bad;ctx.textAlign="right";ctx.fillText("STATUS: HOT",w-4,11);ctx.textAlign="left";
+    ctx.fillStyle=pal.dim;ctx.font='8px "JetBrains Mono", monospace';ctx.fillText("// any key",4,h-4);
+  }
+
+  renderVals(){
+    const power=this.state.power,on=power==="on";
+    const soundOn=this.props.sound!==false && !this.state.muted;
+    const h=React.createElement;
+    const keyboardNode=h(React.Fragment,{},this.kb.keys.map((meta,idx)=>{
+      const stamp=this.state.pressed[meta.id];
+      const pressed=!!stamp;
+      const main=meta.arrow?meta.arrow:meta.label;
+      const corner=meta.arrow?meta.label:meta.sub;
+      const cornerColor=meta.arrow?"rgba(34,211,238,0.8)":"rgba(148,163,184,0.42)";
+      return h("div",{key:meta.id+(pressed?"-p"+stamp:"-u"),onClick:()=>this.pressKey(meta.id),style:keyStyle(meta,pressed,idx)},
+        h("span",{style:{position:"relative",zIndex:2,pointerEvents:"none",fontSize:meta.arrow?"14px":undefined}},main),
+        corner?h("span",{style:{position:"absolute",top:"3px",right:"5px",fontSize:"8px",lineHeight:1,color:cornerColor,pointerEvents:"none"}},corner):null,
+        pressed?h("span",{key:stamp,style:{position:"absolute",left:"50%",top:"50%",width:"16px",height:"16px",borderRadius:"50%",background:"rgba(240,171,252,0.6)",pointerEvents:"none",animation:"rippleAnim 0.55s ease-out forwards"}}):null
+      );
+    }));
+
+    const node=this.currentNode();
+    const menu=node.c||[];
+    const n=menu.length;
+    const isRoot=this.state.path.length===0;
+    const view=this.state.view;
+    const th=this.theme();
+    if(!this.aboutRef)this.aboutRef=React.createRef();
+    let cursor=this.state.cursor; if(cursor>n-1)cursor=Math.max(0,n-1);
+
+    const ROWS=7;
+    let first=cursor-3; if(first<0)first=0; if(first+ROWS>n)first=Math.max(0,n-ROWS);
+    const rows=[];
+    for(let r=0;r<ROWS && first+r<n;r++){
+      const i=first+r; const it=menu[i]; const cc=CATS[classify(it)].c;
+      rows.push({ key:(it.k||"?").toUpperCase(), label:it.l, glyph:it.c?"\u203a":(it.sim?"\u25b6":"\u00b7"),
+        active:i===cursor, inactive:i!==cursor, onClick:()=>this.clickRow(i),
+        dotStyle:{width:"5px",height:"5px",borderRadius:"50%",flexShrink:0,background:cc,boxShadow:i===cursor?("0 0 5px "+cc):"none",opacity:i===cursor?1:0.5} });
+    }
+    const cur=menu[cursor]||null;
+    const isCat=!!(cur&&cur.c);
+    const curCat=cur?classify(cur):"utility";
+
+    // battery + clock (live)
+    const dNow=new Date();
+    const clockStr=String(dNow.getHours()).padStart(2,"0")+":"+String(dNow.getMinutes()).padStart(2,"0");
+    const bel=(performance.now()-(this.battStart||performance.now()))/1000;
+    const battN=Math.max(14,Math.min(100,Math.round((this.battPct0||87)-bel/90)));
+    const battFillCol=battN<20?th.bad:th.good;
+
+    const card=cur?{ key:(cur.k||"?").toUpperCase(), label:cur.l, desc:cur.h||"",
+      isCat:isCat, notCat:!isCat, glyph:isCat?("MENU \u203a "+cur.c.length):(cur.sim?"\u25b6 run":"\u00b7 tool"),
+      catLabel:CATS[curCat].lb, idxStr:(cursor+1)+" / "+n,
+      catStyle:{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",letterSpacing:"1px",padding:"2px 7px",borderRadius:"999px",color:CATS[curCat].c,border:"1px solid "+CATS[curCat].c,opacity:0.9},
+      badgeStyle:{fontFamily:"'JetBrains Mono',monospace",fontSize:"22px",fontWeight:700,color:"var(--pkey,#7ff0fb)"} }:null;
+
+    const themeRows=THEMES.map((tm,i)=>({ name:tm.name,
+      active:i===this.state.pickCursor, inactive:i!==this.state.pickCursor,
+      sw1Style:{width:"9px",height:"9px",borderRadius:"2px",background:tm.acc,flexShrink:0},
+      sw2Style:{width:"9px",height:"9px",borderRadius:"2px",background:tm.acc2,flexShrink:0},
+      sw3Style:{width:"9px",height:"9px",borderRadius:"2px",background:tm.b1,border:"1px solid rgba(255,255,255,0.15)",flexShrink:0},
+      onClick:()=>{this.initAudio();this.setState({themeIdx:i,themePrev:null,view:"menu"});this.sfxSelect();} }));
+
+    const saverRows=SAVERS.map((sv,i)=>({ name:sv.name, tag:i===0?"random":"locked",
+      active:i===this.state.pickCursor, inactive:i!==this.state.pickCursor,
+      onClick:()=>{this.initAudio();this.setState({saverSel:i,view:"menu"});this.sfxSelect();} }));
+
+    const searchAll = view==="search" ? this.getSearchResults() : [];
+    const sq=this.state.query||"";
+    let sCur=this.state.searchCursor; if(sCur>searchAll.length-1)sCur=Math.max(0,searchAll.length-1);
+    const SROWS=7; let sFirst=sCur-3; if(sFirst<0)sFirst=0; if(sFirst+SROWS>searchAll.length)sFirst=Math.max(0,searchAll.length-SROWS);
+    const searchRows=[];
+    for(let ri=0;ri<SROWS && sFirst+ri<searchAll.length;ri++){ const i=sFirst+ri; const it=searchAll[i]; const cc=CATS[it.cat].c;
+      searchRows.push({ key:(it.isCat?"\u203a":(it.sim?"\u25b6":"\u00b7")), label:it.label, parent:it.parent,
+        active:i===sCur, inactive:i!==sCur, onClick:()=>{ this.setState({searchCursor:i}); this.openSearchResult(); },
+        dotStyle:{width:"5px",height:"5px",borderRadius:"50%",flexShrink:0,background:cc,boxShadow:i===sCur?("0 0 5px "+cc):"none",opacity:i===sCur?1:0.5} }); }
+
+    const runnable=!!(cur&&cur.sim);
+    const footer={ menu:(runnable?"\u25b6 \u23ce run  \u00b7  = explain  \u00b7  Tab find  \u00b7  ? help":"letter jump  \u00b7  ;/. move  \u00b7  \u23ce open  \u00b7  Tab find  \u00b7  ? help"),
+      info:"\u0060 back  \u00b7  \u23ce dismiss",
+      theme:";/. preview  \u00b7  \u23ce apply  \u00b7  \u0060 cancel",
+      saverpick:";/. move  \u00b7  \u23ce set  \u00b7  \u0060 back",
+      about:";/. scroll  \u00b7  \u0060 back",
+      search:"type to filter  \u00b7  ;/. move  \u00b7  \u23ce open  \u00b7  \u0060 close" }[view]||"";
+
+    return {
+      bgCanvasRef:this.bgRef, screenCanvasRef:this.screenRef, panelRef:this.panelRef, scalerRef:this.scalerRef, aboutRef:this.aboutRef,
+      powered:on, dormant:power==="off",
+      scanlines:this.props.showScanlines!==false && !th.paper,
+      notPaper:!th.paper,
+      hudChrome:this.props.hudChrome!==false,
+      keyboardNode:keyboardNode,
+      screenVars:themeVars(th),
+      notSaver:!this.state.saverActive,
+      chromeVisible:!this.state.saverActive && this.state.view!=="sim",
+      viewSearch: view==="search", searchQuery:sq, searchHasResults:searchAll.length>0, searchEmpty:view==="search"&&searchAll.length===0, searchRows:searchRows,
+      isRootPill: view==="menu" && isRoot, countShow: view==="menu" && !isRoot, attractOn:this.state.attract,
+      qrUrl:(this.qrUrl||(this.qrUrl=makeQRDataUrl(REPO_URL))), repoUrl:REPO_URL,
+      themeName:th.name, hudTheme:th.name.toLowerCase(), gpsStr:"no fix", clockStr:clockStr,
+      battPct:battN+"%", battFillStyle:{position:"absolute",left:"1px",top:"1px",bottom:"1px",width:Math.max(1,Math.round(11*battN/100))+"px",background:battFillCol,borderRadius:"1px"},
+      showTerminal: view==="menu" && this.state.layout==="terminal",
+      showCarousel: view==="menu" && this.state.layout==="carousel",
+      viewInfo: view==="info", viewTheme: view==="theme", viewAbout: view==="about", viewSaverpick: view==="saverpick",
+      helpOpen:this.state.help,
+      menuTitle: ({search:"SEARCH",theme:"THEME",saverpick:"SCREENSAVER",about:"ABOUT"}[view]) || (isRoot?"POSEIDON":node.l),
+      isRoot:isRoot, notRoot:!isRoot,
+      menuCount:(n?(cursor+1):0)+"/"+n,
+      rows:rows, scrollUp:first>0, scrollDown:first+ROWS<n,
+      hint: cur?(cur.h||""):"",
+      card:card,
+      themeRows:themeRows, saverRows:saverRows,
+      infoKey: cur?(cur.k||"?").toUpperCase():"",
+      infoLabel: cur?cur.l:"",
+      infoHint: cur?(cur.h||""):"",
+      infoWhat: cur?(cur.w||""):"",
+      infoHasDefend: !!(cur&&cur.d),
+      infoDefend: cur?(cur.d||""):"",
+      infoIsCategory: isCat,
+      infoCount: isCat?cur.c.length:0,
+      infoCatLabel: CATS[curCat].lb,
+      infoChipStyle:{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",letterSpacing:"1px",padding:"1px 6px",borderRadius:"999px",color:CATS[curCat].c,border:"1px solid "+CATS[curCat].c,flexShrink:0},
+      infoHasCve: !!(cur&&cur.cve),
+      infoCve: cur?(cur.cve||""):"",
+      footerHint: footer,
+      onSigil:()=>this.togglePower(),
+      onToggleSound:()=>this.toggleSound(),
+      onDismissInfo:()=>this.goBack(),
+      onHelp:()=>this.toggleHelp(),
+      onPrev:()=>{this.moveMenu(-1);this.sfxNav(-1);},
+      onNext:()=>{this.moveMenu(1);this.sfxNav(1);},
+      onOpenCard:()=>this.select(),
+      soundOn:soundOn,
+      sfxDotStyle:{width:"7px",height:"7px",borderRadius:"50%",background:soundOn?"#22d3ee":"#1a2634",boxShadow:soundOn?"0 0 8px rgba(34,211,238,0.95)":"none",transition:"all 0.2s ease"},
+      sigilStyle:{position:"relative",width:"68px",height:"68px",borderRadius:"17px",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"radial-gradient(circle at 50% 32%, rgba(60,14,72,0.92), rgba(16,8,22,0.96))",border:"1px solid "+(on?"rgba(34,211,238,0.9)":"rgba(217,70,239,0.55)"),animation:"powerPulse 4s ease-in-out infinite",boxShadow:on?"0 0 30px rgba(34,211,238,0.5), 0 0 16px rgba(217,70,239,0.5), inset 0 0 14px rgba(217,70,239,0.3)":"0 0 14px rgba(217,70,239,0.4), inset 0 0 10px rgba(162,28,175,0.25)"}
+    };
+  }
+}
+</script>
+</body>
+</html>
