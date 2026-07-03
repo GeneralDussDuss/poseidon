@@ -2,6 +2,7 @@
 #include <string.h>
 #include "cbor.h"
 #include "cbor_util.h"
+#include "ctap2.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -45,10 +46,38 @@ static void test_write_and_parse(void) {
     TEST_ASSERT_NOT_EQUAL(0, cbor_map_uint(&map, 9, &u));
 }
 
+// getInfo returns status 0 and a versions array containing FIDO_2_0.
+static void test_getinfo_has_fido2(void) {
+    uint8_t aaguid[16] = {0};
+    ctap2_cfg_t cfg; memset(&cfg, 0, sizeof cfg); cfg.aaguid = aaguid;
+    uint8_t req[1] = {0x04}; uint8_t out[256];
+    uint16_t n = ctap2_handle(&cfg, req, 1, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    CborParser p; CborValue map;
+    TEST_ASSERT_EQUAL_INT(0, cbor_get_map(out + 1, n - 1, &p, &map));
+    CborValue arr;
+    TEST_ASSERT_EQUAL_INT(0, cbor_map_enter(&map, 1, &arr));
+    TEST_ASSERT_TRUE(cbor_value_is_array(&arr));
+    CborValue it; cbor_value_enter_container(&arr, &it);
+    bool found = false;
+    while (!cbor_value_at_end(&it)) {
+        if (cbor_value_is_text_string(&it)) {
+            char s[16]; size_t sl = sizeof s;
+            cbor_value_copy_text_string(&it, s, &sl, &it);   // copies and advances
+            if (strcmp(s, "FIDO_2_0") == 0) found = true;
+        } else {
+            cbor_value_advance(&it);
+        }
+    }
+    TEST_ASSERT_TRUE(found);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
     RUN_TEST(test_write_and_parse);
+    RUN_TEST(test_getinfo_has_fido2);
     return UNITY_END();
 }
+
 

@@ -18,6 +18,7 @@
 #include <Preferences.h>
 
 #include "u2f.h"
+#include "ctap2.h"
 #include "kerberos_hid.h"
 #include "kerberos_crypto.h"
 #include "kerberos_attestation.h"
@@ -51,6 +52,16 @@ static bool kerberos_user_present(void *) {
 static uint16_t u2f_msg_thunk(const uint8_t *req, uint16_t rl,
                               uint8_t *resp, uint16_t cap, void *ctx) {
     return u2f_handle((const u2f_cfg_t *)ctx, req, rl, resp, cap);
+}
+
+// Stable AAGUID for KERBEROS (ASCII "KERBEROSPOSEIDON").
+static const uint8_t KERB_AAGUID[16] = {
+    0x4B,0x45,0x52,0x42,0x45,0x52,0x4F,0x53, 0x50,0x4F,0x53,0x45,0x49,0x44,0x4F,0x4E
+};
+static ctap2_cfg_t s_c2;
+static uint16_t ctap2_msg_thunk(const uint8_t *req, uint16_t rl,
+                                uint8_t *resp, uint16_t cap, void *ctx) {
+    return ctap2_handle((const ctap2_cfg_t *)ctx, req, rl, resp, cap);
 }
 
 static void persist_counter(void) {
@@ -118,6 +129,16 @@ void feat_kerberos(void) {
     cfg.ui           = nullptr;
 
     kerberos_hid_set_msg_handler(u2f_msg_thunk, &cfg);
+
+    // CTAP2 handler shares the crypto, device key, attestation, and presence.
+    s_c2.cy = cfg.cy; s_c2.devkey = devkey;
+    s_c2.aaguid = KERB_AAGUID;
+    s_c2.att_cert = KERB_ATT_CERT; s_c2.att_cert_len = KERB_ATT_CERT_LEN;
+    s_c2.att_priv = KERB_ATT_PRIV;
+    s_c2.user_present = kerberos_user_present; s_c2.ui = nullptr;
+    s_c2.store = nullptr;                 // resident credentials wired in a later task
+    kerberos_hid_set_cbor_handler(ctap2_msg_thunk, &s_c2);
+
     kerberos_hid_begin();
 
     // Status screen. Redraw once, then poll the transport and the keyboard.

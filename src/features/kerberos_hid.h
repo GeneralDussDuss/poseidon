@@ -10,6 +10,10 @@
 // Register the U2F message handler before begin().
 void kerberos_hid_set_msg_handler(ctaphid_msg_fn fn, void *ctx);
 
+// Register the CTAP2 (CBOR) handler. Call AFTER set_msg_handler (which resets
+// the dispatcher state).
+void kerberos_hid_set_cbor_handler(ctaphid_msg_fn fn, void *ctx);
+
 // Add the FIDO device and start USB. Call once on entering KERBEROS mode.
 void kerberos_hid_begin(void);
 

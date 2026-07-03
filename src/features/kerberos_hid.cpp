@@ -101,6 +101,10 @@ void kerberos_hid_set_msg_handler(ctaphid_msg_fn fn, void *ctx) {
     ctaphid_ctx_init(&s_ctx, kh_sink, nullptr, fn, ctx);
 }
 
+void kerberos_hid_set_cbor_handler(ctaphid_msg_fn fn, void *ctx) {
+    ctaphid_set_cbor(&s_ctx, fn, ctx);
+}
+
 void kerberos_hid_begin(void) {
     s_fido.add();
     USB.begin();
