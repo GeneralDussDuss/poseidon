@@ -65,6 +65,9 @@ static void ir_watchdog_task(void *_)
     }
 }
 
+extern bool kerb_boot_key_mode(void);
+extern void feat_kerberos(void);
+
 void setup()
 {
     /* FIRST THING: park IR LED OFF. Cardputer-Adv IR LED is ACTIVE-LOW
@@ -178,11 +181,16 @@ void setup()
     }
 #endif
 
-    ui_splash();  /* animates, then waits for a key press internally */
+    /* In KERBEROS key mode, skip the splash keypress-wait so the FIDO
+     * transport is serviced immediately after enumeration. */
+    if (!kerb_boot_key_mode()) ui_splash();
 }
 
 void loop()
 {
+    /* KERBEROS key mode: run the FIDO key directly. It owns the loop and
+     * reboots back to normal mode on exit, so this does not fall through. */
+    if (kerb_boot_key_mode()) feat_kerberos();
     menu_run();
     /* menu_run only returns on a quit — rare. Fall through to a
      * quiescent poll loop so the device doesn't deadlock. */

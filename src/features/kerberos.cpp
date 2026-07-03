@@ -21,6 +21,7 @@
 #include "kerberos_hid.h"
 #include "kerberos_crypto.h"
 #include "kerberos_attestation.h"
+#include "kerberos_bootmode.h"
 
 static uint32_t s_counter = 0;
 static uint32_t s_persisted = 0;
@@ -60,7 +61,34 @@ static void persist_counter(void) {
     s_persisted = s_counter;
 }
 
+// Prompt shown in normal mode: entering KERBEROS needs a reboot into key mode
+// so FIDO can be the sole USB HID device. Returns true if the user confirmed.
+static bool confirm_enter_key_mode(void) {
+    auto &d = M5Cardputer.Display;
+    ui_clear_body();
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(4, BODY_Y + 2); d.print("KERBEROS KEY MODE");
+    d.drawFastHLine(4, BODY_Y + 12, 150, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
+    d.setCursor(4, BODY_Y + 24); d.print("Reboots into FIDO key mode");
+    d.setCursor(4, BODY_Y + 36); d.print("(BadUSB off until you exit).");
+    ui_draw_footer("ENTER=reboot in  `=cancel");
+    while (true) {
+        uint16_t k = input_poll();
+        if (k == PK_ENTER) return true;
+        if (k == PK_ESC)   return false;
+        delay(10);
+    }
+}
+
 void feat_kerberos(void) {
+    // Normal mode: FIDO is not on the USB bus. Offer to reboot into key mode,
+    // where FIDO is the sole HID device. loop() calls us again after the reboot.
+    if (!kerb_boot_key_mode()) {
+        if (confirm_enter_key_mode()) kerb_request_key_mode(true);  // reboots
+        return;
+    }
+
     extern bool g_trident_cdc_active;
     if (g_mimir_cdc_active || g_trident_cdc_active) {
         ui_toast("CDC in use", T_WARN, 1000); return;
@@ -102,16 +130,30 @@ void feat_kerberos(void) {
     d.setCursor(4, BODY_Y + 24); d.print("FIDO security key active.");
     d.setCursor(4, BODY_Y + 36); d.print("Plug into a PC and add it");
     d.setCursor(4, BODY_Y + 48); d.print("as a security key.");
-    ui_draw_footer("`=exit");
+    ui_draw_footer("`=exit to normal (reboots)");
     ui_draw_status("fido", "up");
 
+    // Live transport counters (Phase 1 debug): RX=OUT reports in, D=dispatched,
+    // TX=packets sent, c=last CMD byte. Tells us where a stalled ceremony dies.
+    uint32_t l_rx = 0xFFFFFFFF, l_disp = 0, l_tx = 0, l_fail = 0; uint8_t l_cmd = 0xFF;
     while (true) {
         kerberos_hid_poll();
         persist_counter();
+        if (g_kerb_rx != l_rx || g_kerb_disp != l_disp || g_kerb_tx != l_tx ||
+            g_kerb_txfail != l_fail || g_kerb_lastcmd != l_cmd) {
+            l_rx = g_kerb_rx; l_disp = g_kerb_disp; l_tx = g_kerb_tx; l_fail = g_kerb_txfail; l_cmd = g_kerb_lastcmd;
+            d.fillRect(0, BODY_Y + 60, SCR_W, 14, T_BG);
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 62);
+            d.printf("RX%lu D%lu TX%lu F%lu c%02X",
+                     (unsigned long)l_rx, (unsigned long)l_disp, (unsigned long)l_tx,
+                     (unsigned long)l_fail, l_cmd);
+        }
         uint16_t k = input_poll();
-        if (k == PK_ESC) break;
+        if (k == PK_ESC) {
+            persist_counter();
+            kerb_request_key_mode(false);   // reboot back to normal (BadUSB) mode
+        }
         delay(2);
     }
-    persist_counter();
-    ui_toast("KERBEROS off", T_DIM, 700);
 }

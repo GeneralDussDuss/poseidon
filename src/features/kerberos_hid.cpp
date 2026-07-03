@@ -16,6 +16,7 @@
  * interface.
  */
 #include "kerberos_hid.h"
+#include "kerberos_bootmode.h"
 #include <USB.h>
 #include <USBHID.h>
 #include <string.h>
@@ -45,6 +46,11 @@ class USBHIDFido : public USBHIDDevice {
 public:
     USBHID hid;
     bool   added = false;
+    // Register the FIDO interface at construction (static-init), before any
+    // USB.begin() switches the port to TinyUSB, same as USBHIDKeyboard. Only in
+    // key mode, so FIDO is the SOLE HID device and the OS recognises it; in
+    // normal mode we stay out and the keyboard owns the interface.
+    USBHIDFido() { if (kerb_boot_key_mode()) add(); }
     void add() {
         if (!added) { hid.addDevice(this, sizeof(FIDO_REPORT_DESC)); added = true; }
     }
@@ -53,7 +59,7 @@ public:
         return sizeof(FIDO_REPORT_DESC);
     }
     void _onOutput(uint8_t report_id, const uint8_t *buffer, uint16_t len) override;
-    bool sendPacket(const uint8_t pkt[64]) { return hid.SendReport(0, pkt, 64); }
+    bool sendPacket(const uint8_t pkt[64]);
 };
 
 static USBHIDFido   s_fido;
@@ -65,11 +71,32 @@ static uint32_t     s_cur_cid = 0xFFFFFFFF;
 static uint8_t  s_q[KH_QN][64];
 static volatile uint8_t s_qhead = 0, s_qtail = 0;
 
+volatile uint32_t g_kerb_rx = 0, g_kerb_disp = 0, g_kerb_tx = 0, g_kerb_txfail = 0;
+volatile uint8_t  g_kerb_lastcmd = 0;
+
+// Push the report straight into TinyUSB instead of Arduino's USBHID::SendReport.
+// SendReport blocks waiting on a report-complete semaphore; that wait races on
+// the first reply, times out, and leaves the IN endpoint permanently busy (F1).
+// tud_hid_n_report() just queues the 64-byte report and TinyUSB ships it on the
+// next IN poll. We wait for the endpoint to be free (previous packet consumed)
+// before queueing the next, which also paces multi-packet responses.
+bool USBHIDFido::sendPacket(const uint8_t pkt[64]) {
+    for (int i = 0; i < 200; i++) {
+        if (tud_hid_n_ready(0) && tud_hid_n_report(0, 0, pkt, 64)) return true;
+        delay(1);
+    }
+    g_kerb_txfail++;
+    return false;
+}
+
 static void kh_sink(const uint8_t pkt[64], void *) {
+    g_kerb_tx++;
     s_fido.sendPacket(pkt);
 }
 
 void USBHIDFido::_onOutput(uint8_t, const uint8_t *buffer, uint16_t len) {
+    g_kerb_rx++;
+    if (len >= 5) g_kerb_lastcmd = buffer[4];
     if (len < 64) return;
     uint8_t next = (uint8_t)((s_qhead + 1) % KH_QN);
     if (next == s_qtail) return;             // ring full, drop (host will retry)
@@ -90,6 +117,7 @@ void kerberos_hid_poll(void) {
     while (s_qtail != s_qhead) {
         uint8_t *pkt = s_q[s_qtail];
         s_cur_cid = ctaphid_dispatch(&s_ctx, pkt);
+        g_kerb_disp++;
         s_qtail = (uint8_t)((s_qtail + 1) % KH_QN);
     }
 }

@@ -19,11 +19,17 @@
 #include "ui.h"
 #include "input.h"
 #include "mimir.h"
+#include "kerberos_bootmode.h"
 #include <USB.h>
 #include <USBHIDKeyboard.h>
 #include <SD.h>
 
-static USBHIDKeyboard s_kbd;
+/* The keyboard registers its HID interface in its constructor (static-init).
+ * In KERBEROS key mode we must present ONLY the FIDO HID interface, so the
+ * keyboard is not constructed then (nullptr). BadUSB is unreachable in key
+ * mode anyway: loop() runs KERBEROS directly and reboots to normal on exit. */
+static USBHIDKeyboard *s_kbd_obj = kerb_boot_key_mode() ? nullptr : new USBHIDKeyboard();
+#define s_kbd (*s_kbd_obj)
 static bool           s_hid_up = false;
 
 static void hid_ensure(void)
