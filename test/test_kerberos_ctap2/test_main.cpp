@@ -5,6 +5,7 @@
 #include "ctap2.h"
 #include "cose.h"
 #include "authdata.h"
+#include "cred_store.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -229,6 +230,25 @@ static void test_getassert_no_cred(void) {
     TEST_ASSERT_EQUAL_UINT8(0x2E, out[0]);           // CTAP2_ERR_NO_CREDENTIALS
 }
 
+static void test_cred_store_mem(void) {
+    cred_store *s = cred_store_mem();
+    cred_record a; memset(&a, 0, sizeof a);
+    memset(a.rpIdHash, 0x11, 32); memset(a.id, 0xA1, 32); a.signCount = 1;
+    cred_record b = a; memset(b.id, 0xB2, 32); b.signCount = 2;
+    TEST_ASSERT_EQUAL_INT(0, s->add(s, &a));
+    TEST_ASSERT_EQUAL_INT(0, s->add(s, &b));
+    cred_record out; int total = 0;
+    TEST_ASSERT_EQUAL_INT(0, s->find_by_rp(s, a.rpIdHash, &out, 0, &total));
+    TEST_ASSERT_EQUAL_INT(2, total);
+    TEST_ASSERT_EQUAL_INT(0, s->find_by_rp(s, a.rpIdHash, &out, 1, &total));  // b
+    TEST_ASSERT_EQUAL_INT(0, s->update_counter(s, b.id, 99));
+    TEST_ASSERT_EQUAL_INT(0, s->find_by_rp(s, a.rpIdHash, &out, 1, &total));
+    TEST_ASSERT_EQUAL_UINT32(99, out.signCount);
+    uint8_t other[32]; memset(other, 0x99, 32);
+    TEST_ASSERT_NOT_EQUAL(0, s->find_by_rp(s, other, &out, 0, &total));
+    TEST_ASSERT_EQUAL_INT(0, total);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -240,6 +260,7 @@ int main(int, char **) {
     RUN_TEST(test_makecred_denied);
     RUN_TEST(test_getassert_nonresident);
     RUN_TEST(test_getassert_no_cred);
+    RUN_TEST(test_cred_store_mem);
     return UNITY_END();
 }
 
