@@ -3,6 +3,7 @@
 #include "cose.h"
 #include "authdata.h"
 #include "keywrap.h"
+#include "cred_store.h"
 #include <string.h>
 
 // CTAP2 status codes used here.
@@ -14,6 +15,7 @@ enum {
     CTAP2_ERR_MISSING_PARAMETER = 0x14,
     CTAP2_ERR_UNSUPPORTED_ALGORITHM = 0x26,
     CTAP2_ERR_OPERATION_DENIED  = 0x27,
+    CTAP2_ERR_KEY_STORE_FULL    = 0x28,
     CTAP2_ERR_NO_CREDENTIALS    = 0x2E,
     CTAP1_ERR_OTHER             = 0x7F,
 };
@@ -50,6 +52,30 @@ static bool has_es256(CborValue *array) {
         cbor_value_advance(&it);
     }
     return false;
+}
+
+// Read options.<name> as a boolean from the top-level request map (options is
+// key 7 for makeCredential, key 5 for getAssertion).
+static bool opt_true(CborValue *map, int optionsKey, const char *name) {
+    CborValue opts, v;
+    if (cbor_map_enter(map, optionsKey, &opts)) return false;
+    if (cbor_value_map_find_value(&opts, name, &v) != CborNoError) return false;
+    if (!cbor_value_is_boolean(&v)) return false;
+    bool b = false; cbor_value_get_boolean(&v, &b); return b;
+}
+
+// Find a resident record for this rp whose id matches. Returns 0 on hit.
+static int store_find_by_id(const ctap2_cfg_t *cfg, const uint8_t rp[32],
+                            const uint8_t *id, size_t idl, cred_record *out) {
+    if (idl != 32 || !cfg->store) return -1;
+    int total = 0;
+    for (int i = 0; ; i++) {
+        cred_record r;
+        if (cfg->store->find_by_rp(cfg->store, rp, &r, i, &total)) break;
+        if (memcmp(r.id, id, 32) == 0) { *out = r; return 0; }
+        if (i + 1 >= total) break;
+    }
+    return -1;
 }
 
 static uint16_t get_info(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
@@ -95,13 +121,32 @@ static uint16_t make_cred(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t l
     CborValue pk; if (cbor_map_enter(&map, 4, &pk)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
     if (!has_es256(&pk)) return err(out, CTAP2_ERR_UNSUPPORTED_ALGORITHM);
 
+    bool rk = opt_true(&map, 7, "rk");
+
     if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
 
     uint8_t priv[32], pub[65];
     if (cfg->cy->p256_keygen(priv, pub, cfg->cy->ctx)) return err(out, CTAP1_ERR_OTHER);
-    // Non-resident: credential id is the wrapped private key (bound to rpIdHash).
-    uint8_t credId[KW_HANDLE_LEN]; size_t credIdLen = 0;
-    if (kw_wrap(cfg->cy, cfg->devkey, priv, rpIdHash, credId, &credIdLen)) return err(out, CTAP1_ERR_OTHER);
+    uint8_t credId[64]; size_t credIdLen = 0;
+    if (rk && cfg->store) {
+        // Resident: random 32-byte credential id; the wrapped key lives in a record.
+        if (cfg->cy->rand(credId, 32, cfg->cy->ctx)) return err(out, CTAP1_ERR_OTHER);
+        credIdLen = 32;
+        cred_record rec; memset(&rec, 0, sizeof rec);
+        memcpy(rec.id, credId, 32);
+        memcpy(rec.rpIdHash, rpIdHash, 32);
+        size_t uidl = sizeof rec.userId;
+        if (submap_bytes(&user, "id", rec.userId, &uidl) == 0) rec.userIdLen = (uint8_t)uidl;
+        size_t nl = sizeof rec.name;
+        submap_text(&user, "name", rec.name, &nl);   // optional
+        size_t wl = 0;
+        if (kw_wrap(cfg->cy, cfg->devkey, priv, rpIdHash, rec.wrappedKey, &wl)) return err(out, CTAP1_ERR_OTHER);
+        rec.signCount = 0;
+        if (cfg->store->add(cfg->store, &rec)) return err(out, CTAP2_ERR_KEY_STORE_FULL);
+    } else {
+        // Non-resident: credential id IS the wrapped private key (bound to rpIdHash).
+        if (kw_wrap(cfg->cy, cfg->devkey, priv, rpIdHash, credId, &credIdLen)) return err(out, CTAP1_ERR_OTHER);
+    }
 
     uint8_t cose[128]; size_t coseLen = cose_es256_from_pubkey(pub, cose, sizeof cose);
     uint8_t acd[256]; size_t acdLen = att_cred_data(cfg->aaguid, credId, (uint16_t)credIdLen,
@@ -143,30 +188,54 @@ static uint16_t get_assert(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t 
     uint8_t cdh[32]; size_t cdhl = sizeof cdh;
     if (cbor_map_bytes(&map, 2, cdh, &cdhl) || cdhl != 32) return err(out, CTAP2_ERR_MISSING_PARAMETER);
 
-    // 3: allowList -> first credential id we can unwrap for this rp
-    uint8_t priv[32], credId[128]; size_t credIdLen = 0; bool found = false;
+    // Resolve the credential: allowList (non-resident unwrap, or resident by id),
+    // else discoverable lookup by rp when the allowList is empty.
+    uint8_t priv[32], credId[64]; size_t credIdLen = 0; bool found = false;
+    bool from_store = false; cred_record found_rec;
     CborValue al;
-    if (cbor_map_enter(&map, 3, &al) == 0 && cbor_value_is_array(&al)) {
+    bool hasAllow = (cbor_map_enter(&map, 3, &al) == 0 && cbor_value_is_array(&al));
+    int allowCount = 0;
+    if (hasAllow) {
         CborValue it; cbor_value_enter_container(&al, &it);
         while (!cbor_value_at_end(&it)) {
             if (cbor_value_is_map(&it)) {
+                allowCount++;
                 CborValue idv;
                 if (cbor_value_map_find_value(&it, "id", &idv) == CborNoError &&
                     cbor_value_is_byte_string(&idv)) {
                     uint8_t cid[128]; size_t cl = sizeof cid;
-                    if (cbor_value_copy_byte_string(&idv, cid, &cl, nullptr) == CborNoError &&
-                        kw_unwrap(cfg->cy, cfg->devkey, cid, cl, rpIdHash, priv) == 0) {
-                        memcpy(credId, cid, cl); credIdLen = cl; found = true; break;
+                    if (cbor_value_copy_byte_string(&idv, cid, &cl, nullptr) == CborNoError) {
+                        if (kw_unwrap(cfg->cy, cfg->devkey, cid, cl, rpIdHash, priv) == 0) {
+                            memcpy(credId, cid, cl); credIdLen = cl; found = true; break;
+                        }
+                        if (store_find_by_id(cfg, rpIdHash, cid, cl, &found_rec) == 0 &&
+                            kw_unwrap(cfg->cy, cfg->devkey, found_rec.wrappedKey, KW_HANDLE_LEN,
+                                      rpIdHash, priv) == 0) {
+                            memcpy(credId, cid, cl); credIdLen = cl; found = true; from_store = true; break;
+                        }
                     }
                 }
             }
             cbor_value_advance(&it);
         }
     }
+    if (!found && allowCount == 0 && cfg->store) {
+        int total = 0; cred_record r;
+        if (cfg->store->find_by_rp(cfg->store, rpIdHash, &r, 0, &total) == 0 &&
+            kw_unwrap(cfg->cy, cfg->devkey, r.wrappedKey, KW_HANDLE_LEN, rpIdHash, priv) == 0) {
+            memcpy(credId, r.id, 32); credIdLen = 32; found = true; from_store = true; found_rec = r;
+        }
+    }
     if (!found) return err(out, CTAP2_ERR_NO_CREDENTIALS);
 
     if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
-    uint32_t ctr = cfg->counter ? ++(*cfg->counter) : 1;
+    uint32_t ctr;
+    if (from_store) {
+        ctr = found_rec.signCount + 1;
+        if (cfg->store) cfg->store->update_counter(cfg->store, credId, ctr);
+    } else {
+        ctr = cfg->counter ? ++(*cfg->counter) : 1;
+    }
 
     uint8_t authData[37];
     size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP, ctr, nullptr, 0, authData, sizeof authData);

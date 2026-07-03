@@ -146,6 +146,29 @@ static uint16_t build_makecred_req(uint8_t *out, size_t cap) {
     return (uint16_t)(1+n);
 }
 
+// makeCredential request with options.rk = true (keys 1,2,3,4,7).
+static uint16_t build_makecred_rk(uint8_t *out, size_t cap) {
+    CborEncoder enc, map;
+    cbor_encoder_init(&enc, out+1, cap-1, 0);
+    cbor_encoder_create_map(&enc, &map, 5);
+    cbor_encode_int(&map, 1); uint8_t cdh[32]; memset(cdh,0xCC,32); cbor_encode_byte_string(&map, cdh, 32);
+    cbor_encode_int(&map, 2); CborEncoder rp; cbor_encoder_create_map(&map,&rp,1);
+    cbor_encode_text_stringz(&rp,"id"); cbor_encode_text_stringz(&rp,"example.com"); cbor_encoder_close_container(&map,&rp);
+    cbor_encode_int(&map, 3); CborEncoder u; cbor_encoder_create_map(&map,&u,2);
+    cbor_encode_text_stringz(&u,"id"); uint8_t uid[4]={9,8,7,6}; cbor_encode_byte_string(&u,uid,4);
+    cbor_encode_text_stringz(&u,"name"); cbor_encode_text_stringz(&u,"bob"); cbor_encoder_close_container(&map,&u);
+    cbor_encode_int(&map, 4); CborEncoder arr; cbor_encoder_create_array(&map,&arr,1);
+    CborEncoder e; cbor_encoder_create_map(&arr,&e,2);
+    cbor_encode_text_stringz(&e,"alg"); cbor_encode_int(&e,-7);
+    cbor_encode_text_stringz(&e,"type"); cbor_encode_text_stringz(&e,"public-key");
+    cbor_encoder_close_container(&arr,&e); cbor_encoder_close_container(&map,&arr);
+    cbor_encode_int(&map, 7); CborEncoder opt; cbor_encoder_create_map(&map,&opt,1);
+    cbor_encode_text_stringz(&opt,"rk"); cbor_encode_boolean(&opt,true); cbor_encoder_close_container(&map,&opt);
+    cbor_encoder_close_container(&enc,&map);
+    size_t n = cbor_encoder_get_buffer_size(&enc, out+1); out[0]=0x01;
+    return (uint16_t)(1+n);
+}
+
 static void test_makecred_packed(void) {
     g_present2 = true;
     ctap2_cfg_t cfg = mk_cfg();
@@ -249,6 +272,38 @@ static void test_cred_store_mem(void) {
     TEST_ASSERT_EQUAL_INT(0, total);
 }
 
+// Resident make (rk=true) stores a record; discoverable getAssertion (empty
+// allowList) finds it by rp and increments its own counter.
+static void test_resident_make_and_discover(void) {
+    g_present2 = true;
+    ctap2_cfg_t cfg = mk_cfg();
+    cfg.store = cred_store_mem();
+    uint8_t req[256]; uint16_t rl = build_makecred_rk(req, sizeof req);
+    uint8_t mkout[512]; uint16_t mn = ctap2_handle(&cfg, req, rl, mkout, sizeof mkout);
+    TEST_ASSERT_EQUAL_UINT8(0x00, mkout[0]); (void)mn;
+    uint8_t rpHash[32]; mk_sha256((const uint8_t *)"example.com", 11, rpHash, nullptr);
+    cred_record r; int total = 0;
+    TEST_ASSERT_EQUAL_INT(0, cfg.store->find_by_rp(cfg.store, rpHash, &r, 0, &total));
+    TEST_ASSERT_EQUAL_INT(1, total);
+
+    // getAssertion with no allowList (keys 1,2 only) -> discoverable
+    uint8_t areq[128]; CborEncoder enc, amap;
+    cbor_encoder_init(&enc, areq + 1, sizeof(areq) - 1, 0);
+    cbor_encoder_create_map(&enc, &amap, 2);
+    cbor_encode_int(&amap, 1); cbor_encode_text_stringz(&amap, "example.com");
+    cbor_encode_int(&amap, 2); uint8_t cdh[32]; memset(cdh, 0xEE, 32); cbor_encode_byte_string(&amap, cdh, 32);
+    cbor_encoder_close_container(&enc, &amap);
+    size_t an = cbor_encoder_get_buffer_size(&enc, areq + 1); areq[0] = 0x02;
+    uint8_t out[512]; uint16_t n = ctap2_handle(&cfg, areq, (uint16_t)(an + 1), out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    CborParser p; CborValue m; cbor_get_map(out + 1, n - 1, &p, &m);
+    uint8_t ad[64]; size_t adl = sizeof ad; cbor_map_bytes(&m, 2, ad, &adl);
+    TEST_ASSERT_TRUE(ad[32] & 0x01);                 // UP
+    TEST_ASSERT_EQUAL_UINT8(1, ad[36]);              // signCount 0 -> 1
+    cfg.store->find_by_rp(cfg.store, rpHash, &r, 0, &total);
+    TEST_ASSERT_EQUAL_UINT32(1, r.signCount);        // persisted in the store
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -261,6 +316,7 @@ int main(int, char **) {
     RUN_TEST(test_getassert_nonresident);
     RUN_TEST(test_getassert_no_cred);
     RUN_TEST(test_cred_store_mem);
+    RUN_TEST(test_resident_make_and_discover);
     return UNITY_END();
 }
 

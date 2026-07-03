@@ -19,6 +19,7 @@
 
 #include "u2f.h"
 #include "ctap2.h"
+#include "cred_store.h"
 #include "kerberos_hid.h"
 #include "kerberos_crypto.h"
 #include "kerberos_attestation.h"
@@ -137,7 +138,7 @@ void feat_kerberos(void) {
     s_c2.att_priv = KERB_ATT_PRIV;
     s_c2.user_present = kerberos_user_present; s_c2.ui = nullptr;
     s_c2.counter = &s_counter;            // shared with U2F; persisted by persist_counter()
-    s_c2.store = nullptr;                 // resident credentials wired in a later task
+    s_c2.store = cred_store_nvs();        // resident (discoverable) credentials
     kerberos_hid_set_cbor_handler(ctap2_msg_thunk, &s_c2);
 
     kerberos_hid_begin();

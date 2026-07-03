@@ -26,3 +26,4 @@ typedef struct cred_store {
 } cred_store;
 
 cred_store *cred_store_mem(void);   // in-memory, reset on each call (tests)
+cred_store *cred_store_nvs(void);   // NVS-backed (device only; defined in src/features)
