@@ -1,0 +1,6 @@
+{
+  "name": "tinycbor",
+  "version": "0.6.0",
+  "description": "Vendored TinyCBOR (intel/tinycbor v0.6.0) encoder + parser, for host and device CBOR in KERBEROS CTAP2.",
+  "build": { "srcDir": "." }
+}
