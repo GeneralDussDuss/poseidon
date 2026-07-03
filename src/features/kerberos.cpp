@@ -133,22 +133,9 @@ void feat_kerberos(void) {
     ui_draw_footer("`=exit to normal (reboots)");
     ui_draw_status("fido", "up");
 
-    // Live transport counters (Phase 1 debug): RX=OUT reports in, D=dispatched,
-    // TX=packets sent, c=last CMD byte. Tells us where a stalled ceremony dies.
-    uint32_t l_rx = 0xFFFFFFFF, l_disp = 0, l_tx = 0, l_fail = 0; uint8_t l_cmd = 0xFF;
     while (true) {
         kerberos_hid_poll();
         persist_counter();
-        if (g_kerb_rx != l_rx || g_kerb_disp != l_disp || g_kerb_tx != l_tx ||
-            g_kerb_txfail != l_fail || g_kerb_lastcmd != l_cmd) {
-            l_rx = g_kerb_rx; l_disp = g_kerb_disp; l_tx = g_kerb_tx; l_fail = g_kerb_txfail; l_cmd = g_kerb_lastcmd;
-            d.fillRect(0, BODY_Y + 60, SCR_W, 14, T_BG);
-            d.setTextColor(T_DIM, T_BG);
-            d.setCursor(4, BODY_Y + 62);
-            d.printf("RX%lu D%lu TX%lu F%lu c%02X",
-                     (unsigned long)l_rx, (unsigned long)l_disp, (unsigned long)l_tx,
-                     (unsigned long)l_fail, l_cmd);
-        }
         uint16_t k = input_poll();
         if (k == PK_ESC) {
             persist_counter();

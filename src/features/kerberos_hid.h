@@ -22,10 +22,3 @@ bool kerberos_hid_ready(void);
 // Send a CTAPHID KEEPALIVE on the most recent channel (status 2 = up needed).
 // Called repeatedly by the presence UI so the host does not time out.
 void kerberos_hid_keepalive(uint8_t status);
-
-// Debug counters surfaced on the KERBEROS screen to localise transport faults.
-extern volatile uint32_t g_kerb_rx;       // OUT reports received (_onOutput)
-extern volatile uint32_t g_kerb_disp;     // packets dispatched from the ring
-extern volatile uint32_t g_kerb_tx;       // packets handed to SendReport
-extern volatile uint32_t g_kerb_txfail;   // SendReport gave up after retries
-extern volatile uint8_t  g_kerb_lastcmd;  // CMD byte of the last OUT report
