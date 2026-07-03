@@ -3,6 +3,8 @@
 #include "cbor.h"
 #include "cbor_util.h"
 #include "ctap2.h"
+#include "cose.h"
+#include "authdata.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -72,11 +74,42 @@ static void test_getinfo_has_fido2(void) {
     TEST_ASSERT_TRUE(found);
 }
 
+static void test_cose_es256(void) {
+    uint8_t pub[65]; pub[0] = 0x04;
+    for (int i = 1; i < 65; i++) pub[i] = (uint8_t)i;
+    uint8_t out[80];
+    size_t n = cose_es256_from_pubkey(pub, out, sizeof out);
+    uint8_t head[] = {0xA5,0x01,0x02,0x03,0x26,0x20,0x01,0x21,0x58,0x20};
+    TEST_ASSERT_EQUAL_MEMORY(head, out, sizeof head);
+    TEST_ASSERT_EQUAL_UINT(10 + 32 + 3 + 32, n);
+    TEST_ASSERT_EQUAL_MEMORY(pub + 1, out + 10, 32);        // X
+    TEST_ASSERT_EQUAL_UINT8(0x22, out[10 + 32]);            // key -3
+    TEST_ASSERT_EQUAL_UINT8(0x58, out[10 + 32 + 1]);        // bstr(32)
+    TEST_ASSERT_EQUAL_MEMORY(pub + 33, out + 10 + 32 + 3, 32); // Y
+}
+
+static void test_authdata_flags_counter(void) {
+    uint8_t rp[32]; memset(rp, 0xAB, 32);
+    uint8_t att[5] = {1,2,3,4,5};
+    uint8_t out[64];
+    size_t n = authdata_build(rp, AD_FLAG_UP | AD_FLAG_AT, 0x01020304, att, 5, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT(32 + 1 + 4 + 5, n);
+    TEST_ASSERT_EQUAL_MEMORY(rp, out, 32);
+    TEST_ASSERT_EQUAL_UINT8(0x41, out[32]);                 // UP|AT
+    TEST_ASSERT_EQUAL_UINT8(0x01, out[33]);
+    TEST_ASSERT_EQUAL_UINT8(0x02, out[34]);
+    TEST_ASSERT_EQUAL_UINT8(0x03, out[35]);
+    TEST_ASSERT_EQUAL_UINT8(0x04, out[36]);
+    TEST_ASSERT_EQUAL_MEMORY(att, out + 37, 5);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
     RUN_TEST(test_write_and_parse);
     RUN_TEST(test_getinfo_has_fido2);
+    RUN_TEST(test_cose_es256);
+    RUN_TEST(test_authdata_flags_counter);
     return UNITY_END();
 }
 
