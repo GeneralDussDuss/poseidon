@@ -1,5 +1,8 @@
 #include "ctap2.h"
 #include "cbor_util.h"
+#include "cose.h"
+#include "authdata.h"
+#include "keywrap.h"
 #include <string.h>
 
 // CTAP2 status codes used here.
@@ -7,10 +10,47 @@ enum {
     CTAP2_OK                    = 0x00,
     CTAP1_ERR_INVALID_COMMAND   = 0x01,
     CTAP1_ERR_INVALID_LENGTH    = 0x03,
+    CTAP2_ERR_INVALID_CBOR      = 0x12,
+    CTAP2_ERR_MISSING_PARAMETER = 0x14,
     CTAP2_ERR_UNSUPPORTED_ALGORITHM = 0x26,
     CTAP2_ERR_OPERATION_DENIED  = 0x27,
     CTAP2_ERR_NO_CREDENTIALS    = 0x2E,
+    CTAP1_ERR_OTHER             = 0x7F,
 };
+
+static uint16_t err(uint8_t *out, uint8_t code) { out[0] = code; return 1; }
+
+// Read a text field by string key from a sub-map (rp, user).
+static int submap_text(CborValue *submap, const char *key, char *dst, size_t *len) {
+    CborValue v;
+    if (cbor_value_map_find_value(submap, key, &v) != CborNoError) return -1;
+    if (!cbor_value_is_text_string(&v)) return -1;
+    return cbor_value_copy_text_string(&v, dst, len, nullptr) == CborNoError ? 0 : -1;
+}
+static int submap_bytes(CborValue *submap, const char *key, uint8_t *dst, size_t *len) {
+    CborValue v;
+    if (cbor_value_map_find_value(submap, key, &v) != CborNoError) return -1;
+    if (!cbor_value_is_byte_string(&v)) return -1;
+    return cbor_value_copy_byte_string(&v, dst, len, nullptr) == CborNoError ? 0 : -1;
+}
+
+// True if the pubKeyCredParams array contains an ES256 (alg -7) entry.
+static bool has_es256(CborValue *array) {
+    if (!cbor_value_is_array(array)) return false;
+    CborValue it; cbor_value_enter_container(array, &it);
+    while (!cbor_value_at_end(&it)) {
+        if (cbor_value_is_map(&it)) {
+            CborValue algv;
+            if (cbor_value_map_find_value(&it, "alg", &algv) == CborNoError &&
+                cbor_value_is_integer(&algv)) {
+                int alg = 0; cbor_value_get_int_checked(&algv, &alg);
+                if (alg == -7) return true;
+            }
+        }
+        cbor_value_advance(&it);
+    }
+    return false;
+}
 
 static uint16_t get_info(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
     out[0] = CTAP2_OK;
@@ -34,12 +74,67 @@ static uint16_t get_info(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
     return (uint16_t)(1 + n);
 }
 
+static uint16_t make_cred(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
+                          uint8_t *out, uint16_t cap) {
+    CborParser p; CborValue map;
+    if (cbor_get_map(req + 1, len - 1, &p, &map)) return err(out, CTAP2_ERR_INVALID_CBOR);
+
+    // 1: clientDataHash (32)
+    uint8_t cdh[32]; size_t cdhl = sizeof cdh;
+    if (cbor_map_bytes(&map, 1, cdh, &cdhl) || cdhl != 32) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    // 2: rp {id}
+    CborValue rp; if (cbor_map_enter(&map, 2, &rp)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    char rpid[128]; size_t rpidl = sizeof rpid;
+    if (submap_text(&rp, "id", rpid, &rpidl)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    uint8_t rpIdHash[32];
+    if (cfg->cy->sha256((const uint8_t *)rpid, strlen(rpid), rpIdHash, cfg->cy->ctx))
+        return err(out, CTAP1_ERR_OTHER);
+    // 3: user (present but its id is only needed for resident creds, added later)
+    CborValue user; if (cbor_map_enter(&map, 3, &user)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    // 4: pubKeyCredParams must offer ES256
+    CborValue pk; if (cbor_map_enter(&map, 4, &pk)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+    if (!has_es256(&pk)) return err(out, CTAP2_ERR_UNSUPPORTED_ALGORITHM);
+
+    if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
+
+    uint8_t priv[32], pub[65];
+    if (cfg->cy->p256_keygen(priv, pub, cfg->cy->ctx)) return err(out, CTAP1_ERR_OTHER);
+    // Non-resident: credential id is the wrapped private key (bound to rpIdHash).
+    uint8_t credId[KW_HANDLE_LEN]; size_t credIdLen = 0;
+    if (kw_wrap(cfg->cy, cfg->devkey, priv, rpIdHash, credId, &credIdLen)) return err(out, CTAP1_ERR_OTHER);
+
+    uint8_t cose[128]; size_t coseLen = cose_es256_from_pubkey(pub, cose, sizeof cose);
+    uint8_t acd[256]; size_t acdLen = att_cred_data(cfg->aaguid, credId, (uint16_t)credIdLen,
+                                                    cose, coseLen, acd, sizeof acd);
+    uint8_t authData[320]; size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP | AD_FLAG_AT, 0,
+                                                         acd, acdLen, authData, sizeof authData);
+    // Packed self attestation: sign authData || clientDataHash with the credential key.
+    uint8_t tosign[320 + 32]; memcpy(tosign, authData, adLen); memcpy(tosign + adLen, cdh, 32);
+    uint8_t sig[72]; size_t sigLen = 0;
+    if (cfg->cy->p256_sign(priv, tosign, adLen + 32, sig, &sigLen, cfg->cy->ctx))
+        return err(out, CTAP1_ERR_OTHER);
+
+    out[0] = CTAP2_OK;
+    cbor_writer w; cw_init(&w, out + 1, cap - 1);
+    cw_map(&w, 3);                                    // 1: fmt, 2: authData, 3: attStmt
+    cw_key(&w, 1); cw_text(&w, "packed");
+    cw_key(&w, 2); cw_bytes(&w, authData, adLen);
+    cw_key(&w, 3);
+    CborEncoder att; cbor_encoder_create_map(cw_enc(&w), &att, 2);
+    cbor_encode_text_stringz(&att, "alg"); cbor_encode_int(&att, -7);
+    cbor_encode_text_stringz(&att, "sig"); cbor_encode_byte_string(&att, sig, sigLen);
+    cbor_encoder_close_container(cw_enc(&w), &att);
+    size_t n = cw_finish(&w);
+    return (uint16_t)(1 + n);
+}
+
 uint16_t ctap2_handle(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
                       uint8_t *out, uint16_t cap) {
     if (cap < 1) return 0;
     if (len < 1) { out[0] = CTAP1_ERR_INVALID_LENGTH; return 1; }
     switch (req[0]) {
-        case CTAP2_GET_INFO: return get_info(cfg, out, cap);
-        default:             out[0] = CTAP1_ERR_INVALID_COMMAND; return 1;
+        case CTAP2_GET_INFO:  return get_info(cfg, out, cap);
+        case CTAP2_MAKE_CRED: return make_cred(cfg, req, len, out, cap);
+        default:              out[0] = CTAP1_ERR_INVALID_COMMAND; return 1;
     }
 }

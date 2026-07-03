@@ -103,6 +103,73 @@ static void test_authdata_flags_counter(void) {
     TEST_ASSERT_EQUAL_MEMORY(att, out + 37, 5);
 }
 
+// ---- mock crypto (deterministic, non-cryptographic) for CTAP2 command tests ----
+static int mk_rand(uint8_t*d,size_t n,void*){for(size_t i=0;i<n;i++)d[i]=(uint8_t)(0x11+i);return 0;}
+static int mk_sha256(const uint8_t*m,size_t n,uint8_t o[32],void*){for(int i=0;i<32;i++){uint8_t v=(uint8_t)i;for(size_t j=i;j<n;j+=32)v^=m[j];o[i]=v;}return 0;}
+static int mk_keygen(uint8_t priv[32],uint8_t pub[65],void*){for(int i=0;i<32;i++)priv[i]=(uint8_t)(0x30+i);pub[0]=0x04;for(int i=1;i<65;i++)pub[i]=(uint8_t)(0x50+i);return 0;}
+static int mk_sign(const uint8_t*,const uint8_t*,size_t,uint8_t*sig,size_t*sl,void*){static const uint8_t der[]={0x30,0x06,0x02,0x01,0x01,0x02,0x01,0x01};memcpy(sig,der,sizeof der);*sl=sizeof der;return 0;}
+static uint8_t aad_fp2(const uint8_t*a,size_t n){uint8_t f=0;for(size_t i=0;i<n;i++)f^=a[i];return f;}
+static int mk_seal(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,uint8_t*out,uint8_t tag[16],void*){for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];memset(tag,0,16);tag[0]=aad_fp2(aad,al);return 0;}
+static int mk_open(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,const uint8_t tag[16],uint8_t*out,void*){if(tag[0]!=aad_fp2(aad,al))return -1;for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];return 0;}
+static kerb_crypto_t MOCK={mk_rand,mk_sha256,mk_keygen,mk_sign,mk_seal,mk_open,nullptr};
+
+static bool g_present2 = true;
+static bool up2(void*){ return g_present2; }
+static ctap2_cfg_t mk_cfg(void) {
+    static uint8_t devkey[32]; for(int i=0;i<32;i++) devkey[i]=(uint8_t)(0xC0+i);
+    static uint8_t aaguid[16]; memset(aaguid,0xAA,16);
+    ctap2_cfg_t c; memset(&c,0,sizeof c);
+    c.cy=&MOCK; c.devkey=devkey; c.aaguid=aaguid; c.user_present=up2; c.store=nullptr;
+    return c;
+}
+
+// Build a makeCredential request (command byte + params CBOR) into out.
+static uint16_t build_makecred_req(uint8_t *out, size_t cap) {
+    CborEncoder enc, map;
+    cbor_encoder_init(&enc, out+1, cap-1, 0);
+    cbor_encoder_create_map(&enc, &map, 4);
+    cbor_encode_int(&map, 1); uint8_t cdh[32]; memset(cdh,0xCC,32); cbor_encode_byte_string(&map, cdh, 32);
+    cbor_encode_int(&map, 2); CborEncoder rp; cbor_encoder_create_map(&map,&rp,1);
+    cbor_encode_text_stringz(&rp,"id"); cbor_encode_text_stringz(&rp,"example.com"); cbor_encoder_close_container(&map,&rp);
+    cbor_encode_int(&map, 3); CborEncoder u; cbor_encoder_create_map(&map,&u,2);
+    cbor_encode_text_stringz(&u,"id"); uint8_t uid[4]={1,2,3,4}; cbor_encode_byte_string(&u,uid,4);
+    cbor_encode_text_stringz(&u,"name"); cbor_encode_text_stringz(&u,"a"); cbor_encoder_close_container(&map,&u);
+    cbor_encode_int(&map, 4); CborEncoder arr; cbor_encoder_create_array(&map,&arr,1);
+    CborEncoder e; cbor_encoder_create_map(&arr,&e,2);
+    cbor_encode_text_stringz(&e,"alg"); cbor_encode_int(&e,-7);
+    cbor_encode_text_stringz(&e,"type"); cbor_encode_text_stringz(&e,"public-key");
+    cbor_encoder_close_container(&arr,&e); cbor_encoder_close_container(&map,&arr);
+    cbor_encoder_close_container(&enc,&map);
+    size_t n = cbor_encoder_get_buffer_size(&enc, out+1);
+    out[0] = 0x01;                                   // makeCredential command
+    return (uint16_t)(1+n);
+}
+
+static void test_makecred_packed(void) {
+    g_present2 = true;
+    ctap2_cfg_t cfg = mk_cfg();
+    uint8_t req[256]; uint16_t rl = build_makecred_req(req, sizeof req);
+    uint8_t out[512]; uint16_t n = ctap2_handle(&cfg, req, rl, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    CborParser p; CborValue map; TEST_ASSERT_EQUAL_INT(0, cbor_get_map(out+1, n-1, &p, &map));
+    char fmt[16]; size_t fl = sizeof fmt;
+    TEST_ASSERT_EQUAL_INT(0, cbor_map_text(&map, 1, fmt, &fl));
+    TEST_ASSERT_EQUAL_STRING("packed", fmt);
+    uint8_t ad[320]; size_t adl = sizeof ad;
+    TEST_ASSERT_EQUAL_INT(0, cbor_map_bytes(&map, 2, ad, &adl));
+    TEST_ASSERT_TRUE(ad[32] & 0x40);                 // AT flag
+    TEST_ASSERT_TRUE(ad[32] & 0x01);                 // UP flag
+}
+
+static void test_makecred_denied(void) {
+    g_present2 = false;
+    ctap2_cfg_t cfg = mk_cfg();
+    uint8_t req[256]; uint16_t rl = build_makecred_req(req, sizeof req);
+    uint8_t out[512]; uint16_t n = ctap2_handle(&cfg, req, rl, out, sizeof out);
+    (void)n;
+    TEST_ASSERT_EQUAL_UINT8(0x27, out[0]);           // CTAP2_ERR_OPERATION_DENIED
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -110,6 +177,8 @@ int main(int, char **) {
     RUN_TEST(test_getinfo_has_fido2);
     RUN_TEST(test_cose_es256);
     RUN_TEST(test_authdata_flags_counter);
+    RUN_TEST(test_makecred_packed);
+    RUN_TEST(test_makecred_denied);
     return UNITY_END();
 }
 
