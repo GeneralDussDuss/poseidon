@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Testers &mdash; POSEIDON</title>
-<meta name="description" content="POSEIDON v0.6.3 shipped. Argus mood sprite, six themes, ambient motion, raw-IDF AP path, BLE cooperative tick, C5 protocol v3. Regression sweep needs eyes on real hardware.">
+<meta name="description" content="POSEIDON v0.6.8 shipped with KERBEROS, a hand built FIDO2 / U2F hardware security key. Plus the Argus mood sprite, six themes, and the C5 protocol. This build needs eyes on real hardware.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -17,7 +17,7 @@
   <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> testers.html <span class="ok">OK</span></div></div>
 </div>
 <div id="scrollProgress"></div>
-<div id="hud"><div class="hud-row"><span class="hud-dot"></span>TESTERS &middot; v0.6.3 shipped &middot; Hydra cap on the bench</div></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>TESTERS &middot; v0.6.8 shipped &middot; KERBEROS needs eyes</div></div>
 
 <nav id="mainNav">
   <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
@@ -38,15 +38,15 @@
 <header class="page-head">
   <div class="kicker">04 // FIELD TEAM</div>
   <h1>For testers</h1>
-  <p class="lede">v0.6.3 is shipped — on top of the biggest single drop since 0.5. Big stuff to verify on real hardware: the <b style="color:#d946ef;">Argus mood-sprite gotchi</b>, <b style="color:#d946ef;">six themes</b> + ambient motion + screensavers, the rewritten <b style="color:#d946ef;">raw-IDF AP path</b> (Portal, Beacon Spam, Evil Twin), the <b style="color:#d946ef;">BLE cooperative tick refactor</b> (Sour Apple, Spam, Karma actually firing now), and the <b style="color:#d946ef;">C5 protocol v3</b> with 5G scan terminator. The Hydra hat sub-GHz regression sweep is queued for the bench. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.</p>
+  <p class="lede">v0.6.8 is shipped, and the headline is <b style="color:#10b981;">KERBEROS</b>, a FIDO2 / U2F hardware security key hand written on the ESP32-S3 that needs eyes on real hardware (top of the list below). Still wanting a regression pass from the big v0.6.0 drop: the <b style="color:#d946ef;">Argus mood-sprite gotchi</b>, <b style="color:#d946ef;">six themes</b> + ambient motion + screensavers, the rewritten <b style="color:#d946ef;">raw-IDF AP path</b> (Portal, Beacon Spam, Evil Twin), the <b style="color:#d946ef;">BLE cooperative tick refactor</b> (Sour Apple, Spam, Karma actually firing now), and the <b style="color:#d946ef;">C5 protocol v3</b> with 5G scan terminator. The Hydra hat sub-GHz regression sweep is queued for the bench. Full doc: <a href="https://github.com/GeneralDussDuss/poseidon/blob/master/TESTERS.md" target="_blank"><code>TESTERS.md</code></a>.</p>
 </header>
 
 <div class="console-strip">
   <div class="console-bar">
     <span class="ck">[FIELD]</span>
-    <span>tagged=<span class="ck">v0.6.3</span></span>
+    <span>tagged=<span class="ck">v0.6.8</span></span>
     <span>master=<span class="hot">unreleased</span></span>
-    <span>top-priorities=<span class="nm">Argus / themes / Portal / BLE spam / C5 v3</span></span>
+    <span>top-priorities=<span class="nm">KERBEROS passkey / Argus / Portal / C5 v3</span></span>
     <span>flash=<span class="vk">flash/ &mdash; chrome/edge web flasher</span></span>
     <span class="blink">&blacktriangleright;</span>
   </div>
@@ -54,6 +54,21 @@
 
 <section id="testers" style="padding-top:1rem;">
   <div class="test-grid">
+
+    <div class="test-card reveal" style="border-color:rgba(16,185,129,.5);box-shadow:0 0 0 1px rgba(16,185,129,.1), 0 24px 60px -20px rgba(16,185,129,.28);">
+      <div class="test-prio" style="color:#10b981;">&starf; NEW in v0.6.8 &middot; KERBEROS FIDO2 SECURITY KEY</div>
+      <h3>The Cardputer as a real hardware passkey</h3>
+      <p>Brand new and the headline of this release. The U2F and CTAP2 stacks are hand written on the ESP32-S3 and passed against Yubico&apos;s <code>python-fido2</code> here, but it needs eyes on more machines, browsers, and real sites.</p>
+      <ul class="test-steps">
+        <li>Press <code>k</code> from the root menu &middot; confirm the KEY MODE prompt &middot; ENTER to reboot into it</li>
+        <li>Confirm the screen shows <b>FIDO security key active</b> and the PC sees a security key (Windows shows a <code>HID-compliant fido</code> device; the browser offers a security key option)</li>
+        <li>Register + sign in on a real site &middot; <b>GitHub</b> (Settings &rarr; Passkeys / Security keys) or <b>webauthn.io</b> &middot; approve with ENTER on the device</li>
+        <li>Try a <b>passkey</b>: register a resident / discoverable credential where the site offers it, then sign in with no username</li>
+        <li>Press <code>`</code> to exit &middot; confirm it reboots to normal and BadUSB + the serial port come back</li>
+      </ul>
+      <div class="test-note" style="border-left-color:#10b981;"><b>Report:</b> does the OS recognise it as a security key at all; do register and authenticate succeed; any USB weirdness switching in and out of key mode; whether BadUSB still works after you exit.</div>
+      <div class="test-note"><b>Known caveats:</b> key mode reboots the device (FIDO must be the sole USB HID device). Adblockers can break <code>webauthn.io</code>, so use a real site or an incognito window. Local Windows account login is not FIDO reachable (Microsoft / Entra accounts only). PIN and user verification are Phase 3; today it is presence only (the ENTER press).</div>
+    </div>
 
     <div class="test-card p1 reveal" style="border-color:rgba(245,158,11,.5);box-shadow:0 0 0 1px rgba(245,158,11,.1), 0 24px 60px -20px rgba(245,158,11,.25);">
       <div class="test-prio" style="color:#f59e0b;">&starf; Priority 1 &middot; C5 WEB FLASHER (just deployed)</div>
@@ -134,7 +149,7 @@
     <div class="test-card p6 reveal">
       <div class="test-prio">Priority 6 &middot; Regression sweep (broad surface)</div>
       <h3>Every menu leaf still enters without crashing</h3>
-      <p>163 features. Hit each one once, even if just to enter and back out. Anything that crashes or reboots is a regression we want to know about now. Sub-GHz gets its full pass once the Hydra hat is on the bench.</p>
+      <p>164 features. Hit each one once, even if just to enter and back out. Anything that crashes or reboots is a regression we want to know about now. Sub-GHz gets its full pass once the Hydra hat is on the bench.</p>
       <ul class="test-steps">
         <li><b>WiFi (17):</b> Scan / Clients / Deauth / Deauth All / Detector / AP Clone / Evil Portal / Karma / Beacon Spam / Probe Sniff / PMKID / Spectrum / Wardrive / CIW / Connect</li>
         <li><b>BLE (16):</b> Scan / Spam / Bad-KB / Tracker Detect / Tracker Finder / Sniffer / iBeacon / Clone / GATT / Flood / Karma / Sour Apple / Find My / Toys / Drone RID / WhisperPair</li>
@@ -152,7 +167,7 @@
   <div class="test-report reveal">
     <h4>Ideal bug report</h4>
     <ul>
-      <li><b>Build</b>: v0.6.3 (tagged) or master + commit SHA (boot splash shows version)</li>
+      <li><b>Build</b>: v0.6.8 (tagged) or master + commit SHA (boot splash shows version)</li>
       <li><b>Hardware</b>: Cardputer-Adv + which hat attached (CAP-LoRa1262 / Hydra RF / W5500 / none / C5 satellite paired)</li>
       <li><b>Feature path</b>: e.g. <code>LoRa &rarr; Mesh Chat &rarr; T &rarr; type &rarr; ENTER</code></li>
       <li><b>What happened</b> vs <b>what you expected</b></li>
