@@ -6,9 +6,9 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-(empty — new work since 0.6.4 lands here)
+(empty — new work since 0.6.8 lands here)
 
-## [0.6.4] - 2026-07-03
+## [0.6.8] - 2026-07-03
 
 ### Added
 

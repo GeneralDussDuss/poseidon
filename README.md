@@ -20,7 +20,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![features](https://img.shields.io/badge/features-164-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
-![version](https://img.shields.io/badge/version-0.6.4-cyan?style=flat-square)
+![version](https://img.shields.io/badge/version-0.6.8-cyan?style=flat-square)
 ![security key](https://img.shields.io/badge/KERBEROS-FIDO2%20passkey-10b981?style=flat-square)
 
 **163 attacks in your pocket — WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, and LAN — driven by a real QWERTY keyboard.**
@@ -28,7 +28,7 @@ POSEIDON turns the M5Stack Cardputer-Advance into a keyboard-first hacking deck:
 
 [**Flash it now →**](#quick-start--flash-it) · [Download latest .bin](https://github.com/GeneralDussDuss/poseidon/releases/latest) · [Web site](https://generaldussduss.github.io/poseidon) · [Changelog](CHANGELOG.md)
 
-**🔐 New in 0.6.4 — KERBEROS.** POSEIDON is now also a real **FIDO2 / U2F hardware security key**. Press `k`, plug into a PC, and register actual **passkeys** — including usernameless discoverable login. The U2F and CTAP2 stacks are hand written on the ESP32-S3 and verified end to end against Yubico's `python-fido2`. [Details ↓](#-kerberos-fido2-security-key)
+**🔐 New in 0.6.8: KERBEROS.** POSEIDON is now also a real **FIDO2 / U2F hardware security key**. Press `k`, plug into a PC, and register actual **passkeys**, including usernameless discoverable login. The U2F and CTAP2 stacks are hand written on the ESP32-S3 and verified end to end against Yubico's `python-fido2`. [Details ↓](#-kerberos-fido2-security-key)
 
 </div>
 
