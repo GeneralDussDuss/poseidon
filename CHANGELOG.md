@@ -6,7 +6,33 @@ versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-(empty — new work since 0.6.3 lands here)
+(empty — new work since 0.6.4 lands here)
+
+## [0.6.4] - 2026-07-03
+
+### Added
+
+- **KERBEROS — FIDO2 / U2F hardware security key.** Press `k` and the Cardputer
+  becomes a real USB security key. The U2F (CTAP1) and CTAP2 protocol stacks are
+  hand written on the ESP32-S3 — CBOR, COSE key encoding, ECDSA over NIST P256,
+  attestation objects, authenticator data — with no off the shelf FIDO library.
+  - **Passkeys**: non-resident (wrapped key handle) and resident / discoverable
+    credentials stored in NVS. Usernameless sign in works.
+  - **Verified end to end** against Yubico's `python-fido2` reference library:
+    attestation and assertion signatures both check out, non-resident and
+    resident.
+  - Credential private keys are generated on device (mbedTLS) and never leave it.
+  - On device presence approval before any signature.
+  - Boot "key mode": entering KERBEROS reboots into a FIDO only USB personality
+    so it is the sole HID device (the OS only recognises a lone FIDO interface);
+    exiting reboots back to normal. Both modes keep the serial port for flashing.
+  - Works today as a second factor on Google, GitHub, and any WebAuthn site.
+  - Design, plan, and native + on device test suites live in the repo
+    (`lib/kerberos_core`, `src/features/kerberos*`, `docs/specs`, `docs/plans`).
+
+### Changed
+
+- Vendored TinyCBOR v0.6.0 (`lib/tinycbor`) for host and device CBOR.
 
 ## [0.6.3] - 2026-06-13
 
