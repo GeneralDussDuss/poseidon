@@ -70,6 +70,7 @@
 #define MESH_PORT_NODEINFO       4
 #define MESH_PORT_ROUTING        5
 #define MESH_PORT_TELEMETRY      67
+#define MESH_PORT_TRACEROUTE_APP 70
 
 /* ===== Public types ===== */
 
@@ -98,11 +99,30 @@ struct mesh_message_t {
     uint16_t  text_len;
 };
 
+/* ===== Channel config (NVS-backed, set via mesh_channel feature) ===== */
+
+/* The active channel name used for frequency derivation and channel hash.
+ * Empty string = "LongFast" default. Read from NVS key "ch_name". */
+const char *mesh_active_channel_name(void);
+
+/* The active 16-byte AES PSK. Either loaded from NVS key "ch_psk" or
+ * the hardcoded default. */
+const uint8_t *mesh_active_psk(void);
+
+/* The computed channel hash (byte 13 in packet headers). */
+uint8_t mesh_active_channel_hash(void);
+
+/* The TX/RX frequency in MHz, derived from djb2(channel_name) mod 104. */
+float mesh_active_freq_mhz(void);
+
 /* ===== Lifecycle ===== */
 
 /* Bring up the Meshtastic stack on top of lora_hw. Call radio_switch(RADIO_LORA)
  * first. Returns true on success. Starts a background RX task that keeps the
- * radio in receive mode and populates the node + message queues. */
+ * radio in receive mode and populates the node + message queues.
+ *
+ * Reads channel config (name + PSK) from NVS on startup so custom
+ * channels are supported. Use feat_mesh_channel() to configure. */
 bool mesh_begin(void);
 void mesh_end(void);
 bool mesh_is_up(void);
@@ -115,12 +135,13 @@ const char *mesh_own_short_name(void);
 /* ===== TX ===== */
 
 /* Broadcast a text message to everyone on the default channel.
- * Returns true if the packet was accepted for transmit. */
-bool mesh_send_broadcast_text(const char *text);
+ * Returns 0 on failure, or the packet_id on success (truthy in boolean
+ * context for backward compatibility with existing callers). */
+uint32_t mesh_send_broadcast_text(const char *text);
 
 /* Send a text message to a specific node (paging).
- * Returns true if the packet was accepted for transmit. */
-bool mesh_send_direct_text(uint32_t dest_node_id, const char *text);
+ * Returns 0 on failure, or the packet_id on success. */
+uint32_t mesh_send_direct_text(uint32_t dest_node_id, const char *text);
 
 /* Broadcast our NodeInfo (User proto) so others add us to their rosters. */
 bool mesh_send_nodeinfo(void);
@@ -157,6 +178,19 @@ bool mesh_drain_new_message(void);
 /* Clear in-memory message log. Doesn't touch node roster. */
 void mesh_clear_messages(void);
 
+/* ===== ACK delivery tracking ===== */
+
+enum mesh_ack_status_t : uint8_t {
+    MESH_ACK_PENDING,   /* waiting for ACK, retry in progress */
+    MESH_ACK_OK,        /* ACK received — message delivered */
+    MESH_ACK_FAILED     /* all retries exhausted — delivery failed */
+};
+
+/* Query delivery status of a sent message by its packet_id (the value
+ * returned by mesh_send_broadcast_text / mesh_send_direct_text).
+ * Returns MESH_ACK_FAILED if the id is unknown or expired. */
+mesh_ack_status_t mesh_ack_status(uint32_t packet_id);
+
 /* ===== Position reporting toggle ===== */
 
 /* When enabled, mesh layer broadcasts NodeInfo every ~30min and Position
@@ -167,3 +201,29 @@ bool mesh_position_reporting(void);
 /* Call periodically from a feature's main loop to drive background
  * NodeInfo + Position broadcasts. Safe to call every tick. */
 extern "C" void mesh_tick(void);
+
+/* ===== Traceroute ===== */
+
+#define MESH_TRACEROUTE_MAX_HOPS  8
+
+struct mesh_traceroute_result_t {
+    uint32_t route[MESH_TRACEROUTE_MAX_HOPS];  /* node IDs along path */
+    int8_t   snr[MESH_TRACEROUTE_MAX_HOPS];    /* SNR per hop (dB, rounded) */
+    int      hops;                               /* valid entries in route[] */
+    bool     complete;                           /* true when result ready */
+};
+
+/* Send a traceroute request to dest_node_id. The mesh firmware on
+ * intermediate Meshtastic nodes will populate the route as the packet
+ * traverses the mesh, and the destination sends back the full path.
+ * Returns true if the request packet was transmitted. */
+bool mesh_send_traceroute(uint32_t dest_node_id);
+
+/* Check if a traceroute response has arrived. Copies the result into
+ * *out and returns true; clears the internal result. Returns false if
+ * no result is pending. */
+bool mesh_traceroute_result(mesh_traceroute_result_t *out);
+
+/* Clear any pending traceroute result. Call before starting a new
+ * traceroute to avoid stale data. */
+void mesh_traceroute_clear(void);

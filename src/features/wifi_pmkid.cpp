@@ -520,7 +520,7 @@ void feat_wifi_pmkid(void)
      * hashcat lines with real ESSIDs from the first capture instead of
      * waiting for beacons in-session. */
     s_cache_n = 0;
-    if (g_wdr_ap_count > 0) {
+    if (g_wdr_aps && g_wdr_ap_count > 0) {
         int limit = g_wdr_ap_count < BS_CACHE ? g_wdr_ap_count : BS_CACHE;
         for (int i = 0; i < limit; ++i) {
             memcpy(s_cache[i].bssid, g_wdr_aps[i].bssid, 6);

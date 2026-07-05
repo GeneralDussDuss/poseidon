@@ -51,6 +51,25 @@ bool mesh_pb_decode_user(const uint8_t *buf, size_t len, mesh_user_t *out);
 bool mesh_pb_encode_position(mesh_buf_t *b, const mesh_position_t *pos);
 bool mesh_pb_decode_position(const uint8_t *buf, size_t len, mesh_position_t *out);
 
+/* RouteDiscovery proto — used by TRACEROUTE_APP (portnum 70).
+ * repeated uint32 route        = 1;
+ * repeated int32  snr_towards  = 2;
+ * repeated uint32 route_back   = 3;
+ * repeated int32  snr_back     = 4;
+ *
+ * SNR values in the proto are (actual_dB * 4) cast to int32. */
+struct mesh_route_discovery_t {
+    uint32_t route[MESH_TRACEROUTE_MAX_HOPS];
+    int32_t  snr_towards[MESH_TRACEROUTE_MAX_HOPS];
+    int      route_count;
+    uint32_t route_back[MESH_TRACEROUTE_MAX_HOPS];
+    int32_t  snr_back[MESH_TRACEROUTE_MAX_HOPS];
+    int      route_back_count;
+};
+
+bool mesh_pb_encode_traceroute(mesh_buf_t *b, const mesh_route_discovery_t *rd);
+bool mesh_pb_decode_traceroute(const uint8_t *buf, size_t len, mesh_route_discovery_t *out);
+
 /* ==================== crypto ==================== */
 
 /* AES-CTR-128 encrypt/decrypt in place. Key is 16 bytes. The counter block

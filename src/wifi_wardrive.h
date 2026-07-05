@@ -27,5 +27,9 @@ struct wdr_ap_t {
     bool     dirty;
 };
 
-extern wdr_ap_t g_wdr_aps[WARDRIVE_MAX_APS];
-extern int      g_wdr_ap_count;
+/* heap-001: was static BSS (20 KB). Now allocated on first wardrive
+ * call — other features (Triton, wifi_scan) read it so it persists
+ * for the session.  g_wdr_aps_init() allocates; never freed. */
+extern wdr_ap_t *g_wdr_aps;
+extern int       g_wdr_ap_count;
+bool g_wdr_aps_init(void);  /* idempotent — returns false on OOM */

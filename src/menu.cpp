@@ -136,6 +136,8 @@ extern void feat_mesh_chat(void);
 extern void feat_mesh_nodes(void);
 extern void feat_mesh_page(void);
 extern void feat_mesh_position(void);
+extern void feat_mesh_traceroute(void);
+extern void feat_mesh_channel(void);
 extern void feat_gps_fix(void);
 extern void feat_subghz_scan(void);
 extern void feat_subghz_record(void);
@@ -750,9 +752,10 @@ static const menu_node_t MENU_LORA[] = {
       "RSSI + peak hold + dBm grid, waterfall spectrogram heatmap, and "
       "live oscilloscope waveform. Covers 430-440, 860-870, 900-930 MHz." },
     { 'c', "Mesh Chat", "Meshtastic text chat — send + receive", nullptr, feat_mesh_chat,
-      "Live feed of received Meshtastic text messages on the default "
-      "LongFast channel, with a text input to broadcast back. POSEIDON "
-      "participates as a real mesh node with a MAC-derived node ID." },
+      "Live feed of received Meshtastic text messages on the active "
+      "channel (default: LongFast, configurable via Chan Cfg), with a "
+      "text input to broadcast back. POSEIDON participates as a real "
+      "mesh node with a MAC-derived node ID." },
     { 'n', "Mesh Nodes", "Live roster of seen Meshtastic nodes", nullptr, feat_mesh_nodes,
       "Scrollable list of all detected mesh nodes with short name, "
       "node ID, SNR/RSSI, hops, last-seen, and GPS pin indicator. "
@@ -764,6 +767,16 @@ static const menu_node_t MENU_LORA[] = {
       "When enabled, POSEIDON broadcasts NodeInfo every 30min and Position "
       "every 15min (if GPS has a fix). We'll show up as a pin on other "
       "Meshtastic apps within range." },
+    { 't', "Trace", "Traceroute to mesh node", nullptr, feat_mesh_traceroute,
+      "Sends a Meshtastic traceroute request to a picked node. "
+      "Intermediate mesh nodes populate the hop path with SNR at "
+      "each relay. Shows the full route: You -> Hop1 -> ... -> Dest. "
+      "10-second timeout. Useful for mapping mesh topology." },
+    { 'h', "Chan Cfg", "Channel name / PSK / freq config", nullptr, feat_mesh_channel,
+      "Set a custom Meshtastic channel name and PSK so POSEIDON can join "
+      "non-default channels (e.g. 'Op0-COMNET'). The channel name determines "
+      "the TX/RX frequency via djb2 mod 104 and the packet header hash. "
+      "Both sides must share the same name + PSK." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 

@@ -7,6 +7,7 @@
 #include "input.h"
 #include "radio.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
 #include <Preferences.h>
@@ -65,7 +66,30 @@ void feat_wifi_connect(void)
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
     }
 
+    /* Force-reset WiFi driver state.  A previous connect attempt can
+     * leave the STA stuck in an infinite AUTH_EXPIRE retry loop — new
+     * WiFi.begin() calls then fail with ESP_ERR_WIFI_STATE (0x3006)
+     * because the driver thinks it's "already connecting".  We must
+     * stop + restart the driver to break the loop. */
+    WiFi.disconnect(true, true);
+    esp_wifi_stop();
+    delay(100);
     WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, false);
+    delay(200);
+
+    uint32_t heap = ESP.getFreeHeap();
+    Serial.printf("[wifi] connect: ssid='%s' pass_len=%u\n",
+                  ssid.c_str(), (unsigned)pass.length());
+    Serial.printf("[wifi] mode=%d status=%d heap=%u\n",
+                  WiFi.getMode(), WiFi.status(), (unsigned)heap);
+
+    if (heap < 20000) {
+        Serial.printf("[wifi] WARN: heap critically low (%u) — "
+                      "connection may fail\n", (unsigned)heap);
+        ui_toast("low heap — may fail", T_WARN, 1200);
+    }
+
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
     d.setTextColor(T_WARN, T_BG);
@@ -82,6 +106,7 @@ void feat_wifi_connect(void)
     }
 
     d.fillRect(0, BODY_Y + 22, SCR_W, 60, T_BG);
+    Serial.printf("[wifi] result: status=%d (3=CONNECTED)\n", WiFi.status());
     if (WiFi.status() == WL_CONNECTED) {
         d.setTextColor(T_GOOD, T_BG);
         d.setCursor(4, BODY_Y + 22); d.print("CONNECTED");

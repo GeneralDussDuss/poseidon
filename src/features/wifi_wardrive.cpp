@@ -27,8 +27,17 @@ static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /* Public AP table — persists across feature exits so Triton + others can
  * seed themselves from what we've already catalogued in this session. */
-wdr_ap_t g_wdr_aps[WARDRIVE_MAX_APS];
-int      g_wdr_ap_count = 0;
+/* heap-001: dynamically allocated on first use (saves 20 KB BSS). */
+wdr_ap_t *g_wdr_aps     = nullptr;
+int       g_wdr_ap_count = 0;
+
+bool g_wdr_aps_init(void)
+{
+    if (g_wdr_aps) return true;
+    g_wdr_aps = (wdr_ap_t *)calloc(WARDRIVE_MAX_APS, sizeof(wdr_ap_t));
+    if (!g_wdr_aps) Serial.println("[wardrive] OOM: g_wdr_aps alloc failed");
+    return g_wdr_aps != nullptr;
+}
 
 /* File-scope aliases for the existing internal code — keeps the diff
  * minimal. Both names refer to the same storage. */
@@ -128,6 +137,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     if (subtype != 0x8 && subtype != 0x5) return;
 
     portENTER_CRITICAL_ISR(&s_wdr_mux);
+    if (!s_aps) { portEXIT_CRITICAL_ISR(&s_wdr_mux); return; }
     const uint8_t *bssid = p + 16;
     int idx = find_ap(bssid);
     if (idx < 0) {
