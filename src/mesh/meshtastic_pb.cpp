@@ -57,7 +57,7 @@ static bool write_bytes(mesh_buf_t *b, uint8_t field, const uint8_t *bytes, size
 {
     if (!write_tag(b, field, 2)) return false;
     if (!write_varint(b, (uint64_t)n)) return false;
-    if (b->len + n > b->cap) return false;
+    if (n > b->cap - b->len) return false;
     memcpy(b->data + b->len, bytes, n);
     b->len += n;
     return true;
