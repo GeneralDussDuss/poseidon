@@ -128,6 +128,16 @@ static m1_entry_t *m1_slot(const uint8_t *bssid, const uint8_t *sta)
     return e;
 }
 
+/* Lookup-only: exact (bssid, sta) match or null. Used for M2 so a cache-full
+ * miss can't pair the M2 with an unrelated evicted M1's ANonce. */
+static m1_entry_t *m1_find(const uint8_t *bssid, const uint8_t *sta)
+{
+    for (int i = 0; i < s_m1_n; ++i)
+        if (memcmp(s_m1[i].bssid, bssid, 6) == 0 &&
+            memcmp(s_m1[i].sta,   sta,   6) == 0) return &s_m1[i];
+    return nullptr;
+}
+
 /* Emit WPA*01* (PMKID) */
 static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t *sta)
 {
@@ -284,6 +294,11 @@ static bool parse_eapol(const uint8_t *frame, int len,
     ki->kd_data   = eapol + 99;
     ki->eapol_raw = eapol;
     ki->eapol_len = eapol_len;
+    /* Trim trailing FCS/padding: the real EAPOL frame length is the 4-byte
+     * 802.1X header + its length field. Emitting the padded (sig_len) length
+     * appends junk to hashcat's EAPOL hex so the MIC never verifies. */
+    int real_len = 4 + (((int)eapol[2] << 8) | eapol[3]);
+    if (real_len > 0 && real_len < eapol_len) ki->eapol_len = real_len;
     return true;
 }
 
@@ -344,7 +359,7 @@ static void handle_eapol(const uint8_t *frame, int len)
 
     /* M2: from STA, MIC=1, ACK=0, Install=0. Pair with stored M1. */
     if (!from_ap && mic_set && !ack_set && !install_set) {
-        m1_entry_t *e = m1_slot(bssid, sta);
+        m1_entry_t *e = m1_find(bssid, sta);   /* lookup-only: no wrong-slot pairing */
         if (e && e->m1_len > 0) {
             /* Use M2's EAPOL frame body for the 22000 "eapol" field
              * (hashcat prefers M2 for decoded MIC). */

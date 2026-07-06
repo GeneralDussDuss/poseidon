@@ -458,6 +458,15 @@ static m1_t *m1_slot(const uint8_t *b, const uint8_t *s)
     return e;
 }
 
+/* Lookup-only for M2 — null on miss so a cache-full evict can't pair the M2
+ * with an unrelated M1's ANonce (corrupt handshake). */
+static m1_t *m1_find(const uint8_t *b, const uint8_t *s)
+{
+    for (int i = 0; i < s_m1_n; ++i)
+        if (!memcmp(s_m1[i].bssid, b, 6) && !memcmp(s_m1[i].sta, s, 6)) return &s_m1[i];
+    return nullptr;
+}
+
 static void handle_eapol(const uint8_t *frame, int len)
 {
     if (len < 40) return;
@@ -473,6 +482,9 @@ static void handle_eapol(const uint8_t *frame, int len)
     const uint8_t *eapol = llc + 8;
     int elen = len - (eapol - frame);
     if (elen < 99 || eapol[1] != 0x03) return;   /* need through Key-Data-Length @ 97-98 */
+    /* Trim trailing FCS/padding to the real EAPOL frame length (4-byte 802.1X
+     * header + its length field) so emitted handshakes verify in hashcat. */
+    { int real = 4 + (((int)eapol[2] << 8) | eapol[3]); if (real > 0 && real < elen) elen = real; }
 
     s_eapol++;
 
@@ -527,7 +539,7 @@ static void handle_eapol(const uint8_t *frame, int len)
         }
     } else if (!from_ap && mic_set && !ack_set && !install_set) {
         /* M2 */
-        m1_t *e = m1_slot(bssid, sta);
+        m1_t *e = m1_find(bssid, sta);
         if (e && e->m1_len > 0) emit_hs(bssid, sta, mic, e->anonce, eapol, elen);
     }
 }
