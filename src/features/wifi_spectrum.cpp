@@ -27,6 +27,7 @@ static volatile uint32_t s_pkts[CH_N + 1];
 static volatile uint8_t s_current_ch = 1;
 static volatile bool    s_running = false;
 static volatile bool    s_decay_alive = false;
+static volatile bool    s_hop_alive   = false;
 
 /* Visual style — cycled via V key, persisted to NVS. */
 enum spec_style_t : uint8_t {
@@ -94,11 +95,13 @@ static void spec_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         s_current_ch = (s_current_ch % 13) + 1;
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
         delay(80);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -437,7 +440,7 @@ void feat_wifi_spectrum(void)
      * longer than the old delay(200), so it could still be running when
      * the next feature inits the radio. Bounded wait. */
     uint32_t deadline = millis() + 800;
-    while (s_decay_alive && millis() < deadline) delay(5);
+    while ((s_decay_alive || s_hop_alive) && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     delay(200);
 }

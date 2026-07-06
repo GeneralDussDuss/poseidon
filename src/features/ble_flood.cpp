@@ -50,12 +50,13 @@ static void set_random_mac(void)
  * toasted "task fail" because NimBLE init left only ~2.5 KB heap — not
  * enough for a 4 KB task stack. Same bug as Sour Apple / Find My /
  * BLE Spam fixed 2026-05-24. */
+static bool s_flood_init = false;   /* file-scope: feat entry resets it so each
+                                     * session re-reads the current g_ble_target */
 static void flood_tick(void)
 {
-    static bool s_init = false;
     static ble_addr_t target;
-    if (!s_init) {
-        s_init = true;
+    if (!s_flood_init) {
+        s_flood_init = true;
         NimBLEScan *scan = NimBLEDevice::getScan();
         if (scan) scan->stop();
         target.type = g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM;
@@ -85,6 +86,7 @@ void feat_ble_flood(void)
         ui_toast("scan + select first", T_WARN, 1200);
         return;
     }
+    s_flood_init = false;   /* re-read the selected target for this session */
     radio_switch(RADIO_BLE);
 
     s_flood_count = 0;
