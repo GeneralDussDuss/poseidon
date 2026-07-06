@@ -270,7 +270,8 @@ static void hop_task(void *)
     while (s_running) {
         s_current_ch = (s_current_ch % 13) + 1;
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
-        delay(300);
+        delay(150);   /* ~2s full 13-ch sweep — fast enough to catch a target's
+                       * periodic probes without missing frames per dwell. */
     }
     s_hop_alive = false;
     vTaskDelete(nullptr);
