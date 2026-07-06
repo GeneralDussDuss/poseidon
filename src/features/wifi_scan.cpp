@@ -24,6 +24,8 @@
 #include <esp_heap_caps.h>
 #include <esp_netif.h>
 #include <esp_event.h>
+#include <math.h>
+#include <esp_event.h>
 #include <SD.h>
 
 #define MAX_APS 64
@@ -359,6 +361,89 @@ void wifi_show_ap_details(const ap_t &a)
     }
 }
 
+/* ---- Animated scanning screen -------------------------------------------
+ * The raw esp_wifi scan runs non-blocking (blocking=false) so esp_wifi's own
+ * task does the channel hopping while THIS task stays free to animate a radar
+ * sweep. A SCAN_DONE event flips the flag. We never spawn our own scan task —
+ * that overflowed the stack even at 8 KB (see the note in feat_wifi_scan). */
+static volatile bool s_scan_evt_done = false;
+static void wifi_scan_evt_cb(void *, esp_event_base_t base, int32_t id, void *) {
+    if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) s_scan_evt_done = true;
+}
+static void ensure_scan_evt(void) {
+    static bool reg = false;
+    if (!reg) {
+        esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_scan_evt_cb, nullptr);
+        reg = true;
+    }
+}
+
+#define RADAR_CX 58
+#define RADAR_CY (BODY_Y + 56)
+#define RADAR_R  40
+
+/* Static chrome, drawn once before the sweep starts. */
+static void scan_screen_static(void) {
+    ui_clear_body();
+    auto &d = M5Cardputer.Display;
+    d.setTextSize(2);
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(110, BODY_Y + 14); d.print("SCANNING");
+    d.setTextSize(1);
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(110, BODY_Y + 36); d.print("2.4 GHz  all ch");
+    ui_draw_footer("`=cancel");
+}
+
+/* One animation frame: clear + redraw the radar (so the sweep doesn't smear),
+ * plot a contact per AP found so far, and refresh the live counters. */
+static void scan_screen_frame(int pass, int found, uint32_t elapsed) {
+    auto &d = M5Cardputer.Display;
+    d.fillRect(RADAR_CX - RADAR_R - 2, RADAR_CY - RADAR_R - 2,
+               (RADAR_R + 2) * 2, (RADAR_R + 2) * 2, T_BG);
+    ui_radar(RADAR_CX, RADAR_CY, RADAR_R, T_ACCENT2);
+    for (int i = 0; i < found && i < MAX_APS; ++i) {
+        float ang = i * 2.39996f;                 /* golden angle, spreads them out */
+        int rssi = s_aps[i].rssi;
+        if (rssi > -30) rssi = -30;
+        if (rssi < -90) rssi = -90;
+        int dist = 6 + (RADAR_R - 12) * (rssi + 90) / 60;   /* stronger = closer in */
+        int x = RADAR_CX + (int)(cosf(ang) * dist);
+        int y = RADAR_CY + (int)(sinf(ang) * dist);
+        d.fillCircle(x, y, 2, T_GOOD);
+        d.drawPixel(x, y, 0xFFFF);
+    }
+    d.setTextSize(1);
+    d.fillRect(110, BODY_Y + 50, SCR_W - 110, 46, T_BG);
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(110, BODY_Y + 54); d.printf("pass %d/2", pass);
+    d.setTextColor(T_GOOD, T_BG);
+    d.setCursor(110, BODY_Y + 70); d.printf("found %d ap%s", found, found == 1 ? "" : "s");
+    d.setTextColor(T_ACCENT, T_BG);
+    char sweep[10] = "sweep";
+    int dots = (elapsed / 300) % 4;
+    for (int i = 0; i < dots; ++i) sweep[5 + i] = '.';
+    sweep[5 + dots] = '\0';
+    d.setCursor(110, BODY_Y + 86); d.print(sweep);
+}
+
+/* Run one scan pass non-blocking, animating until SCAN_DONE. Returns false if
+ * the user cancelled with ESC. */
+static bool scan_pass_animated(wifi_scan_config_t *scfg, int pass) {
+    ensure_scan_evt();
+    s_scan_evt_done = false;
+    if (esp_wifi_scan_start(scfg, false) != ESP_OK) return true;  /* let record read handle it */
+    uint32_t t0 = millis();
+    while (!s_scan_evt_done) {
+        scan_screen_frame(pass, s_ap_count, millis() - t0);
+        uint16_t key = input_poll();
+        if (key == PK_ESC) { esp_wifi_scan_stop(); return false; }
+        delay(35);
+        if (millis() - t0 > 9000) break;      /* safety: never hang forever */
+    }
+    return true;
+}
+
 void feat_wifi_scan(void)
 {
     static int s_saved_cursor = 0;     /* remembered across re-entries */
@@ -368,14 +453,10 @@ void feat_wifi_scan(void)
     s_filter_open_only = false;
 
     ui_draw_status(radio_name(), s_have_results ? "cached" : "scanning...");
-    ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
-    draw_list(s_saved_cursor);
 
-    /* Inline sync scan — Evil-M5Project pattern. Wrapping in a
-     * FreeRTOS task (our prior approach) was triggering a stack
-     * canary overflow on the wifi_scan task, even at 8 KB. The lib's
-     * own scan loop wants to run on the caller task. Block the UI for
-     * the ~2 s scan; it's fine. */
+    /* Non-blocking raw scan with a live radar sweep — esp_wifi's own task
+     * hops channels while this task animates. Spawning our own scan task
+     * overflowed the stack even at 8 KB, so that route is out. */
     if (!s_have_results) {
         s_ap_count = 0;
         s_scan_running = true;
@@ -402,7 +483,9 @@ void feat_wifi_scan(void)
         scfg.scan_type         = WIFI_SCAN_TYPE_ACTIVE;
         scfg.scan_time.active.min = 80;
         scfg.scan_time.active.max = 250;
-        esp_err_t scan_rc = esp_wifi_scan_start(&scfg, true);
+        scan_screen_static();
+        bool ok1 = scan_pass_animated(&scfg, 1);
+        esp_err_t scan_rc = ok1 ? ESP_OK : ESP_FAIL;
         uint16_t n_u = 0;
         esp_wifi_scan_get_ap_num(&n_u);
         int n = (scan_rc == ESP_OK) ? (int)n_u : -2;
@@ -454,7 +537,7 @@ void feat_wifi_scan(void)
         /* No WiFi.scanDelete needed — raw IDF auto-frees. */
 
         /* Second pass via raw IDF too. */
-        esp_err_t scan_rc2 = esp_wifi_scan_start(&scfg, true);
+        esp_err_t scan_rc2 = (ok1 && scan_pass_animated(&scfg, 2)) ? ESP_OK : ESP_FAIL;
         uint16_t n2_u = 0;
         esp_wifi_scan_get_ap_num(&n2_u);
         int n2 = (scan_rc2 == ESP_OK) ? (int)n2_u : -2;
@@ -499,6 +582,9 @@ void feat_wifi_scan(void)
         s_scan_running = false;
         s_scan_done = true;
     }
+
+    ui_draw_footer("/=flt O=open S=save R=rescan ENTER=info `=back");
+    draw_list(s_saved_cursor);
 
     int cursor = s_saved_cursor;
     /* Track the last-painted state so we only redraw incrementally. The

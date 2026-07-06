@@ -14,6 +14,7 @@
 #include "radio.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include "wifi_deauth_frame.h"   /* wifi_lean_sta_init pairs with wifi_silent_ap_begin */
 
 #define MAX_SPAM 32
 
@@ -86,6 +87,7 @@ static char         s_custom[MAX_SPAM][33];
 static int          s_custom_n = 0;
 static volatile bool     s_running = false;
 static volatile uint32_t s_sent    = 0;
+static volatile int      s_last_rc = -99;   /* last esp_wifi_80211_tx rc */
 
 static void spam_task(void *)
 {
@@ -102,7 +104,12 @@ static void spam_task(void *)
         uint8_t ch = 1 + (i % 11);
         esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
         int len = build_beacon(frame, ssid, ch, bssid);
-        esp_wifi_80211_tx(WIFI_IF_STA, frame, len, false);
+        int rc = esp_wifi_80211_tx(WIFI_IF_STA, frame, len, false);
+        for (int r = 0; rc == ESP_ERR_NO_MEM && r < 4; ++r) {   /* pool full — retry like deauth */
+            delay(3);
+            rc = esp_wifi_80211_tx(WIFI_IF_STA, frame, len, false);
+        }
+        s_last_rc = rc;
         s_sent++;
         i++;
         delay(30);
@@ -155,8 +162,14 @@ static void pick_list(void)
 void feat_wifi_beacon_spam(void)
 {
     radio_switch(RADIO_WIFI);
-    WiFi.mode(WIFI_STA);
-    esp_wifi_set_promiscuous(true);   /* required for raw 802.11 TX */
+    /* Root cause of "beacon spam does nothing": the old WiFi.mode(WIFI_STA)
+     * is Arduino's, and it asserts / leaves WiFi wedged when a prior feature
+     * (the scan, deauth) already raw-inited WiFi via esp_wifi_init (the netif
+     * already exists). Use the exact raw-safe setup deauth uses to land raw
+     * TX: lean IDF init + silent-AP begin (STA mode + promiscuous, no Arduino
+     * WiFi.mode). TX stays on WIFI_IF_STA, same as deauth. */
+    wifi_lean_sta_init();
+    wifi_silent_ap_begin(1);
 
     pick_list();
     if (s_list_n == 0 && s_custom_n == 0) {
@@ -184,6 +197,13 @@ void feat_wifi_beacon_spam(void)
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 20); d.printf("SSIDs: %d", n);
             d.setCursor(4, BODY_Y + 32); d.printf("sent:  %lu", (unsigned long)s_sent);
+            int rc = s_last_rc;
+            d.setTextColor(rc == 0 ? T_GOOD : (rc > 0 ? T_BAD : T_DIM), T_BG);
+            d.setCursor(4, BODY_Y + 44);
+            d.printf("tx rc: %d %s", rc,
+                     rc == 0 ? "on-air" : rc == 257 ? "NO_MEM" :
+                     rc == 258 ? "filtered" : rc == 12289 ? "no-init" : "");
+            d.setTextColor(T_FG, T_BG);
             ui_draw_status(radio_name(), "spam");
         }
         /* Hex packet-stream readout across the bottom. */
