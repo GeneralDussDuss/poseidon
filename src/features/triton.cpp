@@ -639,6 +639,7 @@ static void triton_tick(uint16_t &seq, uint32_t &last_hunt)
                 int sent = wifi_deauth_broadcast(s_target_bssid, &seq);
                 s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                 delay(25);
+                if (input_poll() == PK_ESC) { s_alive = false; break; }
             }
         } else {
             uint8_t bssids[BS_N][6];
@@ -655,7 +656,11 @@ static void triton_tick(uint16_t &seq, uint32_t &last_hunt)
                     int sent = wifi_deauth_broadcast(bssids[i], &seq);
                     s_deauth_frames += (uint32_t)(sent > 0 ? sent : 0);
                     delay(25);
+                    /* A full storm window is ~144 bursts x 25ms (~3.6s); poll
+                     * ESC so the keyboard isn't dead that whole time. */
+                    if (input_poll() == PK_ESC) { s_alive = false; break; }
                 }
+                if (!s_alive) break;
             }
         }
         wifi_silent_ap_end();
@@ -1478,11 +1483,13 @@ void feat_triton(void)
     }
 
     s_alive = false;
+    /* Disable RX BEFORE the final flush so the WiFi-task cb can't enqueue a
+     * new handshake after we've drained the queue (it would never reach SD). */
+    esp_wifi_set_promiscuous(false);
+    delay(30);   /* let any in-flight cb finish */
     capture_flush();
     wdr_flush();
     triton_learn_save();
-    delay(100);
-    esp_wifi_set_promiscuous(false);
     if (s_file)     { s_file.flush();     s_file.close(); }
     if (s_wdr_file) { s_wdr_file.flush(); s_wdr_file.close(); }
     gps_end();
