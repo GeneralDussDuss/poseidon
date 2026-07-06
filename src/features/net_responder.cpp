@@ -35,9 +35,13 @@ static File s_log;
  * Input: the full incoming packet. We parse the question name and
  * append an A-record answer. */
 static void build_llmnr_reply(const uint8_t *in, int in_len, IPAddress ip,
-                              uint8_t *out, int *out_len)
+                              uint8_t *out, int out_cap, int *out_len)
 {
-    if (in_len < 12) { *out_len = 0; return; }
+    /* The copy plus the 16-byte A-record answer appended below must fit in
+     * `out`. in_len is attacker-controlled (a LAN peer can send ~1460-byte
+     * datagrams); unbounded it smashed the 256-byte stack buffer. Reject
+     * anything that would not fit. */
+    if (in_len < 12 || in_len + 16 > out_cap) { *out_len = 0; return; }
     int n = in_len;
     memcpy(out, in, n);
     /* Flags: QR=1, Opcode=0, AA=1, RD=0, RA=0, RCODE=0. */
@@ -61,7 +65,7 @@ static void on_llmnr(AsyncUDPPacket p)
     s_queries++;
     uint8_t reply[256];
     int rlen;
-    build_llmnr_reply(p.data(), p.length(), WiFi.localIP(), reply, &rlen);
+    build_llmnr_reply(p.data(), p.length(), WiFi.localIP(), reply, sizeof(reply), &rlen);
     if (rlen > 0) {
         s_llmnr.writeTo(reply, rlen, p.remoteIP(), p.remotePort());
         s_replies++;
@@ -79,7 +83,7 @@ static void on_mdns(AsyncUDPPacket p)
     s_queries++;
     uint8_t reply[256];
     int rlen;
-    build_llmnr_reply(p.data(), p.length(), WiFi.localIP(), reply, &rlen);
+    build_llmnr_reply(p.data(), p.length(), WiFi.localIP(), reply, sizeof(reply), &rlen);
     if (rlen > 0) {
         s_mdns.writeTo(reply, rlen, p.remoteIP(), p.remotePort());
         s_replies++;

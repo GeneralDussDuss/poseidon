@@ -280,7 +280,7 @@ void feat_tool_mac_rand(void)
     mac[0] &= 0xFE;  /* unicast */
     mac[0] |= 0x02;  /* locally administered */
 
-    WiFi.mode(WIFI_STA);
+    wifi_lean_sta_init();   /* raw-safe STA init; Arduino WiFi.mode() asserts on a raw-inited driver. */
     esp_wifi_set_mac(WIFI_IF_STA, mac);
 
     ui_clear_body();

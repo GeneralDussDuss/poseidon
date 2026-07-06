@@ -637,7 +637,8 @@ static void enter_wifi_phase(void)
     if (NimBLEDevice::isInitialized()) NimBLEDevice::deinit(true);
     delay(80);
     radio_switch(RADIO_WIFI);
-    WiFi.mode(WIFI_STA);
+    wifi_lean_sta_init();   /* raw-safe STA init; Arduino WiFi.mode() asserts on a
+                             * driver a prior feature already raw-inited (netif exists). */
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_promiscuous_rx_cb(promisc_cb);
     esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);

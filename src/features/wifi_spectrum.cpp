@@ -385,7 +385,7 @@ static void draw_spectrum(void)
 void feat_wifi_spectrum(void)
 {
     radio_switch(RADIO_WIFI);
-    WiFi.mode(WIFI_STA);
+    wifi_lean_sta_init();   /* raw-safe STA init; Arduino WiFi.mode() asserts on a raw-inited driver. */
 
     for (int c = 0; c <= CH_N; ++c) { s_peak[c] = -100; s_pkts[c] = 0; }
     s_current_ch = 1;

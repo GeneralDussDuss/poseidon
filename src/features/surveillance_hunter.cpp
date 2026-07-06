@@ -282,7 +282,7 @@ void feat_surveillance_hunter(void)
         return;
     }
     radio_switch(RADIO_WIFI);
-    WiFi.mode(WIFI_STA);
+    wifi_lean_sta_init();   /* raw-safe STA init; Arduino WiFi.mode() asserts / NO_MEMs. */
     /* OPSEC: GPS only if the user explicitly opted in. Otherwise hits are
      * logged without coordinates (have_gps stays false in log_hit). */
     if (gps_user_enabled()) gps_begin();

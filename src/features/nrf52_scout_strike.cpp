@@ -96,6 +96,7 @@ static void do_nimble_scan(void) {
         }
     };
 
+    pScan->setMaxResults(200);   /* POS-AUDIT-011: bound the ad vector (OOM reboot on dense scans). */
     pScan->setActiveScan(true);
     NimBLEScanResults ar = pScan->getResults(6000, false);
     ingest(ar); pScan->clearResults();

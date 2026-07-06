@@ -329,6 +329,11 @@ static void start_scan(void)
      * tracker-specific data live) + 5 s passive (catches trackers like
      * AirTag / Tile / SmartTag that advertise without responding to
      * scan-req, and devices running in LE-only low-power mode). */
+    /* POS-AUDIT-011: bound the accumulated advertised-device vector. With
+     * duplicates included this ballooned to ~550 entries in a dense area and
+     * OOM-rebooted on the no-PSRAM S3. Cap it — ingest still gets plenty, and
+     * the cap sits well under the reboot threshold. */
+    pBLEScan->setMaxResults(200);
     pBLEScan->setActiveScan(true);
     Serial.println("[ble] active pass"); Serial.flush();
     NimBLEScanResults active_results = pBLEScan->getResults(8000, false);

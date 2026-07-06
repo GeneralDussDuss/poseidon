@@ -80,7 +80,8 @@ void feat_nrf52_wifi_ble_combo(void)
     sfx_deauth_burst();
 
     radio_switch(RADIO_WIFI);
-    WiFi.mode(WIFI_STA);
+    wifi_lean_sta_init();   /* raw-safe STA init (ensures driver is up); wifi_silent_ap_begin
+                             * only sets mode, so keep a real init here like deauth does. */
     wifi_silent_ap_set_source_mac(target_bssid);
     esp_err_t ap_rc = wifi_silent_ap_begin(channel);
     Serial.printf("[combo] deauth phase ch=%u rc=%d\n", channel, (int)ap_rc);

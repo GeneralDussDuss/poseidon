@@ -7,6 +7,7 @@
 #include "input.h"
 #include "radio.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
 #include <Preferences.h>
@@ -65,7 +66,14 @@ void feat_wifi_connect(void)
         if ((k == 'c' || k == 'C') && ssid.length() > 0) break;
     }
 
-    WiFi.mode(WIFI_STA);
+    /* Guard the Arduino WiFi.mode(): if a prior feature raw-inited the driver,
+     * WiFi's cached mode is stale and WiFi.mode() double-creates the STA netif
+     * and asserts. Only let Arduino init when the driver is truly down.
+     * (Mirror of mesh.cpp / c5_cmd.cpp — POS-AUDIT-020.) */
+    wifi_mode_t cur = WIFI_MODE_NULL;
+    if (esp_wifi_get_mode(&cur) != ESP_OK) {
+        WiFi.mode(WIFI_STA);
+    }
     WiFi.begin(ssid.c_str(), pass.c_str());
     ui_clear_body();
     d.setTextColor(T_WARN, T_BG);
