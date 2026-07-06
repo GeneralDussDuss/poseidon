@@ -234,12 +234,16 @@ static void handle_resp_probe(const c5_msg_t *m)
 {
     if (m->payload_len < (int)sizeof(c5_probe_t)) return;
     const c5_probe_t *p = (const c5_probe_t *)m->payload;
+    /* ssid_len is an attacker-controlled uint8 (<=255) but ssid is char[33];
+     * clamp to the max SSID length so it can't drive OOB reads in the memcmp
+     * below or in the stored copy used by later dedup passes. */
+    uint8_t ssid_len = p->ssid_len > 32 ? 32 : p->ssid_len;
     portENTER_CRITICAL(&s_mux);
     /* Dedup by (src, ssid). */
     for (int i = 0; i < s_probe_n; ++i) {
         if (memcmp(s_probes[i].src, p->src, 6) == 0 &&
-            s_probes[i].ssid_len == p->ssid_len &&
-            memcmp(s_probes[i].ssid, p->ssid, p->ssid_len) == 0) {
+            s_probes[i].ssid_len == ssid_len &&
+            memcmp(s_probes[i].ssid, p->ssid, ssid_len) == 0) {
             portEXIT_CRITICAL(&s_mux);
             return;
         }
@@ -248,7 +252,9 @@ static void handle_resp_probe(const c5_msg_t *m)
         memmove(s_probes, s_probes + 1, sizeof(c5_probe_t) * (MAX_PROBES - 1));
         s_probe_n = MAX_PROBES - 1;
     }
-    memcpy(&s_probes[s_probe_n++], p, sizeof(c5_probe_t));
+    memcpy(&s_probes[s_probe_n], p, sizeof(c5_probe_t));
+    s_probes[s_probe_n].ssid_len = ssid_len;
+    s_probe_n++;
     portEXIT_CRITICAL(&s_mux);
 }
 

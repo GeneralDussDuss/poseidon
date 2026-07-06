@@ -67,6 +67,7 @@
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool     s_running    = false;
+static volatile bool     s_hop_alive  = false;
 static volatile uint32_t s_total      = 0;
 static volatile uint32_t s_deauth_now = 0;   /* current 1s-window count     */
 static volatile uint32_t s_beacons_total = 0;
@@ -588,11 +589,13 @@ static void drain_alerts(void)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         s_current_ch = (s_current_ch % 13) + 1;
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
         delay(300);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -805,6 +808,11 @@ void feat_defensive_monitor(void)
     }
 
     s_running = false;
+    /* Join the hop task before tearing down radios — its loop period
+     * (300ms) outlives the old delay(150), so it could still hit
+     * esp_wifi_set_channel while the next feature inits. Bounded wait. */
+    uint32_t deadline = millis() + 800;
+    while (s_hop_alive && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     if (NimBLEDevice::getScan() && NimBLEDevice::getScan()->isScanning()) {
         NimBLEDevice::getScan()->stop();

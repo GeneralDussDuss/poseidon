@@ -28,6 +28,7 @@ static db_target_t s_b_targets[DB_MAX_APS];
 static volatile int s_b_target_n = 0;
 static volatile int s_b_cursor = 0;
 static volatile bool     s_b_running = false;
+static volatile bool     s_broad_alive = false;
 static volatile uint32_t s_b_sent    = 0;
 static volatile uint32_t s_b_errs    = 0;
 static uint16_t          s_b_seq     = 0;
@@ -38,6 +39,7 @@ static void broad_task(void *)
      * the usual softAP + 80211_tx path. 5 GHz targets get delegated to
      * the C5/TRIDENT satellite over ESP-NOW — the S3 can't tune to 5 GHz
      * channels, so without the C5 those APs are silent. */
+    s_broad_alive = true;
     wifi_silent_ap_begin(1);
     uint32_t last_5g_cmd = 0;
     while (s_b_running) {
@@ -68,6 +70,7 @@ static void broad_task(void *)
         s_b_cursor++;
     }
     wifi_silent_ap_end();
+    s_broad_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -93,6 +96,11 @@ static void db_scan_populate(void)
     scfg.scan_type            = WIFI_SCAN_TYPE_ACTIVE;
     scfg.scan_time.active.min = 80;
     scfg.scan_time.active.max = 150;
+    /* The blocking scan below stalls the UI ~2 s. Paint a clear scanning
+     * screen first so the freeze reads as intentional, not a hang. */
+    ui_clear_body();
+    ui_text(4, BODY_Y + 20, T_ACCENT, "SCANNING 2.4 GHz");
+    ui_text(4, BODY_Y + 34, T_DIM, "finding targets...");
     esp_err_t scan_rc = esp_wifi_scan_start(&scfg, true);
     uint16_t n_u = 0;
     esp_wifi_scan_get_ap_num(&n_u);
@@ -292,6 +300,11 @@ static void run_broadcast_dashboard(const char *banner)
         if (k == PK_ESC) break;
     }
     s_b_running = false;
+    /* Join the worker before tearing down promisc — otherwise its
+     * trailing wifi_silent_ap_end() (5 GHz branch sleeps delay(400))
+     * can race the next feature. */
+    uint32_t deadline = millis() + 800;
+    while (s_broad_alive && millis() < deadline) delay(5);
     delay(150);
     esp_wifi_set_promiscuous(false);
 }

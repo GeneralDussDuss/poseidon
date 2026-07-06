@@ -36,6 +36,8 @@ static volatile uint32_t s_handshakes = 0;
 static volatile uint32_t s_eapol_seen = 0;
 static volatile uint8_t  s_current_ch = 1;
 static volatile bool     s_running = false;
+static volatile bool     s_hop_alive = false;
+static volatile bool     s_hunt_alive = false;
 static File              s_out;
 
 /* ---- notification state ---- */
@@ -362,11 +364,13 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         s_current_ch = (s_current_ch % 13) + 1;
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
         delay(500);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -384,6 +388,7 @@ static uint8_t s_hunt_frame[26] = {
 
 static void hunt_task(void *)
 {
+    s_hunt_alive = true;
     while (s_running) {
         if (s_hunt && s_cache_n > 0) {
             /* POS-AUDIT-206 / wifi-019: snapshot the BSSID list before
@@ -410,8 +415,13 @@ static void hunt_task(void *)
                  * starve the dynamic_tx_buf pool and return rc=257
                  * (ENOMEM). Same pattern as wifi_deauth_frame.h. */
                 for (int j = 0; j < 3; ++j) {
-                    esp_wifi_80211_tx(WIFI_IF_STA, s_hunt_frame,
-                                      sizeof(s_hunt_frame), false);
+                    int rc = esp_wifi_80211_tx(WIFI_IF_STA, s_hunt_frame,
+                                               sizeof(s_hunt_frame), false);
+                    for (int r = 0; rc == ESP_ERR_NO_MEM && r < 4; ++r) {
+                        delay(3);
+                        rc = esp_wifi_80211_tx(WIFI_IF_STA, s_hunt_frame,
+                                               sizeof(s_hunt_frame), false);
+                    }
                     vTaskDelay(pdMS_TO_TICKS(2));
                 }
                 delay(10);  /* per-BSSID gap */
@@ -419,6 +429,7 @@ static void hunt_task(void *)
         }
         delay(2000);
     }
+    s_hunt_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -643,6 +654,12 @@ void feat_wifi_pmkid(void)
 
     s_running = false;
     s_hunt = false;
+    /* Bounded join: both hop_task and hunt_task poll s_running each loop
+     * (hop ~500 ms, hunt ~2 s) then clear their alive flag right before
+     * vTaskDelete. Wait for both to actually exit so a fast re-entry
+     * can't spawn duplicates that fight the radio and leak task stacks. */
+    uint32_t deadline = millis() + 800;
+    while ((s_hop_alive || s_hunt_alive) && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     if (s_out) { s_out.flush(); s_out.close(); }
     delay(200);

@@ -191,7 +191,7 @@ static void extract_hash(const uint8_t *pkt, uint32_t pkt_len, const uint8_t *nt
 
     auto read_utf16 = [&](uint32_t off, uint16_t len, char *out, size_t cap) {
         size_t j = 0;
-        if (base + off + len > pkt_len) { out[0] = '\0'; return; }
+        if (off > pkt_len || len > pkt_len - off || base > pkt_len - off - len) { out[0] = '\0'; return; }
         for (uint16_t i = 0; i < len && j + 1 < cap; i += 2) {
             out[j++] = (char)pkt[base + off + i];
         }
@@ -213,6 +213,10 @@ static void extract_hash(const uint8_t *pkt, uint32_t pkt_len, const uint8_t *nt
     /* Full NTLMv2 response as hex. `nt_resp_len` is attacker-supplied (uint16),
      * so cap before allocating — a 131KB malloc will fail on a no-PSRAM S3. */
     if (nt_resp_len == 0 || nt_resp_len > 1024) return;
+    /* nt_resp_off is an attacker-supplied le32; bounds-check the whole read
+     * (base + off + len) against the packet before dumping. Compute in 64-bit
+     * so the offset cannot wrap the comparison and slip an OOB read through. */
+    if ((uint64_t)base + nt_resp_off + nt_resp_len > pkt_len) return;
     char *nt_hex = (char *)malloc((size_t)nt_resp_len * 2 + 1);
     if (!nt_hex) return;
     for (uint16_t i = 0; i < nt_resp_len; ++i) {

@@ -35,6 +35,7 @@ int      g_wdr_ap_count = 0;
 #define s_aps      g_wdr_aps
 #define s_ap_count g_wdr_ap_count
 static volatile bool s_running = false;
+static volatile bool s_hop_alive = false;
 static volatile uint32_t s_beacons = 0;
 static volatile uint8_t  s_current_ch = 1;
 static volatile bool     s_c5_hold    = false;  /* true = hop task parks on ch1 for a C5 5 GHz harvest window */
@@ -186,6 +187,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         if (s_c5_hold) {                 /* C5 5 GHz window: hold ch1 so the */
             if (s_current_ch != 1) {     /* satellite's ESP-NOW batch reaches us */
@@ -199,6 +201,7 @@ static void hop_task(void *)
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
         delay(400);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -383,6 +386,11 @@ void feat_wifi_wardrive(void)
     }
 
     s_running = false;
+    /* Join the hop task before returning — its loop period (400ms) is
+     * longer than the old delay(150), so it could still be issuing
+     * esp_wifi_set_channel when the next feature inits the radio. */
+    uint32_t deadline = millis() + 800;
+    while (s_hop_alive && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     flush_dirty_rows();
     if (s_csv) { s_csv.close(); }

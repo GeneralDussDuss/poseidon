@@ -23,6 +23,8 @@ static uint32_t s_baud    = GPS_BAUD;
 static bool s_started = false;
 static TaskHandle_t s_gps_task = nullptr;
 static volatile bool s_pause_poll = false;
+static volatile bool s_gps_stop  = false;
+static volatile bool s_gps_alive = false;
 
 bool gps_begin(void)
 {
@@ -36,15 +38,16 @@ void gps_end(void)
 {
     if (!s_started) return;
     /* Stop the poller before tearing down the UART so it can't read a
-     * half-closed port. Mirror the gps_cycle_baud pause: flag, brief
-     * delay to let the in-flight gps_poll iteration drain, then delete
-     * the task and null the handle so gps_ensure_running respawns it. */
+     * half-closed port. Force-deleting the task could fire mid-gps_poll()
+     * (UART read / newlib lock) and leak a lock or corrupt HardwareSerial.
+     * Instead signal a cooperative stop and bounded-join on the task's
+     * self-delete before ending the UART, then null the handle so
+     * gps_ensure_running respawns it. */
     s_pause_poll = true;
-    delay(20);
-    if (s_gps_task) {
-        vTaskDelete(s_gps_task);
-        s_gps_task = nullptr;
-    }
+    s_gps_stop   = true;
+    uint32_t d = millis() + 500;
+    while (s_gps_alive && millis() < d) delay(5);
+    s_gps_task   = nullptr;
     s_pause_poll = false;
     s_uart.end();
     /* gps-002: HardwareSerial::end() does not release the pin mode —
@@ -97,10 +100,13 @@ void gps_set_user_enabled(bool on)
  * spawn it post-boot when the user opens the GPS / Wardrive menu. */
 static void gps_task_fn(void *_)
 {
-    while (1) {
+    s_gps_alive = true;
+    while (!s_gps_stop) {
         gps_poll();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
+    s_gps_alive = false;
+    vTaskDelete(nullptr);
 }
 
 bool gps_ensure_running(void)
@@ -110,6 +116,7 @@ bool gps_ensure_running(void)
     gps_set_user_enabled(true);
     if (!s_started) gps_begin();
     if (!s_gps_task) {
+        s_gps_stop = false;  /* clear any prior cooperative-stop request */
         xTaskCreate(gps_task_fn, "gps", 3072, nullptr, 2, &s_gps_task);
     }
     return s_started;
@@ -156,6 +163,9 @@ static double nmea_to_degrees(const char *s, char hemi)
     int pre = dot ? (int)(dot - s) : (int)strlen(s);
     if (pre < 4) return 0.0;
     int deg_digits = pre - 2;
+    /* deg_buf holds up to 3 digits + NUL; a malformed/over-long field
+     * (many digits, or no dot) would otherwise overrun it. Reject. */
+    if (deg_digits > 3) return 0.0;
     char deg_buf[4] = {0};
     memcpy(deg_buf, s, deg_digits);
     double deg = atof(deg_buf);

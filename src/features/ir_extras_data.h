@@ -814,7 +814,25 @@ static const ir_extra_blast_t IR_EXTRA_POWER_TABLE[] = {
  * Arduino.h's unsigned-long signature. Route through the proper
  * header instead. */
 #include "ir_clone.h"
-#include <Arduino.h>      /* delay() */
+#include <Arduino.h>      /* delay(), millis() */
+#include "input.h"        /* input_poll(), PK_ESC */
+
+/* ir-004 / UI-thread fix: several pranks below fired multi-second to
+ * multi-minute delay() blocks with no input polling, so the keyboard was
+ * dead and `=back did nothing until the prank finished (up to ~5 min for
+ * prank_permanent_power_toggle). This helper sleeps in 20 ms slices while
+ * polling the keyboard, returning true the instant the user presses ESC so
+ * the caller can abort. Drop-in replacement for a blocking delay(). */
+static inline bool prank_abort_sleep(uint32_t ms)
+{
+    uint32_t start = millis();
+    while ((millis() - start) < ms) {
+        uint16_t k = input_poll();
+        if (k == PK_ESC) return true;
+        delay(20);
+    }
+    return false;
+}
 
 static inline void prank_power_bomb(void)
 {
@@ -909,11 +927,10 @@ static inline void prank_source_roulette(void)
  */
 static inline void prank_mute_torture(void)
 {
-    extern void delay(uint32_t);
     for (int i = 0; i < 38; ++i) {
         send_samsung(0x0F);  /* Mute */
         send_lg(0x09);       /* Mute */
-        delay(800);
+        if (prank_abort_sleep(800)) return;  /* polls keyboard; ESC aborts */
     }
 }
 
@@ -929,12 +946,10 @@ static inline void prank_mute_torture(void)
  */
 static inline void prank_permanent_power_toggle(uint32_t duration_ms)
 {
-    extern void delay(uint32_t);
-    extern uint32_t millis(void);
     uint32_t start = millis();
     while ((millis() - start) < duration_ms) {
         prank_power_bomb();
-        delay(3000);
+        if (prank_abort_sleep(3000)) return;  /* polls keyboard between bombs; ESC aborts */
     }
 }
 
@@ -951,18 +966,17 @@ static inline void prank_permanent_power_toggle(uint32_t duration_ms)
  */
 static inline void prank_cable_is_out(uint32_t cycles)
 {
-    extern void delay(uint32_t);
     for (uint32_t c = 0; c < cycles; ++c) {
         send_samsung(0x01);  /* Source -> away from current input */
-        delay(4000);
+        if (prank_abort_sleep(4000)) return;
         send_samsung(0x01);
-        delay(4000);
+        if (prank_abort_sleep(4000)) return;
         /* Cycle back through ~5 inputs to land somewhere plausible. */
         for (int i = 0; i < 5; ++i) {
             send_samsung(0x01);
-            delay(800);
+            if (prank_abort_sleep(800)) return;
         }
-        delay(45000);  /* 45s "normal" before next dropout */
+        if (prank_abort_sleep(45000)) return;  /* 45s "normal" before next dropout; ESC aborts */
     }
 }
 
@@ -979,11 +993,10 @@ static inline void prank_cable_is_out(uint32_t cycles)
  */
 static inline void prank_caption_chaos(void)
 {
-    extern void delay(uint32_t);
     for (int i = 0; i < 40; ++i) {
         send_samsung(0x39);  /* Caption */
         send_lg(0x39);       /* (LG also uses ~0x39 on most models) */
-        delay(600);
+        if (prank_abort_sleep(600)) return;  /* polls keyboard; ESC aborts */
     }
 }
 

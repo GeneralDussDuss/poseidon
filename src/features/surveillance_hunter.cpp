@@ -32,6 +32,7 @@
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile bool      s_running   = false;
+static volatile bool      s_hop_alive = false;
 static volatile uint32_t  s_total     = 0;
 static volatile uint32_t  s_hit_t1    = 0;
 static volatile uint32_t  s_hit_t2    = 0;
@@ -265,11 +266,13 @@ static void drain_hit_queue(void)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         s_current_ch = (s_current_ch % 13) + 1;
         esp_wifi_set_channel(s_current_ch, WIFI_SECOND_CHAN_NONE);
         delay(300);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -362,6 +365,11 @@ void feat_surveillance_hunter(void)
     }
 
     s_running = false;
+    /* Join the hop task before returning — its loop period (300ms) is
+     * longer than the old delay(150), so it could still be live when the
+     * next feature inits the radio. Bounded wait. */
+    uint32_t deadline = millis() + 800;
+    while (s_hop_alive && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     if (s_csv)   s_csv.close();
     if (s_jsonl) s_jsonl.close();

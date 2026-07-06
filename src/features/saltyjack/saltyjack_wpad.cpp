@@ -159,7 +159,9 @@ static void save_hash(const uint8_t *buf, size_t n, const char *client_ip_str)
     uint16_t user_len = le16(36);
     uint32_t user_off = le32(40);
 
-    if (nt_off + nt_len > n || user_off + user_len > n || dom_off + dom_len > n) return;
+    if (nt_off > n   || nt_len   > n - nt_off   ||
+        user_off > n || user_len > n - user_off ||
+        dom_off > n  || dom_len  > n - dom_off) return;
     if (nt_len < 16) return;
 
     char domain[40], username[40];

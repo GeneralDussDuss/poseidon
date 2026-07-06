@@ -26,6 +26,7 @@ static volatile int8_t  s_peak[CH_N + 1];
 static volatile uint32_t s_pkts[CH_N + 1];
 static volatile uint8_t s_current_ch = 1;
 static volatile bool    s_running = false;
+static volatile bool    s_decay_alive = false;
 
 /* Visual style — cycled via V key, persisted to NVS. */
 enum spec_style_t : uint8_t {
@@ -105,6 +106,7 @@ static void decay_task(void *)
 {
     /* Slowly decay peaks so the display responds to changes instead
      * of stuck at the all-time max. Subtract 1 dB every 500ms. */
+    s_decay_alive = true;
     while (s_running) {
         delay(500);
         for (int c = 1; c <= 13; ++c) {
@@ -112,6 +114,7 @@ static void decay_task(void *)
             if (v > -100) s_peak[c] = v - 1;
         }
     }
+    s_decay_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -430,6 +433,11 @@ void feat_wifi_spectrum(void)
     }
 
     s_running = false;
+    /* Join the decay task before returning — its loop period (500ms) is
+     * longer than the old delay(200), so it could still be running when
+     * the next feature inits the radio. Bounded wait. */
+    uint32_t deadline = millis() + 800;
+    while (s_decay_alive && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     delay(200);
 }

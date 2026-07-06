@@ -161,6 +161,7 @@ void feat_usb_guard(void)
     d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 20); d.print("UNPLUG the suspect cable.");
     d.setCursor(4, BODY_Y + 32); d.print("baselining RF...");
+    d.setCursor(4, BODY_Y + 44); d.print("scanning 2.4 GHz (1/3)");
     ui_draw_footer("scanning baseline");
 
     s_before_n = ug_scan(s_before, UG_MAX);
@@ -195,11 +196,15 @@ void feat_usb_guard(void)
     delay(1500);
 
     /* ---- Phase 3: detect deltas, run twice to catch slow beacons ---- */
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 78); d.print("scanning 2.4 GHz (2/3)");
     s_after_n = ug_scan(s_after, UG_MAX);
     delay(800);
     /* merge a second pass so a once-per-second beacon isn't missed */
     {
         ug_ap_t pass2[UG_MAX];
+        d.setTextColor(T_DIM, T_BG);
+        d.setCursor(4, BODY_Y + 78); d.print("scanning 2.4 GHz (3/3)");
         int p2 = ug_scan(pass2, UG_MAX);
         for (int i = 0; i < p2 && s_after_n < UG_MAX; ++i) {
             bool dup = false;

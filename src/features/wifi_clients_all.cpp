@@ -38,6 +38,7 @@ static volatile int      s_all_n  = 0;
 static volatile uint8_t  s_all_ch = 1;
 static volatile bool     s_running = false;
 static volatile bool     s_locked  = false;
+static volatile bool     s_hop_alive = false;
 
 static int find_pair(const uint8_t *sta, const uint8_t *bssid)
 {
@@ -94,6 +95,7 @@ static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
 static void hop_task(void *)
 {
+    s_hop_alive = true;
     while (s_running) {
         /* POS-AUDIT-211 / wifi-024: re-check s_locked immediately
          * before the set_channel syscall to close the small race
@@ -112,6 +114,7 @@ static void hop_task(void *)
         }
         delay(s_locked ? 200 : 400);
     }
+    s_hop_alive = false;
     vTaskDelete(nullptr);
 }
 
@@ -343,6 +346,11 @@ void feat_wifi_clients_all(void)
     }
 
     s_running = false;
+    /* Join the hop task before returning — its loop period (200/400ms) is
+     * longer than the old delay(150), so it could still be issuing
+     * esp_wifi_set_channel when the next feature inits the radio. */
+    uint32_t deadline = millis() + 800;
+    while (s_hop_alive && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     delay(150);
 }
