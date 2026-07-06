@@ -1180,6 +1180,7 @@ void feat_triton(void)
     uint32_t last_hunt = 0;
     uint32_t next_tick = millis();
     s_phase_5g = false;
+    uint32_t phase_started = millis();   /* 2.4/5 GHz time-slice clock */
     {
         extern volatile int wifi_deauth_last_rc;
         wifi_deauth_last_rc = -200;   /* cooperative path engaged */
@@ -1201,6 +1202,20 @@ void feat_triton(void)
     uint32_t last_overlay_at = 0;
     while (true) {
         c5_online = c5_any_online();   /* live satellite presence */
+        /* Time-slice 2.4 GHz (local softAP deauth) and 5 GHz (C5 satellite) so
+         * they don't fight for the shared raw-TX path. Enter the 5 GHz window
+         * only when a C5 is online; drop straight back to 2.4 GHz the moment it
+         * disappears. ~10 s per phase (see the 5 GHz block's rotation timing). */
+        {
+            uint32_t np = millis();
+            if (!c5_online) {
+                s_phase_5g = false;
+                phase_started = np;
+            } else if (np - phase_started >= 10000) {
+                s_phase_5g = !s_phase_5g;
+                phase_started = np;
+            }
+        }
         /* Cooperative tick — runs the hop+burst cycle inline. Gated
          * on the per-mode dwell so each channel gets its full window.
          * MUST come before input_poll which has a delay-and-continue
