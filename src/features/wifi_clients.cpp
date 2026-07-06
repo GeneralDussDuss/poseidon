@@ -47,9 +47,13 @@ static int cli_find_or_add(const uint8_t *mac)
     for (int i = 0; i < s_count; ++i)
         if (memcmp(s_clients[i].mac, mac, 6) == 0) return i;
     if (s_count >= MAX_CLIENTS) return -1;
-    int idx = s_count++;
+    /* Data-race fix: fully populate the fresh slot BEFORE publishing the
+     * count, so the UI task (which reads up to s_count) never sees a
+     * half-written row. Publish s_count last. */
+    int idx = s_count;
     memset(&s_clients[idx], 0, sizeof(s_clients[idx]));
     memcpy(s_clients[idx].mac, mac, 6);
+    s_count = idx + 1;
     return idx;
 }
 

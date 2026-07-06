@@ -255,7 +255,7 @@ static bool parse_eapol(const uint8_t *frame, int len,
 
     const uint8_t *eapol = llc + 8;
     int eapol_len = len - (int)(eapol - frame);
-    if (eapol_len < 95) return false;
+    if (eapol_len < 99) return false;    /* need through Key-Data-Length @ 97-98 */
     if (eapol[1] != 0x03) return false;  /* not EAPOL-Key */
 
     if (from_ds && !to_ds) {
@@ -276,8 +276,12 @@ static bool parse_eapol(const uint8_t *frame, int len,
     ki->key_info  = ((uint16_t)eapol[5] << 8) | eapol[6];
     ki->key_nonce = eapol + 17;
     ki->key_mic   = eapol + 81;
-    ki->kd_len    = ((uint16_t)eapol[93] << 8) | eapol[94];
-    ki->kd_data   = eapol + 95;
+    /* Key-Data-Length is at descriptor offset 93 = frame offset 97 (after the
+     * 4-byte 802.1X header + 16-byte MIC @ 81); key data follows at 99. The
+     * old 93/95 read into the MIC field, so kd_len was garbage and the PMKID
+     * KDE was never found. */
+    ki->kd_len    = ((uint16_t)eapol[97] << 8) | eapol[98];
+    ki->kd_data   = eapol + 99;
     ki->eapol_raw = eapol;
     ki->eapol_len = eapol_len;
     return true;

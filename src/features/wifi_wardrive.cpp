@@ -88,20 +88,36 @@ static const char *auth_to_wigle(uint8_t a)
 static void flush_dirty_rows(void)
 {
     if (!s_csv) return;
-    for (int i = 0; i < s_ap_count; ++i) {
+    /* Data-race fix: this runs on the UI task while the promisc RX callback
+     * writes s_aps[]/s_ap_count under s_wdr_mux. Snapshot the count, then
+     * per row briefly enter the mux to resolve the dirty/null-island
+     * bookkeeping and copy the row into a local — the SD I/O (printf) is
+     * done OUTSIDE the lock so the critical section stays short. */
+    int n;
+    portENTER_CRITICAL(&s_wdr_mux);
+    n = s_ap_count;
+    portEXIT_CRITICAL(&s_wdr_mux);
+    for (int i = 0; i < n; ++i) {
+        wdr_ap_t snap;
+        bool write_row = false;
+        portENTER_CRITICAL(&s_wdr_mux);
         wdr_ap_t &a = s_aps[i];
-        if (!a.dirty) continue;
-        a.dirty = false;
-        /* POS-AUDIT-208 / wifi-016: skip rows that never had a GPS fix.
-         * The previous code would write lat=0.0,lon=0.0 placeholders
-         * which WiGLE silently accepts but which corrupt aggregate
-         * maps — Gulf of Guinea null-island clusters from missed
-         * fixes. Better to drop the row entirely; the AP stays in the
-         * in-RAM table for a later flush when GPS catches up.  */
-        if (a.lat == 0.0 && a.lon == 0.0) {
-            a.dirty = true;     /* retry on next flush after GPS fix */
-            continue;
+        if (a.dirty) {
+            /* POS-AUDIT-208 / wifi-016: skip rows that never had a GPS fix.
+             * The previous code would write lat=0.0,lon=0.0 placeholders
+             * which WiGLE silently accepts but which corrupt aggregate
+             * maps — Gulf of Guinea null-island clusters from missed
+             * fixes. Better to drop the row entirely; the AP stays in the
+             * in-RAM table for a later flush when GPS catches up. Leave
+             * dirty=true so it retries on the next flush after a fix. */
+            if (!(a.lat == 0.0 && a.lon == 0.0)) {
+                a.dirty = false;
+                snap = a;           /* copy fields to write under the lock */
+                write_row = true;
+            }
         }
+        portEXIT_CRITICAL(&s_wdr_mux);
+        if (!write_row) continue;
         /* POS-AUDIT-207 / wifi-020: FirstSeen field left empty rather
          * than stamped with the CURRENT GPS snapshot's date — the per-AP
          * first_seen is a millis() since boot which can't be converted
@@ -110,10 +126,10 @@ static void flush_dirty_rows(void)
          * BSS for negligible WiGLE benefit; their importer infers time
          * from the upload telemetry header). Empty is honest. */
         s_csv.printf("%02X:%02X:%02X:%02X:%02X:%02X,%s,%s,,%u,%d,%.6f,%.6f,%.1f,5,WIFI\n",
-                     a.bssid[0], a.bssid[1], a.bssid[2],
-                     a.bssid[3], a.bssid[4], a.bssid[5],
-                     a.ssid, auth_to_wigle(a.auth),
-                     a.channel, a.rssi, a.lat, a.lon, a.alt);
+                     snap.bssid[0], snap.bssid[1], snap.bssid[2],
+                     snap.bssid[3], snap.bssid[4], snap.bssid[5],
+                     snap.ssid, auth_to_wigle(snap.auth),
+                     snap.channel, snap.rssi, snap.lat, snap.lon, snap.alt);
     }
     s_csv.flush();
 }

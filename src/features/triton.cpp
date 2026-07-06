@@ -472,7 +472,7 @@ static void handle_eapol(const uint8_t *frame, int len)
           llc[6] == 0x88 && llc[7] == 0x8E)) return;
     const uint8_t *eapol = llc + 8;
     int elen = len - (eapol - frame);
-    if (elen < 95 || eapol[1] != 0x03) return;
+    if (elen < 99 || eapol[1] != 0x03) return;   /* need through Key-Data-Length @ 97-98 */
 
     s_eapol++;
 
@@ -485,11 +485,13 @@ static void handle_eapol(const uint8_t *frame, int len)
     uint16_t key_info = ((uint16_t)eapol[5] << 8) | eapol[6];
     const uint8_t *nonce = eapol + 17;
     const uint8_t *mic = eapol + 81;
-    uint16_t kd_len = ((uint16_t)eapol[93] << 8) | eapol[94];
-    const uint8_t *kd = eapol + 95;
+    /* Key-Data-Length @ frame offset 97 (after 802.1X hdr + MIC @ 81), key
+     * data @ 99. Old 93/95 read into the MIC field, so PMKID was never found. */
+    uint16_t kd_len = ((uint16_t)eapol[97] << 8) | eapol[98];
+    const uint8_t *kd = eapol + 99;
     /* Bound kd_len to the captured frame (elen); the length field is
      * attacker-controlled and would otherwise walk past the RX buffer. */
-    { int kd_avail = elen - 95; if (kd_avail < 0) kd_avail = 0;
+    { int kd_avail = elen - 99; if (kd_avail < 0) kd_avail = 0;
       if ((int)kd_len > kd_avail) kd_len = (uint16_t)kd_avail; }
 
     /* PMKID walk. */

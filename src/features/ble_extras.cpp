@@ -63,13 +63,15 @@ class tracker_cb : public NimBLEScanCallbacks {
                 return;
             }
         }
-        if (s_tracker_count >= TRACKER_MAX) return;
-        tracker_t &t = s_trackers[s_tracker_count++];
+        int n = s_tracker_count;
+        if (n >= TRACKER_MAX) return;
+        tracker_t &t = s_trackers[n];
         memcpy(t.addr, a, 6);
         strncpy(t.type, type, sizeof(t.type) - 1);
         t.rssi = d->getRSSI();
         t.first_seen = millis();
         t.last_seen = millis();
+        s_tracker_count = n + 1;   /* publish LAST — slot fully filled above */
     }
 };
 static tracker_cb s_tracker_cb_obj;

@@ -79,14 +79,16 @@ class finder_cb : public NimBLEScanCallbacks {
                 return;
             }
         }
-        if (s_found_n >= FIND_MAX) return;
-        found_t &f = s_found[s_found_n++];
+        int n = s_found_n;
+        if (n >= FIND_MAX) return;
+        found_t &f = s_found[n];
         memcpy(f.addr, a, 6);
         strncpy(f.type, kind, sizeof(f.type) - 1);
         f.type[sizeof(f.type) - 1] = '\0';
         f.rssi = d->getRSSI();
         f.best_rssi = f.rssi;
         f.last_seen = millis();
+        s_found_n = n + 1;   /* publish LAST — slot fully filled above */
     }
 };
 static finder_cb s_cb_obj;

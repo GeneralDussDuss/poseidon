@@ -34,6 +34,9 @@ struct acli_t {
 };
 
 static acli_t s_all[MAX_ALL];
+/* Guards the s_all[] table + s_all_n against the promiscuous RX callback
+ * (WiFi task) racing the UI task's reads/deauth snapshots. */
+static portMUX_TYPE s_all_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile int      s_all_n  = 0;
 static volatile uint8_t  s_all_ch = 1;
 static volatile bool     s_running = false;
@@ -73,24 +76,45 @@ static void cb(void *buf, wifi_promiscuous_pkt_type_t type)
     if (sta[0] & 0x01) return;
     if (!memcmp(sta, bssid, 6)) return;
 
+    /* Data-race fix: the whole table lookup + add/evict + field update must
+     * be atomic vs the UI task. Two hazards without the lock:
+     *   1. increment-before-fill — publishing s_all_n via s_all_n++ before
+     *      the sta/bssid are memcpy'd lets the UI read a half-written row.
+     *   2. LRU evict overwrites a live row in place while the UI reads it.
+     * Hold s_all_mux across the whole block; for a fresh slot, populate it
+     * fully and publish s_all_n LAST. */
+    portENTER_CRITICAL_ISR(&s_all_mux);
     int idx = find_pair(sta, bssid);
     if (idx < 0) {
         if (s_all_n >= MAX_ALL) {
+            /* LRU evict: overwrite the oldest row in place (under lock). */
             int oldest = 0;
             for (int i = 1; i < s_all_n; ++i)
                 if (s_all[i].last_seen < s_all[oldest].last_seen) oldest = i;
             idx = oldest;
+            memcpy(s_all[idx].sta,   sta,   6);
+            memcpy(s_all[idx].bssid, bssid, 6);
+            s_all[idx].frames = 0;
         } else {
-            idx = s_all_n++;
+            /* Fresh slot: fill fully, THEN publish the count. */
+            idx = s_all_n;
+            memcpy(s_all[idx].sta,   sta,   6);
+            memcpy(s_all[idx].bssid, bssid, 6);
+            s_all[idx].frames = 0;
+            s_all[idx].rssi = pkt->rx_ctrl.rssi;
+            s_all[idx].ch   = s_all_ch;
+            s_all[idx].last_seen = millis();
+            s_all[idx].frames++;
+            s_all_n = idx + 1;
+            portEXIT_CRITICAL_ISR(&s_all_mux);
+            return;
         }
-        memcpy(s_all[idx].sta,   sta,   6);
-        memcpy(s_all[idx].bssid, bssid, 6);
-        s_all[idx].frames = 0;
     }
     s_all[idx].rssi = pkt->rx_ctrl.rssi;
     s_all[idx].ch   = s_all_ch;
     s_all[idx].last_seen = millis();
     s_all[idx].frames++;
+    portEXIT_CRITICAL_ISR(&s_all_mux);
 }
 
 static void hop_task(void *)
@@ -322,7 +346,13 @@ void feat_wifi_clients_all(void)
         if (k == '.' || k == PK_DOWN) { if (cursor + 1 < s_all_n) cursor++; }
         if (s_all_n == 0) continue;
 
-        const acli_t &sel = s_all[cursor];
+        /* Data-race fix: copy the selected row into a local BEFORE any
+         * deauth burst so a concurrent LRU evict on the RX task can't
+         * mutate the target (sta/bssid/ch) mid-burst. Snapshot under lock. */
+        acli_t sel;
+        portENTER_CRITICAL(&s_all_mux);
+        sel = s_all[cursor];
+        portEXIT_CRITICAL(&s_all_mux);
         if (k == 'd' || k == 'D') {
             unicast_deauth(sel.sta, sel.bssid, sel.ch, 30);
             ui_toast("deauth → STA", T_BAD, 500);
