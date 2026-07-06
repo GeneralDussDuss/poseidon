@@ -455,6 +455,11 @@ static void run_portal(void)
     esp_log_level_set("wifi_init", ESP_LOG_INFO);
     esp_netif_init();
     esp_event_loop_create_default();
+    /* Destroy any AP netif left from a prior run so the create below can't hit
+     * a duplicate WIFI_AP_DEF if_key -> esp_netif_new abort on re-entry.
+     * (Mirrors the WIFI_STA_DEF cleanup above.) */
+    esp_netif_t *old_ap = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (old_ap) esp_netif_destroy_default_wifi(old_ap);
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
     Serial.printf("[portal] ap_netif=%p\n", ap_netif);
 

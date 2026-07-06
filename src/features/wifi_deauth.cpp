@@ -343,6 +343,10 @@ void feat_wifi_deauth(void)
     /* Same wait on feature exit so SIGTERM / stop is clean. */
     uint32_t deadline = millis() + 500;
     while (s_deauth_task_alive && millis() < deadline) delay(5);
+    /* Restore promiscuous state so sniff_cb doesn't keep firing into the next
+     * feature (radio_switch leaves the driver in STA mode and won't clear it). */
+    esp_wifi_set_promiscuous_rx_cb(nullptr);
+    esp_wifi_set_promiscuous(false);
     wifi_silent_ap_end();
     wifi_silent_ap_set_source_mac(nullptr);   /* clear spoof state */
 }

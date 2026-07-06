@@ -138,7 +138,10 @@ static bool et_sta_up(uint8_t channel)
 {
     esp_netif_init();
     esp_event_loop_create_default();
-    if (!s_sta_netif_created) {
+    /* Gate on the netif actually existing, not a sticky flag — another feature
+     * (e.g. the portal) may have destroyed WIFI_STA_DEF since we last ran, and
+     * a stale flag would leave us with no STA netif. */
+    if (!esp_netif_get_handle_from_ifkey("WIFI_STA_DEF")) {
         esp_netif_create_default_wifi_sta();
         s_sta_netif_created = true;
     }
@@ -185,7 +188,7 @@ static bool et_ap_up(uint8_t channel)
 {
     esp_netif_init();
     esp_event_loop_create_default();
-    if (!s_ap_netif_created) {
+    if (!esp_netif_get_handle_from_ifkey("WIFI_AP_DEF")) {
         esp_netif_create_default_wifi_ap();
         s_ap_netif_created = true;
     }

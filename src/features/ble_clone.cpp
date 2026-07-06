@@ -83,14 +83,19 @@ void feat_ble_clone(void)
     NimBLEServer *srv = NimBLEDevice::createServer();
     srv->setCallbacks(&s_srv_cb);
 
-    /* Generic service + RW characteristic — enough to pass enumeration. */
-    NimBLEService *svc = srv->createService("181C"); /* User Data */
-    NimBLECharacteristic *chr = svc->createCharacteristic(
-        "2A25", /* Serial Number String */
-        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
-    chr->setValue((uint8_t *)"POSEIDON", 8);
-    chr->setCallbacks(&s_chr_cb);
-    svc->start();
+    /* Build the service only if the server doesn't already have it. Re-entering
+     * without a BLE deinit would otherwise add a duplicate service each time
+     * (heap creep -> reboot on the no-PSRAM S3). After a deinit the server is
+     * fresh, so this correctly rebuilds it. */
+    if (!srv->getServiceByUUID("181C")) {
+        NimBLEService *svc = srv->createService("181C"); /* User Data */
+        NimBLECharacteristic *chr = svc->createCharacteristic(
+            "2A25", /* Serial Number String */
+            NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
+        chr->setValue((uint8_t *)"POSEIDON", 8);
+        chr->setCallbacks(&s_chr_cb);
+        svc->start();
+    }
 
     /* Connectable advertising data: flags + name + HID-ish appearance. */
     NimBLEAdvertisementData data;
