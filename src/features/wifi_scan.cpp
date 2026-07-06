@@ -55,128 +55,9 @@ static const char *auth_str(uint8_t a)
     }
 }
 
-static void scan_task(void *)
-{
-    s_scan_done = false;
-    s_scan_running = true;
-    size_t heap_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    Serial.printf("[wifi_scan] heap_free=%u mode=%d\n",
-                  (unsigned)heap_free, (int)WiFi.getMode());
-
-    /* WiFi init needs ~50KB. If prior feature left the heap fragmented,
-     * retry after a settle delay (idle task cleans up deleted task
-     * stacks + internal buffers). */
-    wifi_mode_t m = WiFi.getMode();
-    if (m != WIFI_STA && m != WIFI_AP_STA) {
-        for (int attempt = 0; attempt < 4; attempt++) {
-            if (WiFi.mode(WIFI_STA)) break;
-            Serial.printf("[wifi_scan] WiFi.mode attempt %d failed, heap=%u\n",
-                          attempt, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-            /* Force a clean deinit before retry — lets prior-feature state
-             * release. */
-            esp_wifi_stop();
-            esp_wifi_deinit();
-            vTaskDelay(pdMS_TO_TICKS(250));
-        }
-    }
-    int n = WiFi.scanNetworks(false, true, false, 120);  /* blocking — we're in a task */
-    Serial.printf("[wifi_scan] scanNetworks -> %d (heap=%u)\n",
-                  n, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-    s_ap_count = 0;
-    if (n > 0) {
-        /* Pull the raw wifi_ap_record_t array directly — we need the WPS
-         * bit which Arduino's WiFi class doesn't expose. esp_wifi_scan_get_
-         * ap_records reads from the same internal buffer Arduino already
-         * populated; Arduino's WiFi.SSID(i) etc. cache from this same array
-         * so calling it doesn't disturb subsequent Arduino-side reads. */
-        uint16_t want = (uint16_t)((n < MAX_APS) ? n : MAX_APS);
-        wifi_ap_record_t *recs = (wifi_ap_record_t *)heap_caps_malloc(
-            want * sizeof(wifi_ap_record_t), MALLOC_CAP_8BIT);
-        bool got_records = false;
-        if (recs) {
-            uint16_t got = want;
-            if (esp_wifi_scan_get_ap_records(&got, recs) == ESP_OK && got > 0) {
-                got_records = true;
-                for (int i = 0; i < (int)got && s_ap_count < MAX_APS; ++i) {
-                    ap_t &a = s_aps[s_ap_count++];
-                    strncpy(a.ssid, (const char *)recs[i].ssid, sizeof(a.ssid) - 1);
-                    a.ssid[sizeof(a.ssid) - 1] = '\0';
-                    memcpy(a.bssid, recs[i].bssid, 6);
-                    a.rssi    = recs[i].rssi;
-                    a.channel = recs[i].primary;
-                    a.auth    = (uint8_t)recs[i].authmode;
-                    a.is_5g   = false;
-                    a.wps     = recs[i].wps ? true : false;
-                    if (a.wps) {
-                        Serial.printf("[wifi_scan] WPS ap '%s' ch%u %ddBm\n",
-                                      a.ssid, a.channel, a.rssi);
-                    }
-                }
-            }
-            free(recs);
-        }
-        /* Fallback path — if heap_caps_malloc failed or the records call
-         * came back empty, fall back to Arduino's getters. We just lose
-         * the WPS flag on this scan; everything else still works. */
-        if (!got_records) {
-            for (int i = 0; i < n && s_ap_count < MAX_APS; ++i) {
-                ap_t &a = s_aps[s_ap_count++];
-                strncpy(a.ssid, WiFi.SSID(i).c_str(), sizeof(a.ssid) - 1);
-                a.ssid[sizeof(a.ssid) - 1] = '\0';
-                memcpy(a.bssid, WiFi.BSSID(i), 6);
-                a.rssi    = WiFi.RSSI(i);
-                a.channel = WiFi.channel(i);
-                a.auth    = (uint8_t)WiFi.encryptionType(i);
-                a.is_5g   = false;
-                a.wps     = false;
-            }
-        }
-    }
-    WiFi.scanDelete();
-
-    /* If a C5/TRIDENT satellite is paired, fire a 5 GHz scan over
-     * ESP-NOW and merge the results. Without this the user's scan
-     * list would be 2.4 GHz only even when the C5 could see the
-     * missing upper-band APs. Targets landed this way are flagged
-     * is_5g=true so downstream features (deauth, clients) know to
-     * route commands to the C5 instead of trying to TX locally. */
-    if (c5_any_online()) {
-        c5_clear_results();
-        c5_cmd_scan_5g(600);
-        uint32_t deadline = millis() + 2000;
-        int      last_n   = 0;
-        uint32_t last_chk = 0;
-        while (millis() < deadline) {
-            if (millis() - last_chk > 150) {
-                last_chk = millis();
-                c5_ap_t tmp[4];
-                int cur = c5_aps(tmp, 4);
-                if (cur == last_n && cur > 0) break;   /* quiesced */
-                last_n = cur;
-            }
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
-        c5_ap_t c5aps[64];
-        int c5n = c5_aps(c5aps, 64);
-        for (int i = 0; i < c5n && s_ap_count < MAX_APS; ++i) {
-            if (!c5aps[i].is_5g) continue;
-            ap_t &a = s_aps[s_ap_count++];
-            strncpy(a.ssid, c5aps[i].ssid, sizeof(a.ssid) - 1);
-            a.ssid[sizeof(a.ssid) - 1] = '\0';
-            memcpy(a.bssid, c5aps[i].bssid, 6);
-            a.rssi    = c5aps[i].rssi;
-            a.channel = c5aps[i].channel;
-            a.auth    = c5aps[i].auth;
-            a.is_5g   = true;
-            a.wps     = false;   /* C5 satellite doesn't surface WPS IE yet */
-        }
-        Serial.printf("[wifi_scan] merged %d 5G APs from C5\n", c5n);
-    }
-
-    s_scan_running = false;
-    s_scan_done = true;
-    vTaskDelete(nullptr);
-}
+/* (scan_task removed — R=rescan now re-runs the inline animated scan on the
+ * caller task; the old background task hung on Arduino WiFi.scanNetworks over
+ * a raw-inited driver and raced the feature exit.) */
 
 static bool ap_matches_filter(const ap_t &a)
 {
@@ -452,11 +333,13 @@ void feat_wifi_scan(void)
     s_filter[0] = '\0';
     s_filter_open_only = false;
 
+    /* Outer loop so R=rescan re-runs the inline animated scan on THIS task.
+     * The old background scan_task hung on Arduino WiFi.scanNetworks over a
+     * raw-inited driver and raced the feature exit; the inline non-blocking
+     * scan (esp_wifi's own task hops channels while we animate) is safe. */
+    for (;;) {
     ui_draw_status(radio_name(), s_have_results ? "cached" : "scanning...");
 
-    /* Non-blocking raw scan with a live radar sweep — esp_wifi's own task
-     * hops channels while this task animates. Spawning our own scan task
-     * overflowed the stack even at 8 KB, so that route is out. */
     if (!s_have_results) {
         s_ap_count = 0;
         s_scan_running = true;
@@ -579,6 +462,42 @@ void feat_wifi_scan(void)
         }
         Serial.printf("[wifi_scan] inline merged total=%d\n", s_ap_count);
 
+        /* Merge 5 GHz APs from a paired C5/TRIDENT satellite over ESP-NOW so
+         * the list isn't 2.4 GHz only. This used to live only on the async
+         * rescan task; folding it inline means EVERY scan gets the 5 GHz band. */
+        if (c5_any_online()) {
+            c5_clear_results();
+            c5_cmd_scan_5g(600);
+            uint32_t deadline = millis() + 2000;
+            int      last_n   = 0;
+            uint32_t last_chk = 0;
+            while (millis() < deadline) {
+                if (millis() - last_chk > 150) {
+                    last_chk = millis();
+                    c5_ap_t tmp[4];
+                    int cur = c5_aps(tmp, 4);
+                    if (cur == last_n && cur > 0) break;   /* quiesced */
+                    last_n = cur;
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            c5_ap_t c5aps[64];
+            int c5n = c5_aps(c5aps, 64);
+            for (int i = 0; i < c5n && s_ap_count < MAX_APS; ++i) {
+                if (!c5aps[i].is_5g) continue;
+                ap_t &a = s_aps[s_ap_count++];
+                strncpy(a.ssid, c5aps[i].ssid, sizeof(a.ssid) - 1);
+                a.ssid[sizeof(a.ssid) - 1] = '\0';
+                memcpy(a.bssid, c5aps[i].bssid, 6);
+                a.rssi    = c5aps[i].rssi;
+                a.channel = c5aps[i].channel;
+                a.auth    = c5aps[i].auth;
+                a.is_5g   = true;
+                a.wps     = false;   /* C5 satellite doesn't surface WPS IE yet */
+            }
+            Serial.printf("[wifi_scan] merged %d 5G APs from C5\n", c5n);
+        }
+
         s_scan_running = false;
         s_scan_done = true;
     }
@@ -587,6 +506,7 @@ void feat_wifi_scan(void)
     draw_list(s_saved_cursor);
 
     int cursor = s_saved_cursor;
+    bool rescan = false;   /* R sets this to break out and re-run the scan inline */
     /* Track the last-painted state so we only redraw incrementally. The
      * async scan task bumps s_ap_count as new APs land. A full draw_list
      * (body clear) runs only at entry / after a modal; steady-state moves
@@ -662,7 +582,7 @@ void feat_wifi_scan(void)
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
-        if (k == PK_ESC) { s_saved_cursor = cursor; break; }
+        if (k == PK_ESC) { s_saved_cursor = cursor; return; }
 
         switch (k) {
         /* Key handlers only update state — the state-change gate at the
@@ -676,7 +596,7 @@ void feat_wifi_scan(void)
             if (!s_scan_running) {
                 s_ap_count = 0;
                 s_have_results = false;
-                xTaskCreate(scan_task, "wifi_scan", 8192, nullptr, 4, nullptr);
+                rescan = true;   /* break to the outer loop → inline animated rescan */
             }
             break;
         case '?':
@@ -736,5 +656,7 @@ void feat_wifi_scan(void)
         }
         default: break;
         }
+        if (rescan) break;   /* re-run the scan via the outer loop */
     }
+    }   /* outer rescan loop */
 }
