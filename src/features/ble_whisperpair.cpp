@@ -148,7 +148,8 @@ class wp_scan_cb : public NimBLEScanCallbacks {
         if (sd.empty()) sd = d->getServiceData(fp128);
         if (sd.empty()) return;
 
-        const uint8_t *a = d->getAddress().getBase()->val;
+        NimBLEAddress _addr = d->getAddress();   /* bind: getAddress() returns by value */
+        const uint8_t *a = _addr.getBase()->val;
 
         /* Dedup by MAC. */
         for (int i = 0; i < s_tgt_n; ++i) {

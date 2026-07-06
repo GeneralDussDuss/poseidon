@@ -487,6 +487,10 @@ static void handle_eapol(const uint8_t *frame, int len)
     const uint8_t *mic = eapol + 81;
     uint16_t kd_len = ((uint16_t)eapol[93] << 8) | eapol[94];
     const uint8_t *kd = eapol + 95;
+    /* Bound kd_len to the captured frame (elen); the length field is
+     * attacker-controlled and would otherwise walk past the RX buffer. */
+    { int kd_avail = elen - 95; if (kd_avail < 0) kd_avail = 0;
+      if ((int)kd_len > kd_avail) kd_len = (uint16_t)kd_avail; }
 
     /* PMKID walk. */
     if (kd_len >= 22) {
@@ -1000,8 +1004,16 @@ static bool pick_surgical_target(void)
     extern ap_t g_last_selected_ap;
     extern bool g_last_selected_valid;
     if (g_last_selected_valid) {
+        /* s_q/s_visits/s_wins are sized NCH=14 and indexed by channel; a
+         * 5 GHz / >13 target would write out of bounds. Local deauth is
+         * 2.4 GHz only anyway — reject upper-band targets. */
+        uint8_t ch = g_last_selected_ap.channel;
+        if (g_last_selected_ap.is_5g || ch < 1 || ch > 13) {
+            ui_toast("target not 2.4GHz", T_WARN, 1500);
+            return false;
+        }
         memcpy(s_target_bssid, g_last_selected_ap.bssid, 6);
-        s_target_ch = g_last_selected_ap.channel ? g_last_selected_ap.channel : 1;
+        s_target_ch = ch;
         return true;
     }
     ui_toast("scan + pick AP first", T_WARN, 1500);

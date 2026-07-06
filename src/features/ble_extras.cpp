@@ -54,7 +54,8 @@ class tracker_cb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice *d) override {
         char type[12] = {0};
         if (!is_tracker(d, type)) return;
-        const uint8_t *a = d->getAddress().getBase()->val;
+        NimBLEAddress _addr = d->getAddress();   /* bind: getAddress() returns by value */
+        const uint8_t *a = _addr.getBase()->val;
         for (int i = 0; i < s_tracker_count; ++i) {
             if (memcmp(s_trackers[i].addr, a, 6) == 0) {
                 s_trackers[i].last_seen = millis();
@@ -176,7 +177,8 @@ class sniff_cb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice *d) override {
         if (!s_sniff_file) return;
         s_sniff_count++;
-        const uint8_t *a = d->getAddress().getBase()->val;
+        NimBLEAddress _addr = d->getAddress();   /* bind: getAddress() returns by value */
+        const uint8_t *a = _addr.getBase()->val;
         s_sniff_file.printf("%lu,%02X:%02X:%02X:%02X:%02X:%02X,%d,%u,",
                  (unsigned long)millis(),
                  a[5], a[4], a[3], a[2], a[1], a[0],

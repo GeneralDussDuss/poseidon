@@ -80,7 +80,7 @@ static void fm_tick(void)
         NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
         s_fm_rotated++;
 
-        uint8_t pkt[30];
+        uint8_t pkt[31];   /* builder writes idx 0..30 = 31 bytes (0x1E len + 30 following) */
         build_findmy(pkt, key, 0xE0 /* OWNED */, 0x00);
 
         adv->stop();
@@ -89,7 +89,7 @@ static void fm_tick(void)
          * Sour Apple where the same wrapper returned false for all Apple
          * subtypes, leaving stale data on-air. Apple Find My uses 0x4C 0x12
          * subtype which would hit the same wrapper bug. */
-        int data_rc = ble_gap_adv_set_data(pkt, 30);
+        int data_rc = ble_gap_adv_set_data(pkt, 31);
         (void)data_rc;
         adv->setConnectableMode(BLE_GAP_CONN_MODE_NON);
         adv->setMinInterval(0x0640);

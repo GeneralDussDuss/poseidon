@@ -81,7 +81,7 @@ static const char *ssid_for(const uint8_t *bssid)
 
 static void cache_beacon(const uint8_t *bssid, const uint8_t *tags, int len)
 {
-    if (len < 2 || tags[0] != 0 || tags[1] == 0 || tags[1] > 32) return;
+    if (len < 2 || tags[0] != 0 || tags[1] == 0 || tags[1] > 32 || 2 + tags[1] > len) return;
     /* POS-AUDIT-206 / wifi-019: serialise against hunt_task's snapshot
      * read. Critical section is bounded (linear scan + memcpy of ≤32 B). */
     portENTER_CRITICAL(&s_pmkid_mux);
@@ -164,7 +164,7 @@ static void emit_pmkid(const uint8_t *pmkid, const uint8_t *bssid, const uint8_t
  * + ESSID hex (≤66) + ANONCE hex (65) + EAPOL hex (≤260) + tail (~20)
  * ≈ 480 bytes max. 600 gives margin. Larger sizes ate DMA-capable BSS
  * and pushed WiFi.scanNetworks below its 4-RX-buffer init threshold. */
-static char s_emit_handshake_line[600];
+static char s_emit_handshake_line[768];   /* worst case ~721 B: 32-char SSID + 260 B M2 (POS-AUDIT re-sized) */
 
 /* Emit WPA*02* (full 4-way handshake). Requires M1 ANonce and M2 EAPOL blob. */
 static void emit_handshake(const uint8_t *bssid, const uint8_t *sta,
@@ -291,6 +291,13 @@ static void handle_eapol(const uint8_t *frame, int len)
     if (!parse_eapol(frame, len, &bssid, &sta, &from_ap, &ki)) return;
     s_eapol_seen++;
 
+    /* Bound kd_len to the bytes actually captured — the frame's key-data-length
+     * field is attacker-controlled and would otherwise walk past the RX buffer. */
+    {
+        int kd_avail = ki.eapol_len - (int)(ki.kd_data - ki.eapol_raw);
+        if (kd_avail < 0) kd_avail = 0;
+        if ((int)ki.kd_len > kd_avail) ki.kd_len = (uint16_t)kd_avail;
+    }
     /* PMKID lives in the key data TLVs. Always check. */
     if (ki.kd_len >= 22) {
         int off = 0;

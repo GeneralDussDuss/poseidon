@@ -149,7 +149,7 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
      * tag 0 = SSID. */
     const uint8_t *tags = p + 36;
     int tag_len = pkt->rx_ctrl.sig_len - 36 - 4;  /* minus FCS */
-    if (tag_len > 0 && tags[0] == 0 && tags[1] <= 32) {
+    if (tag_len >= 2 && tags[0] == 0 && tags[1] <= 32 && 2 + tags[1] <= tag_len) {
         memcpy(a.ssid, tags + 2, tags[1]);
         a.ssid[tags[1]] = '\0';
     }
