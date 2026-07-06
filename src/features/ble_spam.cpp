@@ -109,13 +109,11 @@ static void randomize_addr(void)
  * xTaskCreate path (rc=-1 silent failure after NimBLE init ate heap). */
 static void spam_tick(void)
 {
-    static NimBLEAdvertising *adv = nullptr;
     static int apple_i = 0;
     static int cycle = 0;
-    if (!adv) {
-        adv = NimBLEDevice::getAdvertising();
-        Serial.printf("[blespam] cooperative first tick — adv=%p\n", adv);
-    }
+    /* Fetch fresh each tick: caching the singleton across a BLE deinit/reinit
+     * (radio_switch away and back) leaves a dangling pointer -> UAF. */
+    NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     if (!adv) return;
 
     uint8_t raw[31] = {0};

@@ -326,16 +326,13 @@ static int build_ms_swiftpair(uint8_t *pkt)
  * UI tick and we do one full adv cycle (20 ms on + 20 ms off) per call. */
 static void sa_tick(void)
 {
-    static NimBLEAdvertising *adv = nullptr;
-    static bool s_first_call = true;
-    if (s_first_call) {
-        s_first_call = false;
-        adv = NimBLEDevice::getAdvertising();
-        esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9);
-        esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     ESP_PWR_LVL_P9);
-        Serial.printf("[sa] first tick — adv=%p\n", adv);
-    }
+    /* Fetch fresh each tick: a cached singleton dangles across a BLE
+     * deinit/reinit -> UAF. (Also fixes tx-power never being re-applied
+     * after the first-ever session.) Setting a constant power level is
+     * idempotent, so applying it each tick is safe. */
+    NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     if (!adv) return;
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9);
 
     sa_mode_t mode = (sa_mode_t)(esp_random() % SA_MODE__COUNT);
     uint8_t pkt[40];

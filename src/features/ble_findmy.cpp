@@ -55,13 +55,11 @@ static void build_findmy(uint8_t *pkt, const uint8_t *key22,
  * not enough for a 4 KB task stack — same bug as Sour Apple was). */
 static void fm_tick(void)
 {
-    static NimBLEAdvertising *adv = nullptr;
     static uint32_t next_rotate = 0;
     static uint32_t last_count_bump = 0;
-    if (!adv) {
-        adv = NimBLEDevice::getAdvertising();
-        Serial.printf("[findmy] cooperative first tick — adv=%p\n", adv);
-    }
+    /* Fetch fresh each tick: a cached singleton dangles across a BLE
+     * deinit/reinit (radio_switch away and back) -> UAF. */
+    NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     if (!adv) return;
 
     uint32_t now = millis();

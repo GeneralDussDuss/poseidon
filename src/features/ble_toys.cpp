@@ -101,6 +101,7 @@ static int s_intensity = 0;
 static bool connect_lovense(const toy_t &t)
 {
     if (!s_client) s_client = NimBLEDevice::createClient();
+    if (!s_client) return false;   /* NimBLE client pool exhausted */
     s_client->setConnectTimeout(6000);  /* milliseconds — was 6 ms */
     uint8_t mac[6]; memcpy(mac, t.addr, 6);
     NimBLEAddress addr(mac, t.addr_type);
@@ -140,7 +141,7 @@ static bool connect_lovense(const toy_t &t)
 
 static void send_vibrate(int level)
 {
-    if (!s_tx_char || !s_connected) return;
+    if (!s_tx_char || !s_connected || !s_client || !s_client->isConnected()) return;
     if (level < 0) level = 0;
     if (level > 20) level = 20;
     char cmd[24];
@@ -318,9 +319,11 @@ void feat_ble_toys(void)
                 if (kk == PK_NONE) { delay(30); continue; }
                 if (kk == PK_ESC) {
                     send_vibrate(0);
-                    s_client->disconnect();
                     s_connected = false;
                     s_tx_char = nullptr;
+                    /* delete+null (not just disconnect) so a re-entry after a
+                     * BLE deinit doesn't reuse a freed client pointer. */
+                    if (s_client) { NimBLEDevice::deleteClient(s_client); s_client = nullptr; }
                     break;
                 }
                 if (kk == PK_SPACE || kk == '0') {

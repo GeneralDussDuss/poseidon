@@ -208,6 +208,7 @@ static void draw_tree(int cursor)
 static bool try_connect(NimBLEAddress addr)
 {
     if (!s_client) s_client = NimBLEDevice::createClient();
+    if (!s_client) return false;   /* NimBLE client pool exhausted */
     /* NimBLE 2.x: setConnectTimeout is MILLISECONDS, not seconds.
      * Previous code passed 5 → 5 ms → every connect attempt timed
      * out before TCP-style ACK. Fixed by passing 5000 ms = 5 s. */
@@ -281,6 +282,10 @@ void feat_ble_gatt(void)
         }
     }
 
-    s_client->disconnect();
+    /* delete+null (not just disconnect) so a re-entry after a BLE deinit
+     * doesn't reuse a freed client pointer, and s_flat[] can't be read against
+     * a stale client. */
+    if (s_client) { NimBLEDevice::deleteClient(s_client); s_client = nullptr; }
+    s_flat_n = 0;
     s_connected = false;
 }

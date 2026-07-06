@@ -350,6 +350,7 @@ static wp_verdict_t run_probe(const wp_target_t &t)
     s_have_bredr = false;
 
     NimBLEClient *c = NimBLEDevice::createClient();
+    if (!c) return WP_CONNECT_FAIL;   /* NimBLE client pool exhausted */
     c->setConnectTimeout(6000);  /* milliseconds — was 6 ms */
 
     NimBLEAddress addr((uint8_t *)t.addr, t.addr_type);
