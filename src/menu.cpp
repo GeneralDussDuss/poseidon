@@ -1359,12 +1359,18 @@ static void run_submenu(const menu_node_t *parent)
         if (k == PK_ENTER) {
             const menu_node_t *sel = &parent->children[cursor];
             if (sel->action) {
-                /* Reclaim recoverable caches (ARGUS sprite, etc.) so every
-                 * feature launches from a maximally free heap, and record the
-                 * baseline so the exit log flags any feature that leaks. */
-                heap_reclaim_all();
+                /* Baseline is captured BEFORE reclaim so a cache freed here and
+                 * lazily reallocated by the feature (e.g. the ARGUS sprite) nets
+                 * ~0 in the exit delta instead of a phantom LEAK. Reclaim still
+                 * runs so the feature starts from a maximally free heap.
+                 * Note: the first use of a lazy-once feature (wardrive, cctv,
+                 * ciw) legitimately allocates permanent state and will show a
+                 * one-time negative delta -- an expected non-leak. */
                 size_t hb_base = heap_free_internal();
-                Serial.printf("[FEAT_ENTER] %s free=%u\n", sel->label, (unsigned)hb_base);
+                size_t hb_reclaimed = heap_reclaim_all();
+                Serial.printf("[FEAT_ENTER] %s free=%u reclaimed=%u\n",
+                              sel->label, (unsigned)heap_free_internal(),
+                              (unsigned)hb_reclaimed);
                 g_current_feature_item = sel;
                 sel->action();
                 g_current_feature_item = nullptr;
@@ -1404,9 +1410,11 @@ static void run_submenu(const menu_node_t *parent)
                     cursor = i;
                     draw_menu(parent, cursor);
                     if (ch->action) {
-                        heap_reclaim_all();
                         size_t hb_base = heap_free_internal();
-                        Serial.printf("[FEAT_ENTER] %s free=%u\n", ch->label, (unsigned)hb_base);
+                        size_t hb_reclaimed = heap_reclaim_all();
+                        Serial.printf("[FEAT_ENTER] %s free=%u reclaimed=%u\n",
+                                      ch->label, (unsigned)heap_free_internal(),
+                                      (unsigned)hb_reclaimed);
                         g_current_feature_item = ch;
                         ch->action();
                         g_current_feature_item = nullptr;

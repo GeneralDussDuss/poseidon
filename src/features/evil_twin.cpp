@@ -409,10 +409,6 @@ void feat_evil_twin(void)
     }
     SD.mkdir("/poseidon");
 
-    /* Same softAP hostap_attach crash surface as the portal: reclaim caches
-     * and veto cleanly if the largest contiguous internal block is too small. */
-    if (!rf_preflight("evil_twin", 12288)) return;
-
     /* POS-AUDIT-007 (revised after on-device repro 2026-06-06):
      * force-shutdown BT before mem_release. See wifi_portal.cpp for
      * full rationale. */
@@ -427,6 +423,13 @@ void feat_evil_twin(void)
     if (bt_was_inited) {
         ui_toast("BLE disabled until reboot", T_WARN, 1200);
     }
+
+    /* Same softAP hostap_attach crash surface as the portal: reclaim caches
+     * and veto cleanly if the largest contiguous internal block is too small.
+     * Placed AFTER the BT release above so it measures the heap actually
+     * available to esp_wifi_init, not a pessimistic pre-teardown snapshot. */
+    if (!rf_preflight("evil_twin", 12288)) return;
+
     esp_log_level_set("wifi",      ESP_LOG_INFO);
     esp_log_level_set("wifi_init", ESP_LOG_INFO);
 

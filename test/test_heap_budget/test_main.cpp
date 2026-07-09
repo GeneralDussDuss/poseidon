@@ -55,6 +55,22 @@ void test_preflight_false_when_largest_too_small(void) {
     TEST_ASSERT_FALSE(rf_preflight("test", 12000));
 }
 
+void test_min_ever_zero_before_any_query(void) {
+    hb_test_reset();
+    // No heap_free_internal() call yet -> sentinel unresolved -> reports 0.
+    TEST_ASSERT_EQUAL_UINT32(0, heap_min_ever_internal());
+}
+
+void test_null_query_does_not_pin_watermark(void) {
+    hb_test_reset();
+    hb_set_query(nullptr, nullptr);
+    heap_free_internal();                 // returns 0 but must NOT pin min_ever to 0
+    hb_set_query(fake_free, fake_largest);
+    g_fake_free = 50000;
+    heap_free_internal();
+    TEST_ASSERT_EQUAL_UINT32(50000, heap_min_ever_internal());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_free_and_largest_passthrough);
@@ -63,5 +79,7 @@ int main(int, char **) {
     RUN_TEST(test_reclaim_all_empty_is_zero);
     RUN_TEST(test_preflight_true_when_largest_fits_after_reclaim);
     RUN_TEST(test_preflight_false_when_largest_too_small);
+    RUN_TEST(test_min_ever_zero_before_any_query);
+    RUN_TEST(test_null_query_does_not_pin_watermark);
     return UNITY_END();
 }

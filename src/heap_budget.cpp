@@ -34,7 +34,8 @@ void hb_set_query(size_t (*free_fn)(void), size_t (*largest_fn)(void)) {
 }
 
 size_t heap_free_internal(void) {
-    size_t f = s_free_fn ? s_free_fn() : 0;
+    if (!s_free_fn) return 0;   /* query not installed yet: a 0 must not pin the watermark */
+    size_t f = s_free_fn();
     if (f < s_min_ever) s_min_ever = f;
     return f;
 }

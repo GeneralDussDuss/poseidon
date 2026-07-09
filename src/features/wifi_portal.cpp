@@ -418,10 +418,6 @@ static void run_portal(void)
      *   - 1500 ms settle for the AP_START event to fully complete. */
     Serial.printf("[portal] AP-up entry free=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-    /* Reclaim recoverable caches and veto if the largest contiguous internal
-     * block still can't fit hostap_attach's control block. 12288 is the
-     * initial estimate; calibrated from on-device numbers (see plan Task 12). */
-    if (!rf_preflight("portal", 12288)) return;
     /* Pre-AP teardown — if WiFi was already inited via raw-IDF (Triton,
      * BLE Scan, etc.) we MUST fully deinit before AP bring-up. Otherwise:
      *   - esp_wifi_init below asserts (one-shot init)
@@ -455,6 +451,13 @@ static void run_portal(void)
     if (bt_was_inited) {
         ui_toast("BLE disabled until reboot", T_WARN, 1200);
     }
+
+    /* Reclaim recoverable caches and veto if the largest contiguous internal
+     * block still can't fit hostap_attach's control block. Placed AFTER the
+     * WiFi deinit + BT release above so it measures the heap that will actually
+     * be available to esp_wifi_init, not a pessimistic pre-teardown snapshot.
+     * 12288 is the initial estimate; calibrated on-device (see plan Task 12). */
+    if (!rf_preflight("portal", 12288)) return;
 
     esp_log_level_set("wifi",      ESP_LOG_INFO);
     esp_log_level_set("wifi_init", ESP_LOG_INFO);
