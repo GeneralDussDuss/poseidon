@@ -20,6 +20,7 @@
 #include "argus.h"
 #include "theme.h"
 #include "app.h"
+#include "heap_budget.h"
 #include <M5Cardputer.h>
 #include <esp_random.h>
 #include <esp_heap_caps.h>
@@ -44,6 +45,15 @@ static int          s_last_y    = INT32_MIN;
  * the flash fetch entirely. Allocated lazily on first draw. */
 static uint16_t    *s_ram_sprite = nullptr;
 static argus_mood_t s_ram_mood   = (argus_mood_t)-1;
+static bool         s_ram_sprite_tried = false;
+
+// Reclaimable cache: the ~18 KB DMA mascot sprite refills from flash on the
+// next draw, so it yields to any RF feature that needs the internal heap.
+static void heap_argus_release(void) {
+    if (s_ram_sprite) { heap_caps_free(s_ram_sprite); s_ram_sprite = nullptr; }
+    s_ram_sprite_tried = false;      // allow a fresh alloc attempt on next draw
+    s_ram_mood = (argus_mood_t)-1;   // force the memcpy refresh when it returns
+}
 
 void argus_flash(argus_mood_t mood, uint32_t ms)
 {
@@ -119,6 +129,8 @@ static void overlay_glitch(int x, int y, uint32_t now)
 void argus_draw(argus_mood_t mood, int x, int y)
 {
     auto &d = M5Cardputer.Display;
+    static bool s_reg = false;
+    if (!s_reg) { s_reg = true; heap_reclaim_register(heap_argus_release); }
     uint32_t now = millis();
 
     argus_mood_t cur = mood;
@@ -141,7 +153,6 @@ void argus_draw(argus_mood_t mood, int x, int y)
      * Argus spammed malloc unable to fit). The s_ram_sprite_tried
      * flag pins it: one attempt, then fall back to direct-from-flash
      * pushImage (already wired below). */
-    static bool s_ram_sprite_tried = false;
     if (!s_ram_sprite && !s_ram_sprite_tried) {
         s_ram_sprite_tried = true;
         size_t bytes = (size_t)ARGUS_W * ARGUS_H * sizeof(uint16_t);
