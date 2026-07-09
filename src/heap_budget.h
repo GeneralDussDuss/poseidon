@@ -15,3 +15,6 @@ void   heap_report(const char *tag);
 typedef void (*heap_reclaim_fn)(void);
 void   heap_reclaim_register(heap_reclaim_fn fn);
 size_t heap_reclaim_all(void);
+
+// Preflight gate: reclaim, report, and check if largest block fits need
+bool rf_preflight(const char *tag, size_t need_bytes);

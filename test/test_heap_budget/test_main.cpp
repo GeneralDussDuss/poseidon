@@ -43,11 +43,25 @@ void test_reclaim_all_empty_is_zero(void) {
     TEST_ASSERT_EQUAL_UINT32(0, heap_reclaim_all());
 }
 
+void test_preflight_true_when_largest_fits_after_reclaim(void) {
+    g_fake_free = 8000; g_fake_largest = 8000;
+    heap_reclaim_register(reclaimer_frees_10k); // bumps free; largest stays 8000 here
+    g_fake_largest = 15000;                     // simulate reclaim coalescing a big block
+    TEST_ASSERT_TRUE(rf_preflight("test", 12000));
+}
+
+void test_preflight_false_when_largest_too_small(void) {
+    g_fake_largest = 6000;
+    TEST_ASSERT_FALSE(rf_preflight("test", 12000));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_free_and_largest_passthrough);
     RUN_TEST(test_min_ever_tracks_lowest_free);
     RUN_TEST(test_registry_dedups_and_runs_all);
     RUN_TEST(test_reclaim_all_empty_is_zero);
+    RUN_TEST(test_preflight_true_when_largest_fits_after_reclaim);
+    RUN_TEST(test_preflight_false_when_largest_too_small);
     return UNITY_END();
 }

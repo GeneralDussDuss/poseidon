@@ -3,6 +3,8 @@
 #if !defined(PIO_UNIT_TESTING)
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#include "ui.h"      // ui_toast(const char*, uint16_t color, uint32_t ms)
+#include "theme.h"   // T_BAD == theme().bad (runtime themed color)
 static size_t esp_free(void)    { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL); }
 static size_t esp_largest(void) { return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL); }
 #endif
@@ -54,4 +56,17 @@ void heap_report(const char *tag) {
 #else
     (void)tag;
 #endif
+}
+
+bool rf_preflight(const char *tag, size_t need_bytes) {
+    heap_reclaim_all();
+    heap_report(tag);
+    size_t largest = heap_largest_internal();
+    if (largest < need_bytes) {
+#if !defined(PIO_UNIT_TESTING)
+        ui_toast("Low memory: reboot then retry", T_BAD, 2200);
+#endif
+        return false;
+    }
+    return true;
 }
