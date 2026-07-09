@@ -11,6 +11,10 @@ static size_t (*s_free_fn)(void)    = 0;
 static size_t (*s_largest_fn)(void) = 0;
 static size_t s_min_ever = (size_t)-1;
 
+#define HB_MAX_RECLAIMERS 16
+static heap_reclaim_fn s_reclaimers[HB_MAX_RECLAIMERS];
+static int s_reclaimer_n = 0;
+
 void hb_set_query(size_t (*free_fn)(void), size_t (*largest_fn)(void)) {
     s_free_fn = free_fn; s_largest_fn = largest_fn;
 }
@@ -23,9 +27,21 @@ size_t heap_free_internal(void) {
 size_t heap_largest_internal(void) { return s_largest_fn ? s_largest_fn() : 0; }
 size_t heap_min_ever_internal(void) { return s_min_ever == (size_t)-1 ? 0 : s_min_ever; }
 
+void heap_reclaim_register(heap_reclaim_fn fn) {
+    if (!fn) return;
+    if (s_reclaimer_n < HB_MAX_RECLAIMERS) s_reclaimers[s_reclaimer_n++] = fn;
+}
+
+size_t heap_reclaim_all(void) {
+    size_t before = s_free_fn ? s_free_fn() : 0;
+    for (int i = 0; i < s_reclaimer_n; ++i) s_reclaimers[i]();
+    size_t after = s_free_fn ? s_free_fn() : 0;
+    return after > before ? after - before : 0;
+}
+
 void hb_test_reset(void) {
     s_min_ever = (size_t)-1;
-    // registry reset added in Task 2
+    s_reclaimer_n = 0;
 }
 
 void heap_report(const char *tag) {

@@ -10,3 +10,8 @@ size_t heap_free_internal(void);
 size_t heap_largest_internal(void);
 size_t heap_min_ever_internal(void);
 void   heap_report(const char *tag);
+
+// Reclaim registry
+typedef void (*heap_reclaim_fn)(void);
+void   heap_reclaim_register(heap_reclaim_fn fn);
+size_t heap_reclaim_all(void);
