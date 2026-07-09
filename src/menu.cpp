@@ -112,6 +112,7 @@ extern void feat_tool_mac_rand(void);
 extern void feat_tool_calc(void);
 extern void feat_file_browser(void);
 extern void feat_settings(void);
+extern void feat_heap_census(void);
 extern void feat_about(void);
 extern void feat_badusb(void);
 extern void feat_badusb_win(void);
@@ -864,6 +865,10 @@ static const menu_node_t MENU_SYS[] = {
       "attached and has a fix." },
     { 's', "Settings", "Config + preferences", nullptr, feat_settings,
       "Saved WiFi management, clear creds log, format prefs, reboot." },
+    { 'h', "Heap", "Live internal-heap census", nullptr, feat_heap_census,
+      "Internal-heap free, largest contiguous block, and lifetime low-water "
+      "mark. R reclaims recoverable caches (frees the ARGUS sprite etc.). "
+      "The same numbers the portal and rf_preflight log to serial." },
     { 't', "Theme", "POSEIDON / MATRIX / E-INK", nullptr, feat_theme_picker,
       "Three curated palettes: POSEIDON (cyberpunk cyan/magenta/purple, "
       "default), MATRIX (souped-up hacker green-on-black with cinematic "

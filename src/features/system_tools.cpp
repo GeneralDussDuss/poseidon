@@ -11,6 +11,7 @@
 #include <SD.h>
 #include "../sd_helper.h"
 #include <Preferences.h>
+#include "../heap_budget.h"
 #include <time.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -242,6 +243,45 @@ void feat_clock(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(40); continue; }
         if (k == PK_ESC) break;
+    }
+}
+
+/* Live internal-heap census: free / largest contiguous / lifetime low-water
+ * mark, plus a manual reclaim. The same numbers the portal + rf_preflight log
+ * to serial, viewable on-device during the heap calibration pass. */
+void feat_heap_census(void)
+{
+    ui_clear_body();
+    ui_draw_footer("R=reclaim  `=back");
+    auto &d = M5Cardputer.Display;
+
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(4, BODY_Y + 2); d.print("HEAP internal");
+    d.drawFastHLine(4, BODY_Y + 12, 90, T_ACCENT);
+
+    char shown[64] = "";
+    uint32_t last  = 0;
+    while (true) {
+        if (millis() - last > 400) {
+            last = millis();
+            unsigned fr  = (unsigned)heap_free_internal();
+            unsigned lg  = (unsigned)heap_largest_internal();
+            unsigned mn  = (unsigned)heap_min_ever_internal();
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%u/%u/%u", fr, lg, mn);
+            if (strcmp(buf, shown) != 0) {
+                strcpy(shown, buf);
+                d.setTextColor(T_FG, T_BG);
+                d.setCursor(4, BODY_Y + 26); d.printf("free     %6u", fr);
+                d.setCursor(4, BODY_Y + 40); d.printf("largest  %6u", lg);
+                d.setCursor(4, BODY_Y + 54); d.printf("min ever %6u", mn);
+            }
+            ui_draw_status(radio_name(), "heap");
+        }
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(40); continue; }
+        if (k == PK_ESC) break;
+        if (k == 'r' || k == 'R') { heap_reclaim_all(); shown[0] = '\0'; }
     }
 }
 
