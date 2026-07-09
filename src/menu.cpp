@@ -13,6 +13,7 @@
 #include "theme.h"
 #include "c5_cmd.h"
 #include "menu_carousel.h"
+#include "heap_budget.h"
 #include "screensaver.h"
 #include <Preferences.h>
 
@@ -1353,7 +1354,12 @@ static void run_submenu(const menu_node_t *parent)
         if (k == PK_ENTER) {
             const menu_node_t *sel = &parent->children[cursor];
             if (sel->action) {
-                Serial.printf("[FEAT_ENTER] %s\n", sel->label);
+                /* Reclaim recoverable caches (ARGUS sprite, etc.) so every
+                 * feature launches from a maximally free heap, and record the
+                 * baseline so the exit log flags any feature that leaks. */
+                heap_reclaim_all();
+                size_t hb_base = heap_free_internal();
+                Serial.printf("[FEAT_ENTER] %s free=%u\n", sel->label, (unsigned)hb_base);
                 g_current_feature_item = sel;
                 sel->action();
                 g_current_feature_item = nullptr;
@@ -1361,7 +1367,10 @@ static void run_submenu(const menu_node_t *parent)
                  * but if any path skips that, the LED stays glowing.
                  * Hard-set OFF here after every feature returns. */
                 pinMode(44, OUTPUT); digitalWrite(44, HIGH);
-                Serial.printf("[FEAT_EXIT] %s\n", sel->label);
+                { size_t hb_now = heap_free_internal();
+                  long hb_d = (long)hb_now - (long)hb_base;
+                  Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
+                      sel->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
                 s_menu_force = true;
@@ -1390,13 +1399,18 @@ static void run_submenu(const menu_node_t *parent)
                     cursor = i;
                     draw_menu(parent, cursor);
                     if (ch->action) {
-                        Serial.printf("[FEAT_ENTER] %s\n", ch->label);
+                        heap_reclaim_all();
+                        size_t hb_base = heap_free_internal();
+                        Serial.printf("[FEAT_ENTER] %s free=%u\n", ch->label, (unsigned)hb_base);
                         g_current_feature_item = ch;
                         ch->action();
                         g_current_feature_item = nullptr;
                         /* Defensive IR park — same as above. */
                         pinMode(44, OUTPUT); digitalWrite(44, HIGH);
-                        Serial.printf("[FEAT_EXIT] %s\n", ch->label);
+                        { size_t hb_now = heap_free_internal();
+                          long hb_d = (long)hb_now - (long)hb_base;
+                          Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
+                              ch->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
                         ui_draw_status(radio_name(), "");
                         ui_draw_footer(FOOTER_HINTS);
                         s_menu_force = true;
