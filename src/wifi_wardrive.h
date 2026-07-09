@@ -27,5 +27,9 @@ struct wdr_ap_t {
     bool     dirty;
 };
 
-extern wdr_ap_t g_wdr_aps[WARDRIVE_MAX_APS];
+/* Lazily allocated on first wardrive use, then resident (shared session state:
+ * triton and pmkid read it after wardrive populates it, so it is never freed
+ * on wardrive exit). Null until the first wardrive; keeps 20 KB free otherwise. */
+extern wdr_ap_t *g_wdr_aps;
+bool wdr_aps_ensure(void);   /* allocs g_wdr_aps if needed; false on OOM */
 extern int      g_wdr_ap_count;

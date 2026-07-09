@@ -1112,7 +1112,7 @@ void feat_triton(void)
      * would otherwise emit hashcat lines with blank ESSID until it
      * catches a beacon from scratch — often 15-30 seconds of captures
      * wasted. Seeding closes that gap. */
-    if (g_wdr_ap_count > 0) {
+    if (g_wdr_ap_count > 0 && g_wdr_aps) {
         int seeded = 0;
         int limit = g_wdr_ap_count < BS_N ? g_wdr_ap_count : BS_N;
         for (int i = 0; i < limit; ++i) {

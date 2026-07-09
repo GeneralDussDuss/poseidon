@@ -20,6 +20,7 @@
 #include "../c5_cmd.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_heap_caps.h>
 #include <SD.h>
 #include "../sd_helper.h"
 
@@ -27,7 +28,19 @@ static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /* Public AP table — persists across feature exits so Triton + others can
  * seed themselves from what we've already catalogued in this session. */
-wdr_ap_t g_wdr_aps[WARDRIVE_MAX_APS];
+wdr_ap_t *g_wdr_aps = nullptr;
+
+/* Allocate the 20 KB AP buffer on first wardrive use. Kept resident afterward
+ * because triton/pmkid read it later in the session; freeing on exit would
+ * corrupt those. Sessions that never wardrive keep the 20 KB free. */
+bool wdr_aps_ensure(void)
+{
+    if (g_wdr_aps) return true;
+    g_wdr_aps = (wdr_ap_t *)heap_caps_calloc(WARDRIVE_MAX_APS, sizeof(wdr_ap_t),
+                                             MALLOC_CAP_INTERNAL);
+    if (!g_wdr_aps) { ui_toast("Low memory for wardrive", T_BAD, 1500); return false; }
+    return true;
+}
 int      g_wdr_ap_count = 0;
 
 /* File-scope aliases for the existing internal code — keeps the diff
@@ -274,6 +287,10 @@ void feat_wifi_wardrive(void)
         ui_toast("SD mount failed - reseat card?", T_BAD, 1800);
         return;
     }
+
+    /* Reserve the AP buffer while heap is still clean, before wifi init grabs
+     * its ~30 KB. Bails cleanly (toast) if the 20 KB can't be allocated. */
+    if (!wdr_aps_ensure()) return;
 
     radio_switch(RADIO_WIFI);
     wifi_lean_sta_init();
