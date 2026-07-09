@@ -22,6 +22,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
+#include "../heap_budget.h"
 #include <esp_event.h>
 #include <esp_err.h>
 #include <esp_bt.h>
@@ -176,6 +177,9 @@ static void draw_static(uint8_t ch_idx)
 void feat_ap_signal_test(void)
 {
     radio_switch(RADIO_WIFI);
+
+    /* softAP bring-up path: reclaim + veto cleanly under low heap. */
+    if (!rf_preflight("ap_sig_test", 12288)) return;
 
     uint8_t ch_idx = 0;
     if (!ap_bring_up(CHANNELS[ch_idx])) {

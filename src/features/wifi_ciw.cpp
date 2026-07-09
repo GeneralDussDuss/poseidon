@@ -18,6 +18,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
+#include "../heap_budget.h"
 #include <esp_event.h>
 #include <esp_bt.h>
 #include <esp_log.h>
@@ -383,6 +384,8 @@ void feat_wifi_ciw(void)
     wcfg.dynamic_rx_buf_num = 16;
     wcfg.ampdu_tx_enable    = 0;
     wcfg.ampdu_rx_enable    = 0;
+    /* softAP path: reclaim caches and veto cleanly if heap is too fragmented. */
+    if (!rf_preflight("wifi_ciw", 12288)) return;
     if (esp_wifi_init(&wcfg) != ESP_OK) {
         ui_toast("wifi_init fail", T_BAD, 1500);
         return;

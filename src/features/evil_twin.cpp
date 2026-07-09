@@ -42,6 +42,7 @@
 #include <SD.h>
 #include "../sd_helper.h"
 #include <esp_wifi.h>
+#include "../heap_budget.h"
 #include <esp_netif.h>
 #include <esp_event.h>
 #include <esp_err.h>
@@ -407,6 +408,10 @@ void feat_evil_twin(void)
         return;
     }
     SD.mkdir("/poseidon");
+
+    /* Same softAP hostap_attach crash surface as the portal: reclaim caches
+     * and veto cleanly if the largest contiguous internal block is too small. */
+    if (!rf_preflight("evil_twin", 12288)) return;
 
     /* POS-AUDIT-007 (revised after on-device repro 2026-06-06):
      * force-shutdown BT before mem_release. See wifi_portal.cpp for
