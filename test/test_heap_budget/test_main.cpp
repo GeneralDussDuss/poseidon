@@ -25,14 +25,16 @@ void test_min_ever_tracks_lowest_free(void) {
 }
 
 static int g_reclaim_calls = 0;
-static void reclaimer_frees_10k(void) { g_fake_free += 10000; g_reclaim_calls++; }
+static void reclaimer_frees_10k(void)   { g_fake_free += 10000; g_reclaim_calls++; }
+static void reclaimer_frees_10k_2(void) { g_fake_free += 10000; g_reclaim_calls++; }
 
-void test_registry_runs_all_and_reports_recovered(void) {
+void test_registry_dedups_and_runs_all(void) {
     g_fake_free = 20000; g_reclaim_calls = 0;
     heap_reclaim_register(reclaimer_frees_10k);
-    heap_reclaim_register(reclaimer_frees_10k);
+    heap_reclaim_register(reclaimer_frees_10k);    // duplicate -> registered once (idempotent)
+    heap_reclaim_register(reclaimer_frees_10k_2);  // distinct -> also runs
     size_t recovered = heap_reclaim_all();
-    TEST_ASSERT_EQUAL_INT(2, g_reclaim_calls);
+    TEST_ASSERT_EQUAL_INT(2, g_reclaim_calls);     // each distinct fn runs exactly once
     TEST_ASSERT_EQUAL_UINT32(20000, recovered);
 }
 
@@ -45,7 +47,7 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_free_and_largest_passthrough);
     RUN_TEST(test_min_ever_tracks_lowest_free);
-    RUN_TEST(test_registry_runs_all_and_reports_recovered);
+    RUN_TEST(test_registry_dedups_and_runs_all);
     RUN_TEST(test_reclaim_all_empty_is_zero);
     return UNITY_END();
 }

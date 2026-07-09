@@ -29,6 +29,7 @@ size_t heap_min_ever_internal(void) { return s_min_ever == (size_t)-1 ? 0 : s_mi
 
 void heap_reclaim_register(heap_reclaim_fn fn) {
     if (!fn) return;
+    for (int i = 0; i < s_reclaimer_n; ++i) if (s_reclaimers[i] == fn) return;  // idempotent
     if (s_reclaimer_n < HB_MAX_RECLAIMERS) s_reclaimers[s_reclaimer_n++] = fn;
 }
 
