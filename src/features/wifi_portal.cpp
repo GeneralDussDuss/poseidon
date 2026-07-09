@@ -462,18 +462,27 @@ static void run_portal(void)
     if (old_ap) esp_netif_destroy_default_wifi(old_ap);
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
     Serial.printf("[portal] ap_netif=%p\n", ap_netif);
+    if (!ap_netif) {   /* create failed (low/fragmented heap) — don't march into a crash */
+        ui_toast("AP netif fail: reboot", T_BAD, 1800);
+        return;
+    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     /* Shrink tx/rx buffer pools to fit the ~115 KB internal SRAM left
      * after Cardputer + GFX + LVGL claim their share. Defaults (16/32/...)
      * blow OOM at init. These values are large enough that the AP
      * actually beacons (verified in beacon_spam at similar sizes). */
+    /* Shrunk for the softAP path: the previous 16/16 dynamic pools (~50 KB)
+     * left <8 KB largest-free after init, so esp_wifi_start's hostap_attach
+     * had no room to allocate its AP control block -> +0x2c null-deref crash.
+     * A captive portal serves a handful of clients; 6 TX / 8 RX is plenty and
+     * frees ~30 KB of headroom for the AP bring-up. */
     cfg.static_tx_buf_num  = 0;
-    cfg.dynamic_tx_buf_num = 16;
+    cfg.dynamic_tx_buf_num = 6;
     cfg.tx_buf_type        = 1;
-    cfg.cache_tx_buf_num   = 4;
+    cfg.cache_tx_buf_num   = 2;
     cfg.static_rx_buf_num  = 4;
-    cfg.dynamic_rx_buf_num = 16;
+    cfg.dynamic_rx_buf_num = 8;
     cfg.ampdu_tx_enable    = 0;
     cfg.ampdu_rx_enable    = 0;
     esp_err_t rc = esp_wifi_init(&cfg);
@@ -496,6 +505,20 @@ static void run_portal(void)
     apc.ap.ssid_hidden     = 0;
     rc = esp_wifi_set_config(WIFI_IF_AP, &apc);
     Serial.printf("[portal] set_config rc=%d ch=%u\n", (int)rc, (unsigned)apc.ap.channel);
+    /* esp_wifi_start()'s softAP attach (ieee80211_hostap_attach) allocates its
+     * AP control block from internal heap. When the heap is fragmented/low after
+     * cycling WiFi features it gets a NULL block and derefs it (+0x2c crash,
+     * POS-AUDIT-007). Guard: if the largest contiguous internal block is too
+     * small for the attach, bail gracefully instead of hard-crashing. */
+    size_t lblk = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    Serial.printf("[portal] pre-start largest_free=%u total=%u\n",
+                  (unsigned)lblk,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    if (lblk < 10240) {   /* last-resort net; shrunk buffers should leave ~30 KB */
+        ui_toast("Low memory: reboot then clone", T_BAD, 2200);
+        esp_wifi_deinit();
+        return;
+    }
     rc = esp_wifi_start();
     Serial.printf("[portal] wifi_start rc=%d\n", (int)rc);
     if (rc != ESP_OK) {
