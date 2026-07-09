@@ -185,17 +185,19 @@ git commit -m "feat(heap): budget core with injectable query + min-ever watermar
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `test/test_heap_budget/test_main.cpp` (and add both to `main`):
+Append to `test/test_heap_budget/test_main.cpp` (and add both to `main`). Note: two DISTINCT reclaimer functions, so the test verifies BOTH idempotency (same fn registered twice is called once) AND that multiple different reclaimers all run. `reclaimer_frees_10k` is reused by Task 3, so keep that exact name.
 ```cpp
 static int g_reclaim_calls = 0;
-static void reclaimer_frees_10k(void) { g_fake_free += 10000; g_reclaim_calls++; }
+static void reclaimer_frees_10k(void)   { g_fake_free += 10000; g_reclaim_calls++; }
+static void reclaimer_frees_10k_2(void) { g_fake_free += 10000; g_reclaim_calls++; }
 
-void test_registry_runs_all_and_reports_recovered(void) {
+void test_registry_dedups_and_runs_all(void) {
     g_fake_free = 20000; g_reclaim_calls = 0;
     heap_reclaim_register(reclaimer_frees_10k);
-    heap_reclaim_register(reclaimer_frees_10k);
+    heap_reclaim_register(reclaimer_frees_10k);    // duplicate -> registered once (idempotent)
+    heap_reclaim_register(reclaimer_frees_10k_2);  // distinct -> also runs
     size_t recovered = heap_reclaim_all();
-    TEST_ASSERT_EQUAL_INT(2, g_reclaim_calls);
+    TEST_ASSERT_EQUAL_INT(2, g_reclaim_calls);     // each distinct fn runs exactly once
     TEST_ASSERT_EQUAL_UINT32(20000, recovered);
 }
 
@@ -204,6 +206,7 @@ void test_reclaim_all_empty_is_zero(void) {
     TEST_ASSERT_EQUAL_UINT32(0, heap_reclaim_all());
 }
 ```
+Add `RUN_TEST(test_registry_dedups_and_runs_all);` and `RUN_TEST(test_reclaim_all_empty_is_zero);` to `main`.
 Add `RUN_TEST(test_registry_runs_all_and_reports_recovered);` and `RUN_TEST(test_reclaim_all_empty_is_zero);` to `main`. Note: `hb_test_reset()` in `setUp` must clear the registry so suites do not bleed.
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -738,6 +741,12 @@ Read serial at boot. Record `[heap] census ...`. Expected: internal free higher 
 - [ ] **Step 3: Cycle features and watch for leaks**
 
 Open Triton, BLE scan, ARGUS home, spectrum, wardrive; return to menu after each. On serial, every `[FEAT_EXIT]` delta should be near 0. Any line tagged `LEAK` names a feature to fix (add its buffer to the reclaim registry or fix its exit path). Iterate until no `LEAK`.
+
+**Expected non-leaks (do NOT chase these):**
+- The **first** entry of `wardrive`, `CCTV scan`, and `CIW` each allocates a lazy-once buffer that is intentionally never freed (`g_wdr_aps` 20 KB, `s_hits` 4.7 KB, `active` ~7 KB). That first entry shows a one-time negative delta and may tag `LEAK`; the second entry of the same feature nets ~0. This is expected, not a leak.
+- The baseline is captured before `heap_reclaim_all()`, so a feature that reallocates the ARGUS sprite (18 KB) nets ~0 rather than a phantom leak.
+
+**Watermark caveat:** `min ever` on the census screen is sampled only when `heap_free_internal()` runs (menu seams, `rf_preflight`, census poll). The genuinely low point during `esp_wifi_start`/`hostap_attach` is captured by `heap_report("portal pre-start")` on the portal path but is not continuously sampled elsewhere, so `min ever` reads healthier than the true intra-feature trough. Use the per-run `[portal] pre-start` and `rf_preflight` serial lines for the real low-heap numbers, not `min ever` alone.
 
 - [ ] **Step 4: Reproduce the original crash scenario**
 
