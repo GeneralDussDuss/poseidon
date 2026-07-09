@@ -13,6 +13,7 @@
 #include "c5_cmd.h"
 #include "version.h"
 #include "serial_test.h"
+#include "heap_budget.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 
 /* Strong override: tell Arduino-ESP32 core that BT is in use. Without
@@ -104,6 +105,8 @@ void setup()
     pinMode(5, INPUT_PULLUP);
     M5Cardputer.Display.setRotation(1);  /* landscape, keyboard at the bottom */
     Serial.begin(115200);
+    hb_install_esp_query();
+    heap_census();
     delay(100);
     Serial.printf("\n[POSEIDON] %s (%s) boot\n",
                   poseidon_version(), poseidon_build_date());

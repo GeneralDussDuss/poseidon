@@ -7,6 +7,18 @@
 #include "theme.h"   // T_BAD == theme().bad (runtime themed color)
 static size_t esp_free(void)    { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL); }
 static size_t esp_largest(void) { return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL); }
+
+void hb_install_esp_query(void) { hb_set_query(esp_free, esp_largest); }
+void heap_census(void) {
+    Serial.printf("[heap] census internal free=%u largest=%u  8bit free=%u  dma free=%u\n",
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA));
+}
+#else
+void hb_install_esp_query(void) {}
+void heap_census(void) {}
 #endif
 
 static size_t (*s_free_fn)(void)    = 0;
