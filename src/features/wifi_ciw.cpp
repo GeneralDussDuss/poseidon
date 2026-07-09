@@ -18,6 +18,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
+#include <esp_heap_caps.h>
 #include "../heap_budget.h"
 #include <esp_event.h>
 #include <esp_bt.h>
@@ -319,8 +320,14 @@ void feat_wifi_ciw(void)
     /* Category selection first */
     cat_select_menu();
 
-    /* Build active payload list based on mask */
-    static CiwPayload active[PAYLOAD_COUNT];
+    /* Build active payload list based on mask. Lazy-allocated once (this
+     * feature is rarely used, so the ~7 KB stays free until first entry). */
+    static CiwPayload *active = nullptr;
+    if (!active) {
+        active = (CiwPayload *)heap_caps_calloc(PAYLOAD_COUNT, sizeof(CiwPayload),
+                                                MALLOC_CAP_INTERNAL);
+        if (!active) { ui_toast("Low memory", T_BAD, 1500); return; }
+    }
     int activeN = 0;
     for (size_t i = 0; i < PAYLOAD_COUNT; i++) {
         CiwPayload p;

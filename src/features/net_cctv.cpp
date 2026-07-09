@@ -40,6 +40,7 @@
 #include "ui.h"
 #include "input.h"
 #include "radio.h"
+#include <esp_heap_caps.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <SD.h>
@@ -102,8 +103,19 @@ struct cctv_hit_t {
     char creds[24];        /* "user:pass" or "" */
     char stream[96];       /* "rtsp://host:554/path" or "" */
 };
-static cctv_hit_t s_hits[CCTV_MAX_HITS];
+/* Lazy-allocated once on first CCTV scan (rarely used; keeps ~4.7 KB free
+ * until then). Readers gate on s_hits_n, which is 0 until this is allocated. */
+static cctv_hit_t *s_hits = nullptr;
 static int s_hits_n = 0;
+
+static bool cctv_hits_ensure(void)
+{
+    if (s_hits) return true;
+    s_hits = (cctv_hit_t *)heap_caps_calloc(CCTV_MAX_HITS, sizeof(cctv_hit_t),
+                                            MALLOC_CAP_INTERNAL);
+    if (!s_hits) { ui_toast("Low memory", T_BAD, 1500); return false; }
+    return true;
+}
 
 static volatile bool s_abort = false;
 
@@ -545,6 +557,7 @@ static void scan_file(void)
 
 void feat_cctv_scan(void)
 {
+    if (!cctv_hits_ensure()) return;
     radio_switch(RADIO_WIFI);
 
     auto &d = M5Cardputer.Display;
