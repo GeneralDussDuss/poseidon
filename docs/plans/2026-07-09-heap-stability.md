@@ -14,8 +14,8 @@
 - The heap-budget code performs NO dynamic allocation itself (fixed static arrays only).
 - Reclaim callbacks must be idempotent and null-safe.
 - Do not touch TinyUSB/framework buffers (`ncm_epbuf`, `mscd_epbuf`, `_transfer_buf`).
-- Build: `pio run -e cardputer`. The toolchain bin dir must be on PATH: prepend `%USERPROFILE%\.platformio\packages\xtensa-esp-elf\bin` before invoking pio (the platform does not inject it in this environment).
-- Host tests: `pio test -e native-test`. ESP-only includes in `heap_budget.cpp` MUST be guarded with `#if !defined(PIO_UNIT_TESTING)`.
+- Build (firmware): on **Windows**, `pio run -e cardputer`. The toolchain bin dir must be on PATH: prepend `%USERPROFILE%\.platformio\packages\xtensa-esp-elf\bin` before invoking pio (the platform does not inject it in this environment). From Git Bash: `export PATH="$HOME/.platformio/packages/xtensa-esp-elf/bin:$PATH"`.
+- Host tests: run in **WSL** (this Windows host has no gcc/g++; WSL Ubuntu-24.04 has gcc 13.3 + pio). Command: `wsl.exe -e bash -lc "cd /mnt/c/Users/D/Projects/poseidon-suite/poseidon && ~/.platformio/penv/bin/pio test -e native-test -f test_heap_budget"`. ESP-only includes in `heap_budget.cpp` MUST be guarded with `#if !defined(PIO_UNIT_TESTING)`.
 - Copy/UI text: avoid hyphens and dashes (project style).
 - Flash: `pio run -e cardputer -t upload --upload-port COM16` (device currently absent; hardware tasks wait for a COM port).
 
