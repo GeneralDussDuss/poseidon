@@ -23,6 +23,7 @@
 #include "../sfx.h"
 #include "wifi_pmf_warn.h"
 #include "wifi_deauth_frame.h"   /* wifi_auth_has_pmf */
+#include "../heap_budget.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
@@ -417,6 +418,10 @@ static void run_portal(void)
      *   - 1500 ms settle for the AP_START event to fully complete. */
     Serial.printf("[portal] AP-up entry free=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    /* Reclaim recoverable caches and veto if the largest contiguous internal
+     * block still can't fit hostap_attach's control block. 12288 is the
+     * initial estimate; calibrated from on-device numbers (see plan Task 12). */
+    if (!rf_preflight("portal", 12288)) return;
     /* Pre-AP teardown — if WiFi was already inited via raw-IDF (Triton,
      * BLE Scan, etc.) we MUST fully deinit before AP bring-up. Otherwise:
      *   - esp_wifi_init below asserts (one-shot init)
@@ -510,10 +515,8 @@ static void run_portal(void)
      * cycling WiFi features it gets a NULL block and derefs it (+0x2c crash,
      * POS-AUDIT-007). Guard: if the largest contiguous internal block is too
      * small for the attach, bail gracefully instead of hard-crashing. */
-    size_t lblk = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    Serial.printf("[portal] pre-start largest_free=%u total=%u\n",
-                  (unsigned)lblk,
-                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    heap_report("portal pre-start");
+    size_t lblk = heap_largest_internal();
     if (lblk < 10240) {   /* last-resort net; shrunk buffers should leave ~30 KB */
         ui_toast("Low memory: reboot then clone", T_BAD, 2200);
         esp_wifi_deinit();
