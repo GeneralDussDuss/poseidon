@@ -431,8 +431,20 @@ static wp_verdict_t run_probe(const wp_target_t &t)
      * could clip the panic threshold. Cheap esp_task_wdt_reset per
      * slice keeps loopTask's subscription happy. */
     uint32_t start = millis();
+    int last_pct = -1;
     while (millis() - start < WP_PROBE_WAIT_MS) {
         if (s_notify_received) break;
+        /* Animated feedback so the 3s listen window is not a frozen screen:
+         * a spinner plus a progress bar counting down the notify wait. */
+        ui_spinner(SCR_W - 14, BODY_Y + 6, T_ACCENT);
+        int pct = (int)((millis() - start) * 100 / WP_PROBE_WAIT_MS);
+        if (pct != last_pct) {
+            last_pct = pct;
+            auto &d = M5Cardputer.Display;
+            int bx = 4, by = BODY_Y + 70, bw = SCR_W - 8, bh = 6;
+            d.drawRect(bx, by, bw, bh, T_DIM);
+            d.fillRect(bx + 1, by + 1, (bw - 2) * pct / 100, bh - 2, T_ACCENT);
+        }
         delay(50);
         (void)esp_task_wdt_reset();
     }
