@@ -138,8 +138,7 @@ static void m1_store(const uint8_t bssid[6], const uint8_t sta[6],
 
 /* Runs in drain-task context (NOT the ISR). Does dedup + esp_now_send. */
 static void emit_hs(const uint8_t bssid[6], const uint8_t sta[6],
-                    const uint8_t anonce[32], const uint8_t snonce[32],
-                    const uint8_t mic[16], const uint8_t rc[8],
+                    const uint8_t anonce[32],
                     const uint8_t *eapol_m2, int eapol_m2_len)
 {
     if (!s_ctx) return;
@@ -158,15 +157,10 @@ static void emit_hs(const uint8_t bssid[6], const uint8_t sta[6],
     memcpy(h->bssid, bssid, 6);
     memcpy(h->sta, sta, 6);
     memcpy(h->anonce, anonce, 32);
-    memcpy(h->snonce, snonce, 32);
-    memcpy(h->mic, mic, 16);
-    memcpy(h->replay_counter, rc, 8);
     h->eapol_m2_len = (uint16_t)eapol_m2_len;
     if (eapol_m2_len > 0) memcpy(h->eapol_m2, eapol_m2, eapol_m2_len);
-    h->ssid_len = 0;
-    h->ssid[0]  = '\0';
 
-    out.payload_len = sizeof(posei_hs_t);
+    out.payload_len = sizeof(posei_hs_t);   /* 174 — no overflow */
     esp_now_send(s_ctx->requester, (const uint8_t *)&out, sizeof(out));
 
     ESP_LOGI(TAG, "HS emitted bssid=%02x:%02x:%02x:%02x:%02x:%02x sta=%02x:%02x:%02x:%02x:%02x:%02x m2=%d",
@@ -182,8 +176,7 @@ static void hs_drain_task(void *_)
     while (1) {
         if (xQueueReceive(s_hs_q, &hit, portMAX_DELAY) != pdTRUE) continue;
         if (!s_ctx || s_ctx->stop) continue;   /* drop late frames after stop */
-        emit_hs(hit.bssid, hit.sta, hit.anonce, hit.snonce, hit.mic, hit.rc,
-                hit.eapol_m2, hit.eapol_m2_len);
+        emit_hs(hit.bssid, hit.sta, hit.anonce, hit.eapol_m2, hit.eapol_m2_len);
     }
 }
 
@@ -260,11 +253,15 @@ static void IRAM_ATTR promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             memcpy(hit.snonce, nonce, 32);
             memcpy(hit.mic, mic_bytes, 16);
             memcpy(hit.rc, rc, 8);
-            int m2_len = klen;
-            if (m2_len > 128) m2_len = 128;
-            if (m2_len < 0)   m2_len = 0;
-            hit.eapol_m2_len = m2_len;
-            if (m2_len > 0) memcpy(hit.eapol_m2, key, m2_len);
+            /* Store the full M2 802.1X frame (from the 802.1X header, i.e.
+             * `p + eapol`), not just the key body — the S3 hashcat formatter
+             * needs the 4-byte 802.1X header so Key MIC lands at offset 81. */
+            const uint8_t *frame = p + eapol;
+            int frame_len = len - eapol;
+            if (frame_len > 128) frame_len = 128;
+            if (frame_len < 0)   frame_len = 0;
+            hit.eapol_m2_len = frame_len;
+            if (frame_len > 0) memcpy(hit.eapol_m2, frame, frame_len);
             BaseType_t hp_woken = pdFALSE;
             xQueueSendFromISR(s_hs_q, &hit, &hp_woken);
             if (hp_woken) portYIELD_FROM_ISR();

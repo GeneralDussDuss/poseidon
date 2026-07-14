@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 #define POSEI_MAGIC   0x504F5345  /* "POSE" */
-#define POSEI_VERSION 3
+#define POSEI_VERSION 4
 
 enum {
     POSEI_TYPE_HELLO              = 1,
@@ -126,18 +126,18 @@ typedef struct __attribute__((packed)) {
     uint16_t duration_ms;
 } posei_hs_req_t;
 
+/* v4: slimmed to what a hashcat-22000 line actually needs. The MIC, SNonce and
+ * replay counter are all recoverable from eapol_m2, and the S3 supplies the
+ * ESSID from its scan target — so those fields were pure wire redundancy that
+ * pushed the struct past the 230-byte ESP-NOW payload. */
 typedef struct __attribute__((packed)) {
     uint8_t  bssid[6];
     uint8_t  sta[6];
     uint8_t  anonce[32];
-    uint8_t  snonce[32];
-    uint8_t  mic[16];
-    uint8_t  replay_counter[8];
     uint16_t eapol_m2_len;
-    uint8_t  eapol_m2[128];
-    uint8_t  ssid_len;
-    char     ssid[33];
-} posei_hs_t;
+    uint8_t  eapol_m2[128];   /* full M2 802.1X frame (from the 802.1X header) */
+} posei_hs_t;                 /* 174 bytes */
+_Static_assert(sizeof(posei_hs_t) <= POSEI_PAYLOAD_MAX, "posei_hs_t must fit payload");
 
 /* ---- NEW payloads (v3) ---- */
 
