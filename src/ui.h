@@ -82,6 +82,23 @@ void ui_waves(int cx, int cy, int max_radius, uint16_t base_color);
  * Perfect for scan-in-progress screens. Call in refresh loop. */
 void ui_radar(int cx, int cy, int radius, uint16_t color);
 
+/* ---- shared scan / connect screens (unified across BLE + WiFi) ----
+ * One consistent look so no scanning or connecting screen reads as frozen. */
+
+/* Animated scanning indicator drawn in the top-right of the body strip:
+ * a small radar sweep plus a "label..." with cycling dots and an optional
+ * found count. Call EVERY loop iteration while scanning; it self-throttles
+ * the dot/text animation and does not clear the rest of the body, so a
+ * feature can keep drawing its live results below it. Pass found < 0 to
+ * omit the count. */
+void ui_scanning_indicator(const char *label, int found);
+
+/* One-shot "connecting" screen shown before a blocking connect. Clears the
+ * body and draws a consistent CONNECTING header, the target line, and a
+ * spinner. Since the connect call blocks, this is a single frame — call it
+ * immediately before connect(). */
+void ui_connecting_screen(const char *target);
+
 /* Horizontal hex data stream — fake packet-capture scrolling readout.
  * Draws 3 rows of random 2-digit hex pairs flowing right-to-left at
  * varying speeds. Use on capture / attack screens. */

@@ -176,7 +176,14 @@ void feat_ble_hidsniff(void)
     NimBLEDevice::setSecurityAuth(true, false, true);
     NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
 
-    draw_frame("connecting");
+    char tgt[40];
+    if (g_ble_target.name[0])
+        snprintf(tgt, sizeof(tgt), "%s", g_ble_target.name);
+    else
+        snprintf(tgt, sizeof(tgt), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
+                 g_ble_target.addr[3], g_ble_target.addr[4], g_ble_target.addr[5]);
+    ui_connecting_screen(tgt);
     ui_draw_footer("`=disconnect");
     ui_draw_status(radio_name(), "hidsniff");
 

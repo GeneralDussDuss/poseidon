@@ -226,24 +226,22 @@ void feat_ble_gatt(void)
     }
     radio_switch(RADIO_BLE);
 
-    /* Connecting UI. */
-    ui_clear_body();
+    /* Shared connecting screen. */
     auto &d = M5Cardputer.Display;
-    d.setTextColor(T_ACCENT, T_BG);
-    d.setCursor(4, BODY_Y + 2); d.print("GATT EXPLORER");
-    d.drawFastHLine(4, BODY_Y + 12, 100, T_ACCENT);
-    d.setTextColor(T_FG, T_BG);
-    d.setCursor(4, BODY_Y + 22); d.printf("target %02X:%02X:%02X:%02X:%02X:%02X",
-        g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
-        g_ble_target.addr[3], g_ble_target.addr[4], g_ble_target.addr[5]);
-    d.setTextColor(T_WARN, T_BG);
-    d.setCursor(4, BODY_Y + 36); d.print("connecting...");
+    char tgt[40];
+    if (g_ble_target.name[0])
+        snprintf(tgt, sizeof(tgt), "%s", g_ble_target.name);
+    else
+        snprintf(tgt, sizeof(tgt), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 g_ble_target.addr[0], g_ble_target.addr[1], g_ble_target.addr[2],
+                 g_ble_target.addr[3], g_ble_target.addr[4], g_ble_target.addr[5]);
+    ui_connecting_screen(tgt);
     ui_draw_footer("`=abort");
     ui_draw_status(radio_name(), "gatt");
 
     NimBLEAddress addr(g_ble_target.addr, g_ble_target.is_public ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM);
     if (!try_connect(addr)) {
-        d.fillRect(0, BODY_Y + 36, SCR_W, 16, T_BG);
+        d.fillRect(0, BODY_Y + 36, SCR_W, BODY_H - 36, T_BG);
         d.setTextColor(T_BAD, T_BG);
         d.setCursor(4, BODY_Y + 36); d.print("CONNECT FAILED");
         ui_draw_footer("`=back");

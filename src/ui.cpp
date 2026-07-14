@@ -591,6 +591,50 @@ void ui_radar(int cx, int cy, int radius, uint16_t color)
     }
 }
 
+/* ---- shared scan / connect screens ---- */
+void ui_scanning_indicator(const char *label, int found)
+{
+    auto &d = M5Cardputer.Display;
+    /* Corner radar animates every call for smoothness. */
+    ui_radar(SCR_W - 11, BODY_Y + 8, 6, 0x07FF);
+
+    /* Throttle the text/dot animation so it does not flicker. */
+    static uint32_t s_ms = 0;
+    static int s_dots = 0;
+    if (millis() - s_ms < 250) return;
+    s_ms = millis();
+    s_dots = (s_dots + 1) % 4;
+    const char *tail = s_dots == 0 ? "   " : s_dots == 1 ? ".  "
+                     : s_dots == 2 ? ".. " : "...";
+    char buf[40];
+    if (found >= 0) snprintf(buf, sizeof(buf), "%s%s %d", label, tail, found);
+    else            snprintf(buf, sizeof(buf), "%s%s", label, tail);
+
+    /* Draw in a fixed top-right strip, left of the corner radar. */
+    int x = SCR_W - 128;
+    d.fillRect(x, BODY_Y + 2, 108, 10, T_BG);
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(x, BODY_Y + 2);
+    d.print(buf);
+}
+
+void ui_connecting_screen(const char *target)
+{
+    auto &d = M5Cardputer.Display;
+    ui_clear_body();
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(4, BODY_Y + 2);
+    d.print("CONNECTING");
+    d.drawFastHLine(4, BODY_Y + 12, 96, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
+    d.setCursor(4, BODY_Y + 30);
+    d.printf("%.30s", target ? target : "");
+    ui_spinner(SCR_W / 2, BODY_Y + 54, T_ACCENT);
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 74);
+    d.print("linking, please wait");
+}
+
 /* ---- hex data stream ---- */
 void ui_hexstream(int x, int y, int w, int h, uint16_t color)
 {
