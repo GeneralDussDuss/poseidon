@@ -82,6 +82,7 @@ extern void feat_ble_findmy(void);
 extern void feat_ble_toys(void);
 extern void feat_ble_whisperpair(void);
 extern void feat_ble_blueducky(void);
+extern void feat_ble_hidsniff(void);
 extern void feat_ir_tvbgone(void);
 extern void feat_ir_remote(void);
 extern void feat_ir_prank_power_bomb(void);
@@ -449,6 +450,12 @@ static const menu_node_t MENU_BLE[] = {
       "the target; range is normal BLE (~5-10m). Credit: BlueDucky "
       "(pentestfunctions), Marc Newlin / SkySafe (CVE disclosure). "
       "Personal-use only." },
+    { 'l', "HID Sniff", "Keylog a paired BLE keyboard", nullptr, feat_ble_hidsniff,
+      "Connects to the last scanned BLE keyboard, reads its HID report map, "
+      "subscribes to input reports, and decodes keystrokes live on screen plus "
+      "an SD log. Active capture: it pairs as a host, so it works on keyboards "
+      "in pairing mode or unbonded, not ones already bonded to another host. "
+      "Scan and select the keyboard first. Credit: ChimeraBLE." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
