@@ -8,6 +8,7 @@
 #include "input.h"
 #include "radio.h"
 #include "c5_cmd.h"
+#include "../hs_format.h"
 #include "ble_db.h"
 #include "sd_helper.h"
 #include "../wifi_types.h"
@@ -28,12 +29,25 @@ extern bool g_last_selected_valid;
 static bool c5_present(void)
 {
     if (c5_any_online()) return true;
+    /* The ping/reply round-trip can take up to ~6 s. Show the shared scanning
+     * indicator so the screen never looks frozen during the wait, and let ESC
+     * bail out early instead of dead-waiting the whole window. */
+    ui_clear_body();
+    auto &d = M5Cardputer.Display;
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(4, BODY_Y + 2);  d.print("C5 SATELLITE");
+    d.drawFastHLine(4, BODY_Y + 12, 96, T_ACCENT);
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 28);  d.print("waking the node over ESP-NOW");
+    ui_draw_footer("`=cancel");
     uint32_t deadline = millis() + 6000;
     uint32_t last_ping = 0;
     while (millis() < deadline) {
         if (millis() - last_ping > 800) { c5_cmd_ping(); last_ping = millis(); }
-        delay(80);
+        ui_scanning_indicator("reaching", -1);
         if (c5_any_online()) return true;
+        if (input_poll() == PK_ESC) return false;
+        delay(80);
     }
     return false;
 }
@@ -648,28 +662,35 @@ void feat_c5_scan_zb(void)
 
 /* ==================== C5 5 GHz PMKID capture ==================== */
 
-static void save_hs_to_sd(const c5_hs_t &h)
+/* ESSID for a captured handshake's BSSID, pulled from the C5 scan cache so the
+ * hashcat line carries the network name (the C5 no longer sends it on wire). */
+static const char *c5_ssid_for_bssid(const uint8_t bssid[6])
+{
+    static char ssid[33];
+    c5_ap_t aps[64];
+    int n = c5_aps(aps, 64);
+    for (int i = 0; i < n; ++i) {
+        if (memcmp(aps[i].bssid, bssid, 6) == 0) {
+            strncpy(ssid, aps[i].ssid, sizeof(ssid) - 1);
+            ssid[sizeof(ssid) - 1] = '\0';
+            return ssid;
+        }
+    }
+    ssid[0] = '\0';
+    return ssid;
+}
+
+static void save_hs_to_sd(const c5_hs_t &h, const char *essid)
 {
     if (!sd_mount()) return;
     SD.mkdir("/poseidon");
     File f = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
     if (!f) return;
-    /* hashcat 22000 WPA*02* format:
-     *   WPA*02*<mic>*<bssid>*<sta>*<essid_hex>*<anonce>*<m2_body>*02 */
-    f.print("WPA*02*");
-    for (int i = 0; i < 16; ++i) f.printf("%02x", h.mic[i]);
-    f.print("*");
-    for (int i = 0; i < 6;  ++i) f.printf("%02x", h.bssid[i]);
-    f.print("*");
-    for (int i = 0; i < 6;  ++i) f.printf("%02x", h.sta[i]);
-    f.print("*");
-    for (int i = 0; i < h.ssid_len && i < 33; ++i) f.printf("%02x", (uint8_t)h.ssid[i]);
-    f.print("*");
-    for (int i = 0; i < 32; ++i) f.printf("%02x", h.anonce[i]);
-    f.print("*");
-    int m2 = h.eapol_m2_len > 128 ? 128 : h.eapol_m2_len;
-    for (int i = 0; i < m2; ++i) f.printf("%02x", h.eapol_m2[i]);
-    f.println("*02");
+    char line[512];
+    int n = hs_format_22000(line, sizeof(line), h.bssid, h.sta, h.anonce,
+                            h.eapol_m2, h.eapol_m2_len,
+                            essid ? essid : "");
+    if (n > 0) f.println(line);
     f.close();
 }
 
@@ -978,7 +999,8 @@ void feat_c5_nuke_5g(void)
             c5_hs_t hs[8];
             int got_hs = c5_hss(hs, 8);
             while (hs_written < got_hs) {
-                save_hs_to_sd(hs[hs_written]);
+                const char *essid = c5_ssid_for_bssid(hs[hs_written].bssid);
+                save_hs_to_sd(hs[hs_written], essid);
                 hs_written++;
             }
             c5_pmkid_t pm[8];

@@ -25,6 +25,7 @@
 #include "radio.h"
 #include "menu.h"
 #include "c5_cmd.h"
+#include "../hs_format.h"
 #include "wifi_types.h"
 #include "wifi_deauth_frame.h"
 #include "../wifi_wardrive.h"
@@ -1456,23 +1457,17 @@ void feat_triton(void)
                 char ssid[33] = {0};
                 ssid_of(hs[i].bssid, ssid, sizeof(ssid));
 
-                /* Compose WPA*02* line — same format as local emit_hs. */
-                char line[1024] = "WPA*02*";
-                hexcat(line, hs[i].mic, 16);    strcat(line, "*");
-                hexcat(line, hs[i].bssid, 6);   strcat(line, "*");
-                hexcat(line, hs[i].sta, 6);     strcat(line, "*");
-                for (size_t k = 0; k < strlen(ssid); ++k) {
-                    char h[3]; snprintf(h, sizeof(h), "%02x", (uint8_t)ssid[k]);
-                    strcat(line, h);
+                /* Shared hashcat-22000 formatter (MIC pulled from + zeroed in
+                 * the M2 frame; message-pair 00) — same path as c5_scan. */
+                char line[512];
+                int nline = hs_format_22000(line, sizeof(line), hs[i].bssid,
+                                            hs[i].sta, hs[i].anonce,
+                                            hs[i].eapol_m2, hs[i].eapol_m2_len,
+                                            ssid);
+                if (nline > 0) {
+                    strcat(line, "\n");
+                    capture_enqueue(line);
                 }
-                strcat(line, "*");
-                hexcat(line, hs[i].anonce, 32); strcat(line, "*");
-                int m2 = hs[i].eapol_m2_len;
-                if (m2 > 128) m2 = 128;
-                if (m2 < 0)   m2 = 0;
-                hexcat(line, hs[i].eapol_m2, m2);
-                strcat(line, "*02\n");
-                capture_enqueue(line);
                 wdr_append(hs[i].bssid, ssid, "EAPOL_HS_5G");
                 s_hs++;
             }

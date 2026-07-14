@@ -15,7 +15,7 @@
 #include <Arduino.h>
 
 #define C5_MAGIC   0x504F5345
-#define C5_VERSION 3
+#define C5_VERSION 4
 
 enum {
     C5_TYPE_HELLO              = 1,
@@ -81,18 +81,16 @@ struct __attribute__((packed)) c5_hs_req_t {
     uint16_t duration_ms;
 };
 
+/* v4: mirrors the slimmed posei_hs_t. MIC/SNonce/replay-counter live inside
+ * eapol_m2; the ESSID is supplied by the S3 from its scan target. */
 struct __attribute__((packed)) c5_hs_t {
     uint8_t  bssid[6];
     uint8_t  sta[6];
     uint8_t  anonce[32];
-    uint8_t  snonce[32];
-    uint8_t  mic[16];
-    uint8_t  replay_counter[8];
     uint16_t eapol_m2_len;
-    uint8_t  eapol_m2[128];
-    uint8_t  ssid_len;
-    char     ssid[33];
+    uint8_t  eapol_m2[128];   /* full M2 802.1X frame (from the 802.1X header) */
 };
+static_assert(sizeof(c5_hs_t) == 174, "c5_hs_t must match posei_hs_t (174B)");
 
 struct __attribute__((packed)) c5_msg_t {
     uint32_t magic;
