@@ -2,6 +2,10 @@
 
 #include <SPI.h>
 
+/* SD chip-select on the shared HSPI bus. Exposed here (not buried in the .cpp)
+ * so CC1101/nRF24 bus-parking can deselect it via one canonical macro. */
+#define SD_CS 12
+
 /*
  * sd_helper — one place that knows the M5Cardputer SD pins + SPI
  * bus config. Every feature that wants SD should call sd_mount()

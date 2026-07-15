@@ -17,7 +17,7 @@ void nrf24_park_others(void)
      * old hard-coded 13 was the Hydra CC1101 CS and left the hat's real
      * CC1101 CS (15) un-parked, so CC1101 contended on MISO and the nRF24
      * probe read garbage ("chip not detected"). */
-    pinMode(12, OUTPUT);        digitalWrite(12, HIGH);
+    pinMode(SD_CS,     OUTPUT); digitalWrite(SD_CS,     HIGH);
     pinMode(CC1101_CS, OUTPUT); digitalWrite(CC1101_CS, HIGH);
 }
 

@@ -23,7 +23,8 @@
 #define SD_SCK   40
 #define SD_MISO  39
 #define SD_MOSI  14
-#define SD_CS    12
+/* SD_CS now lives in sd_helper.h so the shared-bus park logic (cc1101/nrf24)
+ * has one source of truth for the SD chip-select. */
 #define SD_FREQ  20000000  /* 20 MHz — reliable on 5cm ribbon in the Cardputer */
 
 /* Dedicated SPI bus for SD. The M5Cardputer display (M5GFX) claims

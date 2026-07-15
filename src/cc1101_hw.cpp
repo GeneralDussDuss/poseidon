@@ -2,6 +2,7 @@
  * cc1101_hw.cpp — CC1101 init/teardown for Hydra RF Cap 424.
  */
 #include "cc1101_hw.h"
+#include "nrf24_hw.h"   /* NRF24_CS — deselect the nRF24 while CC1101 owns the bus */
 #include "sd_helper.h"
 #include "gps.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
@@ -11,25 +12,21 @@ static bool s_up = false;
 
 void cc1101_park_others(void)
 {
-    /* Pin 13 = CC1101 CS = GPS UART TX. If the GPS background poller
-     * is running, the UART driver fights us for the pin — symptoms
-     * range from "CS never asserts" to "garbage bytes on SPI". Tear
-     * down GPS before reclaiming the pin, then drive CS HIGH manually
-     * so the chip ignores SPI until cc1101_begin actually addresses it.
-     *
-     * POS-AUDIT-244 / rf-015: only tear down if GPS is actually up.
-     * Previously we called s_uart.end() + pinMode INPUT unconditionally
-     * even when GPS was OFF (default per sys-015) — wasting the cycles
-     * and momentarily flipping pin 13 INPUT-then-OUTPUT-HIGH which
-     * could backdrive the GPS module's TX into us during the gap. */
+    /* On the combo hat CC1101 CS=15 and GDO0=13, which are exactly the GPS
+     * UART pins (RX=15, TX=13). A running GPS poller fights us for them —
+     * symptoms range from "CS never asserts" to "garbage bytes on SPI" — so
+     * tear GPS down first. (POS-AUDIT-244 / rf-015: only if actually up;
+     * unconditional teardown momentarily backdrove the GPS TX into us.) */
     if (gps_is_up()) gps_end();
-    pinMode(13, OUTPUT); digitalWrite(13, HIGH);
 
-    /* SD CS=12, nRF24 CS=6, LoRa NSS=5: hold HIGH so they ignore the
-     * shared HSPI bus while CC1101 owns it. */
-    pinMode(12, OUTPUT); digitalWrite(12, HIGH);
-    pinMode(6,  OUTPUT); digitalWrite(6,  HIGH);
-    pinMode(5,  OUTPUT); digitalWrite(5,  HIGH);
+    /* Hold every other device on the shared HSPI bus deselected so CC1101
+     * owns it. Driven from the canonical macros (SD_CS, NRF24_CS) so this
+     * can't drift out of sync with the hat pinout — the old hard-coded 6/5
+     * were the Hydra nRF24-CS / LoRa-NSS pins and left the hat's real nRF24
+     * CS (4) un-parked (latent MISO contention). CC1101's own CS/GDO0 are
+     * set up in cc1101_begin. */
+    pinMode(SD_CS,    OUTPUT); digitalWrite(SD_CS,    HIGH);
+    pinMode(NRF24_CS, OUTPUT); digitalWrite(NRF24_CS, HIGH);
 }
 
 bool cc1101_begin(float freq_mhz)
