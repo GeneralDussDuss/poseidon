@@ -1,15 +1,15 @@
 /*
- * cc1101_hw — CC1101 driver for the PINGEQUA Hydra RF Cap 424.
+ * cc1101_hw — CC1101 driver for the combo RF/IR hat (Cardputer ADV).
  *
- * Hydra hat pinout (shared SPI with SD):
- *   SCK=40  MISO=39  MOSI=14  CS=13  GDO0=5
+ * Hat pinout (shared SPI with SD):
+ *   SCK=40  MISO=39  MOSI=14  CS=15  GDO0=13
  */
 #pragma once
 
 #include <Arduino.h>
 
-#define CC1101_CS   13
-#define CC1101_GDO0  5
+#define CC1101_CS   15
+#define CC1101_GDO0 13
 
 bool cc1101_begin(float freq_mhz = 433.92f);
 void cc1101_end(void);
