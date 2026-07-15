@@ -2,6 +2,7 @@
  * nrf24_hw.cpp — nRF24L01+ init/teardown for Hydra RF Cap 424.
  */
 #include "nrf24_hw.h"
+#include "cc1101_hw.h"
 #include "sd_helper.h"
 #include <SPI.h>
 
@@ -10,12 +11,14 @@ static bool  s_up    = false;
 
 void nrf24_park_others(void)
 {
-    /* SD CS=12, CC1101 CS=13: hold HIGH so they ignore SPI traffic.
-     * Also park LoRa NSS=5 HIGH so a stale LoRa init doesn't drive
-     * MISO when we own the bus. */
-    pinMode(12, OUTPUT); digitalWrite(12, HIGH);
-    pinMode(13, OUTPUT); digitalWrite(13, HIGH);
-    pinMode(5,  OUTPUT); digitalWrite(5,  HIGH);
+    /* Park every other CS on the shared SPI bus HIGH so only the nRF24
+     * answers. SD CS=12; CC1101 CS is CC1101_CS (combo hat: 15). Use the
+     * macro so this can't drift out of sync with the hat pinout again — the
+     * old hard-coded 13 was the Hydra CC1101 CS and left the hat's real
+     * CC1101 CS (15) un-parked, so CC1101 contended on MISO and the nRF24
+     * probe read garbage ("chip not detected"). */
+    pinMode(12, OUTPUT);        digitalWrite(12, HIGH);
+    pinMode(CC1101_CS, OUTPUT); digitalWrite(CC1101_CS, HIGH);
 }
 
 bool nrf24_begin(void)
