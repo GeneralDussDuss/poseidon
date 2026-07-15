@@ -160,6 +160,7 @@ extern void feat_satcom(void);
 extern void feat_defensive_monitor(void);
 extern void feat_usb_guard(void);
 extern void feat_ir_clone(void);
+extern void feat_ir_learn(void);
 extern void feat_drone_remoteid(void);
 extern void feat_nrf52_scan(void);
 extern void feat_nrf52_sniff(void);
@@ -618,8 +619,12 @@ static const menu_node_t MENU_IR[] = {
       "1-9=digits, I=source, H=home, B=back." },
     { 'c', "Clone", "Multi-profile IR remote (Samsung/LG/Sony)", nullptr, feat_ir_clone,
       "Pre-installed Samsung TV / LG TV / Sony TV remote profiles. Pick a "
-      "profile, hit the labeled keys to fire IR codes via the TX LED on GPIO 44. "
-      "v2 will add capture-from-real-remote + Flipper-compatible .ir files." },
+      "profile, hit the labeled keys to fire IR codes via the hat's TX emitter. "
+      "See Learn for capture-from-real-remote." },
+    { 'l', "Learn", "Learn + replay a real remote", nullptr, feat_ir_learn,
+      "Point a real IR remote at the hat's receiver (G5), press SPACE to "
+      "capture the raw signal, then R to replay it out the hat's emitter (G6). "
+      "S saves to /poseidon/ir. Raw timing capture, any protocol." },
     { 'p', "Pranks", "10 one-shot IR pranks (power/vol/mute/cable/AC)",
       MENU_IR_PRANKS, nullptr,
       "Curated one-shot IR pranks layered on top of TV-B-Gone. Power-bomb "
