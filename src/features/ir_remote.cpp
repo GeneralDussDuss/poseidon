@@ -13,7 +13,8 @@
 #include <driver/ledc.h>
 #include <driver/gpio.h>
 
-#define IR_PIN 44
+#include "../ir_hw.h"
+#define IR_PIN IR_TX_PIN
 
 /* Samsung NEC-style header. */
 static const uint16_t SAMSUNG_HEADER[] = { 4500, 4500 };

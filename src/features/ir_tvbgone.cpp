@@ -14,7 +14,8 @@
 #include <driver/ledc.h>
 #include <driver/gpio.h>
 
-#define IR_PIN 44  /* Cardputer IR LED */
+#include "../ir_hw.h"
+#define IR_PIN IR_TX_PIN
 
 static volatile bool s_running = false;
 static volatile uint32_t s_code_idx = 0;

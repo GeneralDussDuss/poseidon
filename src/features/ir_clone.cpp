@@ -25,7 +25,7 @@
 #include <driver/gpio.h>
 #include <ctype.h>
 
-#define IR_TX_PIN 44
+#include "../ir_hw.h"
 
 /* ---- carrier control (lifted from ir_remote.cpp) ---- */
 
