@@ -443,15 +443,25 @@ static int c5_collect_5g(c5_ap_t *out, int max)
     d.setCursor(4, BODY_Y + 2); d.print("SCANNING 5 GHz...");
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
     ui_draw_footer("`=abort");
-    uint32_t deadline = millis() + 12000;
+    /* The C5 does a ~300ms/channel dual-band active scan across ~40 channels,
+     * so it blocks ~10 s then streams the result batch. The old 12 s window
+     * timed out right as 5 GHz arrived -> "no 5 GHz APs" in Nuke/PMKID even
+     * though the scan screen (which waits forever) saw them. Give it 20 s, but
+     * return as soon as the 5 GHz count has held steady for 1.5 s (batch done)
+     * so we don't burn the whole window when results land early. */
+    uint32_t deadline = millis() + 20000;
+    int last_f = -1;
+    uint32_t stable_since = millis();
     while (millis() < deadline) {
         n = c5_aps(all, 64);
         f = 0;
         for (int i = 0; i < n && f < max; ++i) if (all[i].is_5g) out[f++] = all[i];
+        if (f != last_f) { last_f = f; stable_since = millis(); }
         d.setTextColor(f ? T_GOOD : T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 30); d.printf("5G APs: %-3d   total %-3d ", f, n);
         d.fillRect(SCR_W - 38, BODY_Y + 30, 32, 32, T_BG);
         ui_radar(SCR_W - 24, BODY_Y + 44, 14, T_ACCENT);
+        if (f > 0 && millis() - stable_since > 1500) break;
         if (input_poll() == PK_ESC) break;
         delay(120);
     }
