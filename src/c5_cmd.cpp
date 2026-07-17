@@ -302,6 +302,14 @@ static void on_recv(const uint8_t *mac, const uint8_t *data, int len)
     if (m->magic != C5_MAGIC || m->version != C5_VERSION) return;
 
     ensure_peer(mac);
+    /* ANY valid frame proves the C5 is alive. Refresh last_seen here so a node
+     * busy streaming RESP_AP / RESP_STATUS / RESP_HS (with HELLOs paused during
+     * capture or squeezed by its TX queue mid-attack) is not evicted mid-scan —
+     * that was the "drops after a bit, go to Status to re-sync" bug. Guarded
+     * like the PONG path since the RX callback races evict_locked compaction. */
+    portENTER_CRITICAL(&s_mux);
+    { int _li = find_peer(mac); if (_li >= 0) s_peers[_li].last_seen = millis(); }
+    portEXIT_CRITICAL(&s_mux);
     switch (m->type) {
     case C5_TYPE_HELLO:      handle_hello(mac, m); break;
     case C5_TYPE_RESP_AP:    handle_resp_ap(m);    break;
@@ -387,12 +395,14 @@ void c5_stop(void)
     s_started = false;
 }
 
-/* Evict peers silent for >15 s. MUST be called under s_mux. */
+/* Evict peers silent for >30 s. MUST be called under s_mux. Bumped from 15 s
+ * so a long, silent capture window (handshake listen with no client traffic)
+ * doesn't drop the node before it speaks again. */
 static void evict_locked(void)
 {
     uint32_t now = millis();
     for (int i = s_peer_n - 1; i >= 0; --i) {
-        if (now - s_peers[i].last_seen > 15000) {
+        if (now - s_peers[i].last_seen > 30000) {
             s_peers[i] = s_peers[s_peer_n - 1];
             s_peer_n--;
         }

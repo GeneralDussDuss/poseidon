@@ -296,6 +296,12 @@ void feat_c5_scan_5g(void)
     int last_cursor = -1;
     uint32_t last = 0;
     while (true) {
+        /* Animate EVERY iteration while waiting on the C5 — the gated redraw
+         * below only fires on a data/cursor change, so without this the scan
+         * reads as frozen until the first AP lands. ui_radar self-advances via
+         * millis() and self-manages its afterglow. */
+        if (c5_aps(nullptr, 0) == 0)
+            ui_radar(SCR_W / 2, BODY_Y + 62, 24, 0x07FF);
         if (millis() - last > 300) {
             last = millis();
             int n_now = c5_aps(nullptr, 0);
