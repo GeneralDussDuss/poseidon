@@ -101,6 +101,9 @@
   <div class="row">
     <label><input type="checkbox" id="erase"> Erase entire flash first (clean install)</label>
   </div>
+  <div class="row">
+    <label><input type="checkbox" id="nocompress"> Uncompressed write — slower, but survives native-USB (try this if a compressed write dies partway)</label>
+  </div>
 
   <div id="plan" class="plan"></div>
 
@@ -141,8 +144,9 @@
 </footer>
 
 <script type="module">
-// Pin esptool-js >=0.6 (C5 fix). jsdelivr resolves the range to the latest 0.6.x.
-const ESPTOOL_VER = "0.6";
+// Pin esptool-js exactly (0.6.0 = the C5 flash-detect fix, and the only 0.6.x).
+// Exact pin so a future release can't silently change flashing behavior.
+const ESPTOOL_VER = "0.6.0";
 let ESPLoader, Transport;
 try {
   ({ ESPLoader, Transport } = await import(`https://cdn.jsdelivr.net/npm/esptool-js@${ESPTOOL_VER}/bundle.js`));
@@ -277,7 +281,7 @@ programBtn.addEventListener("click", async () => {
       flashMode: t.flashMode,
       flashFreq: t.flashFreq,
       eraseAll: eraseCb.checked,
-      compress: true,
+      compress: !$("nocompress").checked,
       reportProgress: (fileIndex, written, total) => {
         const pct = Math.round((written / total) * 100);
         progEl.style.width = pct + "%";
