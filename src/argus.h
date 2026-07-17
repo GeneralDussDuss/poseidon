@@ -14,3 +14,9 @@
 
 void argus_draw(argus_mood_t mood, int x, int y);
 void argus_flash(argus_mood_t mood, uint32_t ms);
+
+/* Reset the internal draw cache so the NEXT argus_draw re-pushes the
+ * sprite unconditionally. Call this right after a body clear (feature
+ * entry, view switch) — otherwise the cache sees an unchanged mood/x/y
+ * and skips the push, leaving a black gap where the face should be. */
+void argus_invalidate(void);

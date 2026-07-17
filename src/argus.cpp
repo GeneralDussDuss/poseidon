@@ -61,6 +61,16 @@ void argus_flash(argus_mood_t mood, uint32_t ms)
     s_flash_until = millis() + ms;
 }
 
+void argus_invalidate(void)
+{
+    /* Force the next draw to push. Sentinels match the initial values so
+     * the mood/x/y/sway comparison in argus_draw always mismatches once. */
+    s_last_mood = (argus_mood_t)-1;
+    s_last_sway = INT32_MIN;
+    s_last_x    = INT32_MIN;
+    s_last_y    = INT32_MIN;
+}
+
 static void overlay_lightning(const uint16_t *src, int x, int y)
 {
     auto &d = M5Cardputer.Display;

@@ -25,6 +25,8 @@
 #include "../sd_helper.h"
 #include "../argus.h"
 #include "wdr_mood.h"
+#include "wdr_matrix.h"
+#include "../sfx.h"
 
 static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -58,7 +60,8 @@ static volatile int      s_5g_count = 0;   /* distinct 5 GHz APs from the C5 */
 static File       s_csv;
 static char       s_csv_path[64] = {0};
 
-enum wdr_view_t { WDR_VIEW_ARGUS = 0, WDR_VIEW_PLAIN = 1 };
+enum wdr_view_t { WDR_VIEW_ARGUS = 0, WDR_VIEW_PLAIN = 1, WDR_VIEW_MATRIX = 2, WDR_VIEW__COUNT = 3 };
+#define MX_SEED 5   /* recent APs to preload into the matrix roster on entry */
 static wdr_view_t s_view = WDR_VIEW_ARGUS;
 static volatile int s_new_this_run = 0;   /* distinct new APs this session */
 static uint32_t s_entry_ms = 0;           /* millis() at feature start */
@@ -208,7 +211,18 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         uint8_t tag = tags[off];
         uint8_t tlen = tags[off + 1];
         if (off + 2 + tlen > tag_len) break;
-        if (tag == 48) { auth = WIFI_AUTH_WPA2_PSK; }
+        if (tag == 48) {
+            auth = WIFI_AUTH_WPA2_PSK;
+            /* Scan the RSN element for the SAE AKM suite (00-0F-AC-08) ->
+             * WPA3-Personal. Transition APs list both PSK and SAE; SAE
+             * present is enough to call it WPA3 for the catch banner. */
+            for (int k = 0; k + 3 < tlen; ++k) {
+                if (tags[off+2+k]==0x00 && tags[off+2+k+1]==0x0F &&
+                    tags[off+2+k+2]==0xAC && tags[off+2+k+3]==0x08) {
+                    auth = WIFI_AUTH_WPA3_PSK; break;
+                }
+            }
+        }
         else if (tag == 221 && tlen >= 4 && tags[off+2]==0x00 && tags[off+3]==0x50) {
             if (auth != WIFI_AUTH_WPA2_PSK) auth = WIFI_AUTH_WPA_PSK;
         }
@@ -329,8 +343,11 @@ static void draw_argus_view(argus_mood_t base, bool &dirty)
 {
     auto &d = M5Cardputer.Display;
     /* Clear ONCE on entry / view switch. argus_draw caches and will not
-     * re-push an unchanged mood, so a per-frame clear would leave a gap. */
-    if (dirty) { ui_clear_body(); dirty = false; }
+     * re-push an unchanged mood, so a per-frame clear would leave a gap.
+     * Invalidate the cache here so the face repaints after the wipe (fixes
+     * the "Argus vanishes after exit + re-enter" case, where mood/x/y are
+     * unchanged from the previous session and the cache would skip). */
+    if (dirty) { ui_clear_body(); argus_invalidate(); dirty = false; }
 
     argus_draw(base, 8, BODY_Y);   /* 96x96, matches Triton placement */
 
@@ -427,6 +444,7 @@ void feat_wifi_wardrive(void)
     int      prev_new       = 0;
     int      new_5s_ref     = 0;
     uint32_t new_5s_ref_ms  = s_entry_ms;
+    int      mx_prev_apc    = s_ap_count;   /* only feed the matrix view APs seen from here on */
     while (true) {
         gps_poll();
         uint32_t now = millis();
@@ -461,44 +479,73 @@ void feat_wifi_wardrive(void)
             last_flush = now;
             flush_dirty_rows();
         }
-        if (now - last_redraw > 250) {
+        /* Matrix view animates fast; the partial-redraw views stay at 250ms. */
+        uint32_t redraw_iv = (s_view == WDR_VIEW_MATRIX) ? 40 : 250;
+        if (now - last_redraw > redraw_iv) {
             last_redraw = now;
-            ui_draw_status(radio_name(), "wardrive");
-
             const gps_fix_t &g = gps_get();
 
-            /* GPS lock edges -> celebration / annoyance flashes. */
-            if (g.valid && !prev_gps_valid) {
-                s_gps_ever_locked = true;
-                argus_flash(ARGUS_PLEASED, 900);
-            } else if (!g.valid && prev_gps_valid) {
-                argus_flash(ARGUS_ANNOYED, 900);
+            /* ---- process newly discovered APs (runs in every view) ----
+             * Feed the matrix decode with real SSIDs, and fire the OPEN/WPA3
+             * sound cue. AP data snapshotted under the promisc mutex. */
+            int apc = s_ap_count;
+            if (apc > mx_prev_apc) {
+                for (int i = mx_prev_apc; i < apc && i < WARDRIVE_MAX_APS; ++i) {
+                    char ss[40]; uint8_t au; int8_t rs; uint8_t bb[6];
+                    portENTER_CRITICAL(&s_wdr_mux);
+                    strncpy(ss, s_aps[i].ssid, 33); ss[33] = 0;
+                    au = s_aps[i].auth; rs = s_aps[i].rssi; memcpy(bb, s_aps[i].bssid, 6);
+                    portEXIT_CRITICAL(&s_wdr_mux);
+                    if (ss[0] == 0) snprintf(ss, sizeof(ss), "<hidden %02X:%02X>", bb[4], bb[5]);
+                    bool juicy = (au == WIFI_AUTH_OPEN || au == WIFI_AUTH_WPA3_PSK);
+                    if (s_view == WDR_VIEW_MATRIX) wdr_matrix_feed(ss, au, rs);
+                    if (juicy) sfx_glitch();
+                }
+                mx_prev_apc = apc;
             }
-            prev_gps_valid = g.valid;
 
-            /* Milestone every 50 new APs + juicy (OPEN/WPA3) instant flash. */
-            int new_now = s_new_this_run;
-            if (wdr_milestone_crossed(prev_new, new_now, 50)) argus_flash(ARGUS_PLEASED, 700);
-            prev_new = new_now;
-            if (s_juicy_pending) { s_juicy_pending = false; argus_flash(ARGUS_PLEASED, 500); }
+            /* Consume the ISR juicy flag every frame so it can't go stale and
+             * strobe on a later view switch; only Argus reacts to it. */
+            bool juicy_flash = s_juicy_pending; s_juicy_pending = false;
 
-            /* Sliding ~5 s window of new APs for the dense-zone mood. */
-            if (now - new_5s_ref_ms >= 5000) { new_5s_ref = new_now; new_5s_ref_ms = now; }
-
-            if (s_view == WDR_VIEW_ARGUS) {
-                wdr_mood_ctx mc;
-                mc.gps_valid       = g.valid;
-                mc.gps_ever_locked = s_gps_ever_locked;
-                mc.gps_speed_kts   = g.speed_kts;
-                mc.now_ms          = now;
-                mc.entry_ms        = s_entry_ms;
-                mc.last_new_ms     = s_last_new_ms;
-                mc.new_in_5s       = new_now - new_5s_ref;
-                mc.ap_count        = s_ap_count;
-                mc.ap_cap          = WARDRIVE_MAX_APS;
-                draw_argus_view(wdr_pick_mood(mc), dirty);
+            if (s_view == WDR_VIEW_MATRIX) {
+                wdr_matrix_render(s_current_ch, s_ap_count, g.valid, g.sats);
             } else {
-                draw_plain_view(dirty);
+                ui_draw_status(radio_name(), "wardrive");
+
+                /* GPS lock edges -> celebration / annoyance flashes. */
+                if (g.valid && !prev_gps_valid) {
+                    s_gps_ever_locked = true;
+                    argus_flash(ARGUS_PLEASED, 900);
+                } else if (!g.valid && prev_gps_valid) {
+                    argus_flash(ARGUS_ANNOYED, 900);
+                }
+                prev_gps_valid = g.valid;
+
+                /* Milestone every 50 new APs + juicy instant flash. */
+                int new_now = s_new_this_run;
+                if (wdr_milestone_crossed(prev_new, new_now, 50)) argus_flash(ARGUS_PLEASED, 700);
+                prev_new = new_now;
+                if (juicy_flash) argus_flash(ARGUS_PLEASED, 500);
+
+                /* Sliding ~5 s window of new APs for the dense-zone mood. */
+                if (now - new_5s_ref_ms >= 5000) { new_5s_ref = new_now; new_5s_ref_ms = now; }
+
+                if (s_view == WDR_VIEW_ARGUS) {
+                    wdr_mood_ctx mc;
+                    mc.gps_valid       = g.valid;
+                    mc.gps_ever_locked = s_gps_ever_locked;
+                    mc.gps_speed_kts   = g.speed_kts;
+                    mc.now_ms          = now;
+                    mc.entry_ms        = s_entry_ms;
+                    mc.last_new_ms     = s_last_new_ms;
+                    mc.new_in_5s       = new_now - new_5s_ref;
+                    mc.ap_count        = s_ap_count;
+                    mc.ap_cap          = WARDRIVE_MAX_APS;
+                    draw_argus_view(wdr_pick_mood(mc), dirty);
+                } else {
+                    draw_plain_view(dirty);
+                }
             }
         }
 
@@ -512,7 +559,27 @@ void feat_wifi_wardrive(void)
             dirty = true;
         }
         if (k == 'a' || k == 'A') {
-            s_view = (s_view == WDR_VIEW_ARGUS) ? WDR_VIEW_PLAIN : WDR_VIEW_ARGUS;
+            s_view = (wdr_view_t)((s_view + 1) % WDR_VIEW__COUNT);
+            if (s_view == WDR_VIEW_MATRIX) {
+                /* Seed the roster from the most recent APs, oldest->newest so
+                 * the newest lands on top; new arrivals decode in live. */
+                wdr_matrix_begin();
+                int start = s_ap_count > MX_SEED ? s_ap_count - MX_SEED : 0;
+                for (int j = start; j < s_ap_count; ++j) {
+                    char ss[40]; uint8_t au; int8_t rs; uint8_t bb[6];
+                    portENTER_CRITICAL(&s_wdr_mux);
+                    strncpy(ss, s_aps[j].ssid, 33); ss[33] = 0;
+                    au = s_aps[j].auth; rs = s_aps[j].rssi; memcpy(bb, s_aps[j].bssid, 6);
+                    portEXIT_CRITICAL(&s_wdr_mux);
+                    if (ss[0] == 0) snprintf(ss, sizeof(ss), "<hidden %02X:%02X>", bb[4], bb[5]);
+                    wdr_matrix_seed(ss, au, rs);
+                }
+            } else {
+                /* Leaving the full-screen matrix: restore chrome the next
+                 * frame (status cache was clobbered, footer overwritten). */
+                ui_status_invalidate();
+                ui_draw_footer("ESC=stop  A=view  F=flush  ?=help");
+            }
             dirty = true;
         }
     }
