@@ -23,6 +23,8 @@
 #include <esp_heap_caps.h>
 #include <SD.h>
 #include "../sd_helper.h"
+#include "../argus.h"
+#include "wdr_mood.h"
 
 static portMUX_TYPE s_wdr_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -55,6 +57,11 @@ static volatile bool     s_c5_hold    = false;  /* true = hop task parks on ch1 
 static volatile int      s_5g_count = 0;   /* distinct 5 GHz APs from the C5 */
 static File       s_csv;
 static char       s_csv_path[64] = {0};
+
+enum wdr_view_t { WDR_VIEW_ARGUS = 0, WDR_VIEW_PLAIN = 1 };
+static wdr_view_t s_view = WDR_VIEW_ARGUS;
+static volatile int s_new_this_run = 0;   /* distinct new APs this session (Task 3 drives it) */
+static uint32_t s_entry_ms = 0;           /* millis() at feature start (Task 3 uses it) */
 
 static int find_ap(const uint8_t *bssid)
 {
@@ -278,6 +285,57 @@ static void merge_c5_5g(void)
     }
 }
 
+static void draw_plain_view(bool &dirty)
+{
+    auto &d = M5Cardputer.Display;
+    if (dirty) {
+        ui_clear_body();
+        d.setTextColor(T_ACCENT, T_BG);
+        d.setCursor(4, BODY_Y + 2);  d.print("WARDRIVE");
+        dirty = false;
+    }
+    d.setTextColor(T_FG, T_BG);
+    d.setCursor(4, BODY_Y + 18); d.printf("APs: %-5d  5G: %-4d", s_ap_count, s_5g_count);
+    d.setCursor(4, BODY_Y + 30); d.printf("Beacons: %-7lu",  (unsigned long)s_beacons);
+    d.setCursor(4, BODY_Y + 42); d.printf("Channel: %-2u  C5:%-3s",
+                                          s_current_ch, c5_any_online() ? "on" : "off");
+    const gps_fix_t &g = gps_get();
+    d.setTextColor(g.valid ? T_GOOD : T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 54);
+    if (g.valid) d.printf("GPS: %.4f, %.4f (%d sats)   ", g.lat_deg, g.lon_deg, g.sats);
+    else         d.printf("GPS: waiting for fix...      ");
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 70); d.printf("%-30s", s_csv_path);
+}
+
+static void draw_argus_view(argus_mood_t base, bool &dirty)
+{
+    auto &d = M5Cardputer.Display;
+    /* Clear ONCE on entry / view switch. argus_draw caches and will not
+     * re-push an unchanged mood, so a per-frame clear would leave a gap. */
+    if (dirty) { ui_clear_body(); dirty = false; }
+
+    argus_draw(base, 8, BODY_Y);   /* 96x96, matches Triton placement */
+
+    const int rx = 110;            /* right stat column */
+    d.setTextColor(T_FG, T_BG);
+    d.setCursor(rx, BODY_Y + 2);  d.printf("APs %-5d", s_ap_count);
+    d.setCursor(rx, BODY_Y + 14); d.printf("new %-5d", s_new_this_run);
+    d.setCursor(rx, BODY_Y + 26); d.printf("bcn %-6lu", (unsigned long)s_beacons);
+    d.setCursor(rx, BODY_Y + 38); d.printf("ch %-2u 5G %-3d", s_current_ch, s_5g_count);
+
+    const gps_fix_t &g = gps_get();
+    d.setTextColor(g.valid ? T_GOOD : T_DIM, T_BG);
+    d.setCursor(rx, BODY_Y + 50);
+    if (g.valid) d.printf("GPS %c%-2d ", '*', g.sats);
+    else         d.printf("no fix   ");
+
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(rx, BODY_Y + 62);
+    if (g.valid) d.printf("%-14s", s_csv_path + 10);  /* skip "/poseidon/" prefix */
+    else         d.printf("holding rows ");
+}
+
 void feat_wifi_wardrive(void)
 {
     /* SD mount BEFORE radio_switch — WiFi init grabs ~30 KB of heap and
@@ -315,6 +373,8 @@ void feat_wifi_wardrive(void)
     s_beacons  = 0;
     s_current_ch = 1;
     s_5g_count = 0;
+    s_new_this_run = 0;
+    s_entry_ms = millis();
 
     /* Explicit MASK_ALL filter. On IDF 5.5, NOT setting a filter (or
      * passing nullptr) silently disables capture for some frame types
@@ -338,7 +398,7 @@ void feat_wifi_wardrive(void)
     c5_begin();
 
     ui_clear_body();
-    ui_draw_footer("ESC=stop  F=flush  any=ignored");
+    ui_draw_footer("ESC=stop  A=view  F=flush  ?=help");
 
     uint32_t last_redraw = 0;
     uint32_t last_flush  = 0;
@@ -382,29 +442,9 @@ void feat_wifi_wardrive(void)
         }
         if (now - last_redraw > 250) {
             last_redraw = now;
-            auto &d = M5Cardputer.Display;
             ui_draw_status(radio_name(), "wardrive");
-            /* Chrome ONCE on entry/toast-clobber. Per-frame updates use
-             * fixed-width printfs with bg-color text — each cell
-             * self-overwrites, no body wipe = no flicker. */
-            if (dirty) {
-                ui_clear_body();
-                d.setTextColor(T_ACCENT, T_BG);
-                d.setCursor(4, BODY_Y + 2);  d.print("WARDRIVE");
-                dirty = false;
-            }
-            d.setTextColor(T_FG, T_BG);
-            d.setCursor(4, BODY_Y + 18); d.printf("APs: %-5d  5G: %-4d", s_ap_count, s_5g_count);
-            d.setCursor(4, BODY_Y + 30); d.printf("Beacons: %-7lu",  (unsigned long)s_beacons);
-            d.setCursor(4, BODY_Y + 42); d.printf("Channel: %-2u  C5:%-3s",
-                                                   s_current_ch, c5_any_online() ? "on" : "off");
-            const gps_fix_t &g = gps_get();
-            d.setTextColor(g.valid ? T_GOOD : T_DIM, T_BG);
-            d.setCursor(4, BODY_Y + 54);
-            if (g.valid) d.printf("GPS: %.4f, %.4f (%d sats)   ", g.lat_deg, g.lon_deg, g.sats);
-            else         d.printf("GPS: waiting for fix...      ");
-            d.setTextColor(T_DIM, T_BG);
-            d.setCursor(4, BODY_Y + 70); d.printf("%-30s", s_csv_path);
+            if (s_view == WDR_VIEW_ARGUS) draw_argus_view(ARGUS_WATCHING, dirty);
+            else                          draw_plain_view(dirty);
         }
 
         uint16_t k = input_poll();
@@ -414,6 +454,10 @@ void feat_wifi_wardrive(void)
         if (k == 'f' || k == 'F') {
             flush_dirty_rows();
             ui_toast("flushed", T_GOOD, 400);
+            dirty = true;
+        }
+        if (k == 'a' || k == 'A') {
+            s_view = (s_view == WDR_VIEW_ARGUS) ? WDR_VIEW_PLAIN : WDR_VIEW_ARGUS;
             dirty = true;
         }
     }
