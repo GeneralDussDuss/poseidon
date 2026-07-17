@@ -60,8 +60,11 @@ static char       s_csv_path[64] = {0};
 
 enum wdr_view_t { WDR_VIEW_ARGUS = 0, WDR_VIEW_PLAIN = 1 };
 static wdr_view_t s_view = WDR_VIEW_ARGUS;
-static volatile int s_new_this_run = 0;   /* distinct new APs this session (Task 3 drives it) */
-static uint32_t s_entry_ms = 0;           /* millis() at feature start (Task 3 uses it) */
+static volatile int s_new_this_run = 0;   /* distinct new APs this session */
+static uint32_t s_entry_ms = 0;           /* millis() at feature start */
+static volatile uint32_t s_last_new_ms = 0;      /* millis() of most recent new AP */
+static volatile bool     s_gps_ever_locked = false;
+static volatile bool     s_juicy_pending = false; /* set in RX cb, consumed in UI loop */
 
 static int find_ap(const uint8_t *bssid)
 {
@@ -167,12 +170,14 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     portENTER_CRITICAL_ISR(&s_wdr_mux);
     const uint8_t *bssid = p + 16;
     int idx = find_ap(bssid);
+    bool is_new_ap = false;
     if (idx < 0) {
         if (s_ap_count >= WARDRIVE_MAX_APS) {
             portEXIT_CRITICAL_ISR(&s_wdr_mux);
             return;
         }
         idx = s_ap_count++;
+        is_new_ap = true;
         memset(&s_aps[idx], 0, sizeof(wdr_ap_t));
         memcpy(s_aps[idx].bssid, bssid, 6);
         s_aps[idx].first_seen = millis();
@@ -210,6 +215,12 @@ static void promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         off += 2 + tlen;
     }
     a.auth = auth;
+
+    if (is_new_ap) {
+        s_new_this_run++;
+        s_last_new_ms = millis();
+        if (auth == WIFI_AUTH_OPEN || auth == WIFI_AUTH_WPA3_PSK) s_juicy_pending = true;
+    }
 
     if (pkt->rx_ctrl.rssi > a.rssi || a.rssi == 0) {
         a.rssi = pkt->rx_ctrl.rssi;
@@ -281,7 +292,13 @@ static void merge_c5_5g(void)
             a.dirty = true;
         }
         portEXIT_CRITICAL(&s_wdr_mux);
-        if (is_new) s_5g_count++;
+        if (is_new) {
+            s_5g_count++;
+            s_new_this_run++;
+            s_last_new_ms = millis();
+            if (buf[i].auth == WIFI_AUTH_OPEN || buf[i].auth == WIFI_AUTH_WPA3_PSK)
+                s_juicy_pending = true;
+        }
     }
 }
 
@@ -406,6 +423,10 @@ void feat_wifi_wardrive(void)
     uint32_t last_c5_merge = 0;
     uint32_t c5_window_end = 0;
     bool dirty = true;
+    bool     prev_gps_valid = false;
+    int      prev_new       = 0;
+    int      new_5s_ref     = 0;
+    uint32_t new_5s_ref_ms  = s_entry_ms;
     while (true) {
         gps_poll();
         uint32_t now = millis();
@@ -443,8 +464,42 @@ void feat_wifi_wardrive(void)
         if (now - last_redraw > 250) {
             last_redraw = now;
             ui_draw_status(radio_name(), "wardrive");
-            if (s_view == WDR_VIEW_ARGUS) draw_argus_view(ARGUS_WATCHING, dirty);
-            else                          draw_plain_view(dirty);
+
+            const gps_fix_t &g = gps_get();
+
+            /* GPS lock edges -> celebration / annoyance flashes. */
+            if (g.valid && !prev_gps_valid) {
+                s_gps_ever_locked = true;
+                argus_flash(ARGUS_PLEASED, 900);
+            } else if (!g.valid && prev_gps_valid) {
+                argus_flash(ARGUS_ANNOYED, 900);
+            }
+            prev_gps_valid = g.valid;
+
+            /* Milestone every 50 new APs + juicy (OPEN/WPA3) instant flash. */
+            int new_now = s_new_this_run;
+            if (wdr_milestone_crossed(prev_new, new_now, 50)) argus_flash(ARGUS_PLEASED, 700);
+            prev_new = new_now;
+            if (s_juicy_pending) { s_juicy_pending = false; argus_flash(ARGUS_PLEASED, 500); }
+
+            /* Sliding ~5 s window of new APs for the dense-zone mood. */
+            if (now - new_5s_ref_ms >= 5000) { new_5s_ref = new_now; new_5s_ref_ms = now; }
+
+            if (s_view == WDR_VIEW_ARGUS) {
+                wdr_mood_ctx mc;
+                mc.gps_valid       = g.valid;
+                mc.gps_ever_locked = s_gps_ever_locked;
+                mc.gps_speed_kts   = g.speed_kts;
+                mc.now_ms          = now;
+                mc.entry_ms        = s_entry_ms;
+                mc.last_new_ms     = s_last_new_ms;
+                mc.new_in_5s       = new_now - new_5s_ref;
+                mc.ap_count        = s_ap_count;
+                mc.ap_cap          = WARDRIVE_MAX_APS;
+                draw_argus_view(wdr_pick_mood(mc), dirty);
+            } else {
+                draw_plain_view(dirty);
+            }
         }
 
         uint16_t k = input_poll();
