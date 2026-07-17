@@ -1,9 +1,18 @@
 /*
- * wdr_matrix — see wdr_matrix.h. Ported from the validated 240x135 render
- * sim: rain density/trail, 55ms/char decode, 3 concurrent lanes, roster 5.
+ * wdr_matrix — see wdr_matrix.h.
+ *
+ * Flicker-free compositing (this display has no double buffer and PSRAM is
+ * disabled on this unit, so a full-screen sprite is out): the screen is
+ * cleared ONCE on entry, never per frame. Each frame the proven
+ * ui_matrix_rain() painter draws the backdrop (it erases its own trails),
+ * then the roster / HUD / decodes / banner are drawn on top with opaque
+ * text backgrounds, and only the small regions that change are re-filled.
+ * A per-frame fillScreen() is exactly the "super fucked refresh" this
+ * avoids.
  */
 #include "app.h"
 #include "../theme.h"
+#include "ui.h"
 #include "wdr_matrix.h"
 #include <esp_wifi.h>
 #include <esp_random.h>
@@ -13,9 +22,6 @@
 #define MXH      135
 #define MXCW     6
 #define MXCH     8
-#define MX_COLS  (MXW / MXCW)     /* 40 */
-#define MX_ROWS  (MXH / MXCH)     /* 16 */
-#define MX_TRAIL 4
 #define MX_MAXDEC 3
 #define MX_ROSTER 5
 #define MX_PEND   12
@@ -24,14 +30,6 @@
 
 static const int MX_LANE_Y[MX_MAXDEC] = { 80, 96, 112 };
 
-/* ---- rain ---- */
-static int      mxr_head[MX_COLS];
-static uint8_t  mxr_spd[MX_COLS];
-static bool     mxr_on[MX_COLS];
-static bool     mxr_init = false;
-static uint32_t mxr_last_rain = 0;
-
-/* ---- decode lanes ---- */
 struct mx_decode_t {
     char     name[40];
     uint8_t  auth;
@@ -46,18 +44,17 @@ struct mx_decode_t {
 static mx_decode_t mxr_dec[MX_MAXDEC];
 static bool         mxr_lane_busy[MX_MAXDEC];
 
-/* ---- pending queue (ring) ---- */
 struct mx_pend_t { char name[40]; uint8_t auth; int8_t rssi; };
 static mx_pend_t mxr_pend[MX_PEND];
 static int mxr_pend_head = 0, mxr_pend_tail = 0, mxr_pend_n = 0;
 
-/* ---- roster ---- */
 struct mx_rost_t { char name[40]; uint8_t auth; int8_t rssi; };
 static mx_rost_t mxr_roster[MX_ROSTER];
 static int mxr_rost_n = 0;
 
-/* ---- catch banner ---- */
+/* catch banner */
 static uint32_t mxr_note_until = 0;
+static bool     mxr_note_shown = false;
 static char     mxr_note_tag[10];
 static char     mxr_note_ssid[40];
 static uint16_t mxr_note_col;
@@ -67,32 +64,21 @@ static inline char mx_glyph(void) { return (char)(0x21 + (esp_random() % 0x5D));
 static const char *mx_auth_label(uint8_t a)
 {
     switch (a) {
-    case WIFI_AUTH_OPEN:         return "OPEN";
-    case WIFI_AUTH_WEP:          return "WEP";
-    case WIFI_AUTH_WPA3_PSK:     return "WPA3";
-    case WIFI_AUTH_WPA_PSK:      return "WPA";
-    default:                     return "WPA2";
+    case WIFI_AUTH_OPEN:     return "OPEN";
+    case WIFI_AUTH_WEP:      return "WEP";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA_PSK:  return "WPA";
+    default:                 return "WPA2";
     }
 }
 static uint16_t mx_auth_color(uint8_t a)
 {
     switch (a) {
-    case WIFI_AUTH_OPEN:         return T_WARN;
-    case WIFI_AUTH_WEP:          return T_BAD;
-    case WIFI_AUTH_WPA3_PSK:     return T_ACCENT2;
-    default:                     return T_ACCENT;
+    case WIFI_AUTH_OPEN:     return T_WARN;
+    case WIFI_AUTH_WEP:      return T_BAD;
+    case WIFI_AUTH_WPA3_PSK: return T_ACCENT2;
+    default:                 return T_ACCENT;
     }
-}
-
-static void mx_init_rain(void)
-{
-    for (int c = 0; c < MX_COLS; ++c) {
-        mxr_head[c] = -(int)(esp_random() % MX_ROWS);
-        mxr_spd[c]  = 1 + (esp_random() & 1);
-        mxr_on[c]   = (esp_random() % 100) < 70;
-    }
-    mxr_init = true;
-    mxr_last_rain = millis();
 }
 
 static void mx_push_roster(const char *name, uint8_t auth, int8_t rssi)
@@ -116,7 +102,10 @@ void wdr_matrix_begin(void)
     mxr_pend_head = mxr_pend_tail = mxr_pend_n = 0;
     for (int l = 0; l < MX_MAXDEC; ++l) { mxr_dec[l].used = false; mxr_lane_busy[l] = false; }
     mxr_note_until = 0;
-    mx_init_rain();
+    mxr_note_shown = false;
+    /* Clear ONCE here — the only full-screen wipe. Every frame after this
+     * only touches the regions that change, so there is no per-frame flash. */
+    M5Cardputer.Display.fillScreen(T_BG);
 }
 
 void wdr_matrix_feed(const char *ssid, uint8_t auth, int8_t rssi)
@@ -151,7 +140,7 @@ static void mx_dispatch(uint32_t now)
         dc.auth = p.auth; dc.rssi = p.rssi;
         int w = (int)strlen(dc.name) * MXCW;
         int maxx = MXW - w - 2; if (maxx < 2) maxx = 2;
-        dc.x = 2 + (int)(esp_random() % (uint32_t)(maxx));
+        dc.x = 2 + (int)(esp_random() % (uint32_t)maxx);
         dc.resolved = 0; dc.t_res = now; dc.phase = 0; dc.hold_t = 0; dc.used = true;
         mxr_lane_busy[l] = true;
     }
@@ -179,36 +168,43 @@ void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats)
 {
     auto &d = M5Cardputer.Display;
     uint32_t now = millis();
-    if (!mxr_init) mx_init_rain();
-
-    d.fillScreen(T_BG);
     d.setTextSize(1);
 
-    /* ---- rain ---- */
-    bool adv = (now - mxr_last_rain > 45);
-    if (adv) mxr_last_rain = now;
-    for (int c = 0; c < MX_COLS; ++c) {
-        if (!mxr_on[c]) { if (adv && (esp_random() % 100) < 3) mxr_on[c] = true; else continue; }
-        int head = mxr_head[c];
-        for (int t = 0; t < MX_TRAIL; ++t) {
-            int ty = head - t;
-            if (ty < 0 || ty >= MX_ROWS) continue;
-            uint16_t col = (t == 0) ? 0xFFFF : (t == 1) ? T_ACCENT : T_DIM;
-            d.setTextColor(col, T_BG);
-            d.setCursor(c * MXCW, ty * MXCH);
-            d.printf("%c", mx_glyph());
-        }
-        if (adv) {
-            mxr_head[c] += mxr_spd[c];
-            if (mxr_head[c] >= MX_ROWS + MX_TRAIL) {
-                mxr_head[c] = -(int)(esp_random() % 6);
-                mxr_spd[c]  = 1 + (esp_random() & 1);
-                mxr_on[c]   = (esp_random() % 100) < 70;
-            }
-        }
+    /* Zones (no overlap → no per-frame region fills needed):
+     *   0..12   HUD          13..69  roster (on black)
+     *   70..123 RAIN + decodes        124..134 footer
+     * All chrome is opaque padded text that overwrites itself in place. */
+
+    /* ---- HUD (opaque text, no fill) ---- */
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(2, 3); d.print("POSEIDON//WARDRIVE");
+    char hud[24]; snprintf(hud, sizeof(hud), "ch:%-3u APs:%-4d", chan, ap_count);
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(126, 3); d.print(hud);
+    d.setTextColor(gps_valid ? T_GOOD : T_DIM, T_BG);
+    d.setCursor(MXW - 11, 3); d.print(gps_valid ? "*" : ".");
+    d.drawFastHLine(0, 12, MXW, T_ACCENT2);
+
+    /* ---- roster (opaque padded text on black, no rain here) ---- */
+    for (int i = 0; i < mxr_rost_n; ++i) {
+        int y = 15 + i * 11;
+        d.setTextColor(i == 0 ? 0xFFFF : T_FG, T_BG);
+        char nm[24]; snprintf(nm, sizeof(nm), "%-22.22s", mxr_roster[i].name);
+        d.setCursor(2, y); d.print(nm);
+        int rs = mxr_roster[i].rssi;
+        int bars = rs >= -45 ? 5 : rs >= -58 ? 4 : rs >= -70 ? 3 : rs >= -82 ? 2 : 1;
+        for (int b = 0; b < 5; ++b)
+            d.fillRect(150 + b * 5, y, 3, 7, b < bars ? T_ACCENT : T_SEL_BG);
+        d.setTextColor(mx_auth_color(mxr_roster[i].auth), T_BG);
+        char al[6]; snprintf(al, sizeof(al), "%-4s", mx_auth_label(mxr_roster[i].auth));
+        d.setCursor(184, y); d.print(al);
     }
 
-    /* ---- decode fly-ins ---- */
+    /* ---- backdrop rain: LOWER band only, so it never fights the roster/HUD.
+     * ui_matrix_rain erases its own trails, so this is flicker-free. ---- */
+    ui_matrix_rain(0, 70, MXW, 54, T_ACCENT);
+
+    /* ---- decode fly-ins in the rain band (opaque bg; clear once on finish) ---- */
     mx_dispatch(now);
     for (int i = 0; i < MX_MAXDEC; ++i) {
         mx_decode_t &dc = mxr_dec[i];
@@ -221,6 +217,7 @@ void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats)
             }
         } else if (now - dc.hold_t >= MX_HOLD_MS) {
             mx_push_roster(dc.name, dc.auth, dc.rssi);
+            d.fillRect(dc.x, MX_LANE_Y[i], len * MXCW, MXCH, T_BG);  /* erase stale text */
             dc.used = false; mxr_lane_busy[i] = false;
             continue;
         }
@@ -234,38 +231,12 @@ void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats)
         }
     }
 
-    /* ---- roster ---- */
-    for (int i = 0; i < mxr_rost_n; ++i) {
-        int y = 15 + i * 11;
-        d.fillRect(0, y - 1, MXW, 10, T_BG);        /* wipe rain behind the row */
-        d.setTextColor(i == 0 ? 0xFFFF : T_FG, T_BG);
-        char nm[23]; strncpy(nm, mxr_roster[i].name, 22); nm[22] = 0;
-        d.setCursor(2, y); d.print(nm);
-        int rs = mxr_roster[i].rssi;
-        int bars = rs >= -45 ? 5 : rs >= -58 ? 4 : rs >= -70 ? 3 : rs >= -82 ? 2 : 1;
-        for (int b = 0; b < 5; ++b)
-            d.fillRect(150 + b * 5, y, 3, 7, b < bars ? T_ACCENT : T_SEL_BG);
-        d.setTextColor(mx_auth_color(mxr_roster[i].auth), T_BG);
-        d.setCursor(184, y); d.print(mx_auth_label(mxr_roster[i].auth));
-    }
-
-    /* ---- HUD ---- */
-    d.fillRect(0, 0, MXW, 13, T_BG);
-    d.setTextColor(T_ACCENT, T_BG);
-    d.setCursor(2, 3); d.print("POSEIDON//WARDRIVE");
-    char hud[24]; snprintf(hud, sizeof(hud), "ch:%u APs:%d", chan, ap_count);
-    d.setTextColor(T_DIM, T_BG);
-    d.setCursor(MXW - (int)strlen(hud) * MXCW - 12, 3); d.print(hud);
-    d.setTextColor(gps_valid ? T_GOOD : T_DIM, T_BG);
-    d.setCursor(MXW - 11, 3); d.print(gps_valid ? "*" : ".");
-    d.drawFastHLine(0, 12, MXW, T_ACCENT2);
-
-    /* ---- footer ---- */
-    d.fillRect(0, MXH - 10, MXW, 10, T_BG);
+    /* ---- footer (opaque text, no fill) ---- */
     d.setTextColor(T_DIM, T_BG);
     d.setCursor(2, MXH - 9); d.print("// A=view F=flush ESC=stop");
 
-    /* ---- catch banner (on top) ---- */
-    if (now < mxr_note_until) mx_draw_banner(now);
+    /* ---- catch banner (over the rain band; region cleared once on expiry) ---- */
+    if (now < mxr_note_until) { mx_draw_banner(now); mxr_note_shown = true; }
+    else if (mxr_note_shown)  { d.fillRect(0, 46, MXW, 36, T_BG); mxr_note_shown = false; }
     (void)sats;
 }
