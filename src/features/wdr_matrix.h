@@ -18,12 +18,13 @@ void wdr_matrix_begin(void);
 
 /* Preload the roster from already-seen APs (no decode, no banner). Call
  * once per AP oldest->newest right after begin() so the newest lands on
- * top. auth is the esp WIFI_AUTH_* value. */
-void wdr_matrix_seed(const char *ssid, uint8_t auth, int8_t rssi);
+ * top. auth is the esp WIFI_AUTH_* value; channel drives the 2.4/5 GHz
+ * band tag (>= 32 = 5 GHz, i.e. a C5 satellite catch). */
+void wdr_matrix_seed(const char *ssid, uint8_t auth, int8_t rssi, uint8_t channel);
 
 /* A newly discovered AP arrived: queue it for a decode fly-in, and if it
- * is OPEN or WPA3 raise the catch banner. */
-void wdr_matrix_feed(const char *ssid, uint8_t auth, int8_t rssi);
+ * is OPEN or WPA3 raise the catch banner. 5 GHz decodes render magenta. */
+void wdr_matrix_feed(const char *ssid, uint8_t auth, int8_t rssi, uint8_t channel);
 
 /* Render one frame. Call at ~40 ms cadence while this view is active. */
 void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats);

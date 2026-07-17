@@ -34,6 +34,7 @@ struct mx_decode_t {
     char     name[40];
     uint8_t  auth;
     int8_t   rssi;
+    uint8_t  ch;
     int      x;
     int      resolved;
     uint32_t t_res;
@@ -44,13 +45,16 @@ struct mx_decode_t {
 static mx_decode_t mxr_dec[MX_MAXDEC];
 static bool         mxr_lane_busy[MX_MAXDEC];
 
-struct mx_pend_t { char name[40]; uint8_t auth; int8_t rssi; };
+struct mx_pend_t { char name[40]; uint8_t auth; int8_t rssi; uint8_t ch; };
 static mx_pend_t mxr_pend[MX_PEND];
 static int mxr_pend_head = 0, mxr_pend_tail = 0, mxr_pend_n = 0;
 
-struct mx_rost_t { char name[40]; uint8_t auth; int8_t rssi; };
+struct mx_rost_t { char name[40]; uint8_t auth; int8_t rssi; uint8_t ch; };
 static mx_rost_t mxr_roster[MX_ROSTER];
 static int mxr_rost_n = 0;
+
+/* 5 GHz channels start at 36; anything >= 32 is a C5 satellite catch. */
+static inline bool mx_is5g(uint8_t ch) { return ch >= 32; }
 
 /* catch banner */
 static uint32_t mxr_note_until = 0;
@@ -81,19 +85,20 @@ static uint16_t mx_auth_color(uint8_t a)
     }
 }
 
-static void mx_push_roster(const char *name, uint8_t auth, int8_t rssi)
+static void mx_push_roster(const char *name, uint8_t auth, int8_t rssi, uint8_t ch)
 {
     for (int i = MX_ROSTER - 1; i > 0; --i) mxr_roster[i] = mxr_roster[i - 1];
     strncpy(mxr_roster[0].name, name, sizeof(mxr_roster[0].name) - 1);
     mxr_roster[0].name[sizeof(mxr_roster[0].name) - 1] = 0;
     mxr_roster[0].auth = auth;
     mxr_roster[0].rssi = rssi;
+    mxr_roster[0].ch   = ch;
     if (mxr_rost_n < MX_ROSTER) mxr_rost_n++;
 }
 
-void wdr_matrix_seed(const char *ssid, uint8_t auth, int8_t rssi)
+void wdr_matrix_seed(const char *ssid, uint8_t auth, int8_t rssi, uint8_t channel)
 {
-    mx_push_roster(ssid, auth, rssi);
+    mx_push_roster(ssid, auth, rssi, channel);
 }
 
 void wdr_matrix_begin(void)
@@ -108,12 +113,12 @@ void wdr_matrix_begin(void)
     M5Cardputer.Display.fillScreen(T_BG);
 }
 
-void wdr_matrix_feed(const char *ssid, uint8_t auth, int8_t rssi)
+void wdr_matrix_feed(const char *ssid, uint8_t auth, int8_t rssi, uint8_t channel)
 {
     if (mxr_pend_n < MX_PEND) {
         mx_pend_t &p = mxr_pend[mxr_pend_tail];
         strncpy(p.name, ssid, sizeof(p.name) - 1); p.name[sizeof(p.name) - 1] = 0;
-        p.auth = auth; p.rssi = rssi;
+        p.auth = auth; p.rssi = rssi; p.ch = channel;
         mxr_pend_tail = (mxr_pend_tail + 1) % MX_PEND;
         mxr_pend_n++;
     }
@@ -137,7 +142,7 @@ static void mx_dispatch(uint32_t now)
         mxr_pend_n--;
         mx_decode_t &dc = mxr_dec[l];
         strncpy(dc.name, p.name, sizeof(dc.name) - 1); dc.name[sizeof(dc.name) - 1] = 0;
-        dc.auth = p.auth; dc.rssi = p.rssi;
+        dc.auth = p.auth; dc.rssi = p.rssi; dc.ch = p.ch;
         int w = (int)strlen(dc.name) * MXCW;
         int maxx = MXW - w - 2; if (maxx < 2) maxx = 2;
         dc.x = 2 + (int)(esp_random() % (uint32_t)maxx);
@@ -197,7 +202,11 @@ void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats)
             d.fillRect(150 + b * 5, y, 3, 7, b < bars ? T_ACCENT : T_SEL_BG);
         d.setTextColor(mx_auth_color(mxr_roster[i].auth), T_BG);
         char al[6]; snprintf(al, sizeof(al), "%-4s", mx_auth_label(mxr_roster[i].auth));
-        d.setCursor(184, y); d.print(al);
+        d.setCursor(178, y); d.print(al);
+        /* band chip: magenta "5G" for C5 catches, dim "2G" otherwise */
+        bool five = mx_is5g(mxr_roster[i].ch);
+        d.setTextColor(five ? T_ACCENT2 : T_DIM, T_BG);
+        d.setCursor(214, y); d.print(five ? "5G" : "2G");
     }
 
     /* ---- backdrop rain: LOWER band only, so it never fights the roster/HUD.
@@ -216,14 +225,17 @@ void wdr_matrix_render(uint8_t chan, int ap_count, bool gps_valid, uint8_t sats)
                 if (++dc.resolved >= len) { dc.phase = 1; dc.hold_t = now; }
             }
         } else if (now - dc.hold_t >= MX_HOLD_MS) {
-            mx_push_roster(dc.name, dc.auth, dc.rssi);
+            mx_push_roster(dc.name, dc.auth, dc.rssi, dc.ch);
             d.fillRect(dc.x, MX_LANE_Y[i], len * MXCW, MXCH, T_BG);  /* erase stale text */
             dc.used = false; mxr_lane_busy[i] = false;
             continue;
         }
+        /* 5 GHz (C5 satellite) catches scramble in magenta so you can see the
+         * satellite's finds land distinct from the S3's own 2.4 GHz. */
+        uint16_t scramble = mx_is5g(dc.ch) ? T_ACCENT2 : T_ACCENT;
         for (int k = 0; k < len; ++k) {
             bool done = k < dc.resolved;
-            uint16_t col = done ? (dc.phase == 1 ? 0xFFFF : T_FG) : T_ACCENT;
+            uint16_t col = done ? (dc.phase == 1 ? 0xFFFF : T_FG) : scramble;
             char ch = done ? dc.name[k] : mx_glyph();
             d.setTextColor(col, T_BG);
             d.setCursor(dc.x + k * MXCW, MX_LANE_Y[i]);

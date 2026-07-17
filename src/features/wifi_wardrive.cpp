@@ -356,7 +356,12 @@ static void draw_argus_view(argus_mood_t base, bool &dirty)
     d.setCursor(rx, BODY_Y + 2);  d.printf("APs %-5d", s_ap_count);
     d.setCursor(rx, BODY_Y + 14); d.printf("new %-5d", s_new_this_run);
     d.setCursor(rx, BODY_Y + 26); d.printf("bcn %-6lu", (unsigned long)s_beacons);
-    d.setCursor(rx, BODY_Y + 38); d.printf("ch %-2u 5G %-3d", s_current_ch, s_5g_count);
+    /* ch + 5G count (magenta when a C5 satellite is feeding us) + C5 pip */
+    bool c5on = c5_any_online();
+    d.setCursor(rx, BODY_Y + 38);
+    d.setTextColor(T_FG, T_BG);              d.printf("ch%-3u", s_current_ch);
+    d.setTextColor(c5on ? T_ACCENT2 : T_DIM, T_BG); d.printf("5G%-3d", s_5g_count);
+    d.setTextColor(c5on ? T_GOOD : T_DIM, T_BG);    d.printf("C5%c", c5on ? '*' : '.');
 
     const gps_fix_t &g = gps_get();
     d.setTextColor(g.valid ? T_GOOD : T_DIM, T_BG);
@@ -445,6 +450,7 @@ void feat_wifi_wardrive(void)
     int      new_5s_ref     = 0;
     uint32_t new_5s_ref_ms  = s_entry_ms;
     int      mx_prev_apc    = s_ap_count;   /* only feed the matrix view APs seen from here on */
+    bool     prev_c5        = false;
     while (true) {
         gps_poll();
         uint32_t now = millis();
@@ -491,14 +497,15 @@ void feat_wifi_wardrive(void)
             int apc = s_ap_count;
             if (apc > mx_prev_apc) {
                 for (int i = mx_prev_apc; i < apc && i < WARDRIVE_MAX_APS; ++i) {
-                    char ss[40]; uint8_t au; int8_t rs; uint8_t bb[6];
+                    char ss[40]; uint8_t au; int8_t rs; uint8_t ch; uint8_t bb[6];
                     portENTER_CRITICAL(&s_wdr_mux);
                     strncpy(ss, s_aps[i].ssid, 33); ss[33] = 0;
-                    au = s_aps[i].auth; rs = s_aps[i].rssi; memcpy(bb, s_aps[i].bssid, 6);
+                    au = s_aps[i].auth; rs = s_aps[i].rssi; ch = s_aps[i].channel;
+                    memcpy(bb, s_aps[i].bssid, 6);
                     portEXIT_CRITICAL(&s_wdr_mux);
                     if (ss[0] == 0) snprintf(ss, sizeof(ss), "<hidden %02X:%02X>", bb[4], bb[5]);
                     bool juicy = (au == WIFI_AUTH_OPEN || au == WIFI_AUTH_WPA3_PSK);
-                    if (s_view == WDR_VIEW_MATRIX) wdr_matrix_feed(ss, au, rs);
+                    if (s_view == WDR_VIEW_MATRIX) wdr_matrix_feed(ss, au, rs, ch);
                     if (juicy) sfx_glitch();
                 }
                 mx_prev_apc = apc;
@@ -507,6 +514,11 @@ void feat_wifi_wardrive(void)
             /* Consume the ISR juicy flag every frame so it can't go stale and
              * strobe on a later view switch; only Argus reacts to it. */
             bool juicy_flash = s_juicy_pending; s_juicy_pending = false;
+
+            /* C5 satellite came online -> one celebration flash + sound cue. */
+            bool c5_now = c5_any_online();
+            if (c5_now && !prev_c5) { argus_flash(ARGUS_PLEASED, 800); sfx_scan_hit(); }
+            prev_c5 = c5_now;
 
             if (s_view == WDR_VIEW_MATRIX) {
                 wdr_matrix_render(s_current_ch, s_ap_count, g.valid, g.sats);
@@ -566,13 +578,14 @@ void feat_wifi_wardrive(void)
                 wdr_matrix_begin();
                 int start = s_ap_count > MX_SEED ? s_ap_count - MX_SEED : 0;
                 for (int j = start; j < s_ap_count; ++j) {
-                    char ss[40]; uint8_t au; int8_t rs; uint8_t bb[6];
+                    char ss[40]; uint8_t au; int8_t rs; uint8_t ch; uint8_t bb[6];
                     portENTER_CRITICAL(&s_wdr_mux);
                     strncpy(ss, s_aps[j].ssid, 33); ss[33] = 0;
-                    au = s_aps[j].auth; rs = s_aps[j].rssi; memcpy(bb, s_aps[j].bssid, 6);
+                    au = s_aps[j].auth; rs = s_aps[j].rssi; ch = s_aps[j].channel;
+                    memcpy(bb, s_aps[j].bssid, 6);
                     portEXIT_CRITICAL(&s_wdr_mux);
                     if (ss[0] == 0) snprintf(ss, sizeof(ss), "<hidden %02X:%02X>", bb[4], bb[5]);
-                    wdr_matrix_seed(ss, au, rs);
+                    wdr_matrix_seed(ss, au, rs, ch);
                 }
             } else {
                 /* Leaving the full-screen matrix: restore chrome the next
