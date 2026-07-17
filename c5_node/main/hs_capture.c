@@ -227,12 +227,15 @@ static void IRAM_ATTR promisc_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     bool mic = (key_info & 0x0100) != 0;
     bool install = (key_info & 0x0040) != 0;
 
-    /* Nonce lives at key offset 17..48 (32 B). */
-    const uint8_t *nonce = key + 17;
-    /* Replay counter at offset 9..16 (8 B). */
-    const uint8_t *rc = key + 9;
-    /* MIC at offset 81..96 (16 B). Key-data at 97+. */
-    const uint8_t *mic_bytes = key + 81;
+    /* Body-relative offsets (key[0] = Descriptor Type, so key[1..2] = Key
+     * Information above). These are 4 less than the 802.1X-header-relative
+     * numbers you see in hashcat's wpapcap2john. Cross-checked against
+     * pmkid_capture.c which reads Key-Data-Length at key[93] / key-data at
+     * key+95 — the same frame of reference.
+     *   Replay counter: key[5..12]   Nonce: key[13..44]   MIC: key[77..92] */
+    const uint8_t *nonce = key + 13;
+    const uint8_t *rc = key + 5;
+    const uint8_t *mic_bytes = key + 77;
 
     if (ap_to_sta && ack && !mic && !install) {
         /* M1: AP→STA, ACK=1, MIC=0. Store ANonce for the STA. */
