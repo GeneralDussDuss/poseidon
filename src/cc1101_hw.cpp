@@ -59,13 +59,22 @@ bool cc1101_begin(float freq_mhz)
     delay(10);
     pinMode(CC1101_GDO0, INPUT);  /* CC1101 drives this pin, we read it */
 
-    /* Belt-and-suspenders: read PARTNUM/VERSION registers. Catches a
-     * working SPI bus + no chip on the other end (wrong hat / loose
-     * connector / dead CC1101). */
-    if (!ELECHOUSE_cc1101.getCC1101()) {
-        Serial.println("[cc1101] chip not detected — wrong hat?");
+    /* Read PARTNUM (0x30) + VERSION (0x31) and verify them STRICTLY. The
+     * library's getCC1101() accepts any nonzero VERSION (`if val>0`), so a
+     * wrong CS pin — MISO floats high, every read is 0xFF, 0xFF>0 — passes as
+     * "detected". The chip then reads 0xFF RSSI forever (a constant ~-74 dBm),
+     * which is exactly the "waterfall renders but never varies" symptom. A real
+     * CC1101 answers PARTNUM=0x00, VERSION=0x14 (some 0x17). Anything else means
+     * the hat isn't talking — fail loudly with the actual bytes so it's obvious. */
+    uint8_t part = ELECHOUSE_cc1101.SpiReadStatus(0x30);
+    uint8_t ver  = ELECHOUSE_cc1101.SpiReadStatus(0x31);
+    if (!(part == 0x00 && (ver == 0x14 || ver == 0x17))) {
+        Serial.printf("[cc1101] chip NOT detected: PARTNUM=0x%02X VERSION=0x%02X "
+                      "(expect 0x00 / 0x14) — check CC1101 CS pin (GPIO %d) and hat seating\n",
+                      part, ver, CC1101_CS);
         return false;
     }
+    Serial.printf("[cc1101] chip OK: PARTNUM=0x%02X VERSION=0x%02X\n", part, ver);
 
     /* Tuned for car keys / garage remotes — Flipper's "AM650" preset
      * which covers the vast majority of 315/433 MHz OOK fobs. Prior
@@ -112,6 +121,48 @@ void cc1101_set_idle(void) { ELECHOUSE_cc1101.setSidle(); }
 
 int cc1101_get_rssi(void)
 {
-    int raw = ELECHOUSE_cc1101.getRssi();
-    return raw;
+    /* The spectrum/waterfall modes re-strobe SIDLE->SRX on every frequency bin,
+     * and with FS_AUTOCAL each SRX fires a ~720us PLL calibration. They then read
+     * RSSI after only ~500us — i.e. WHILE the chip is still calibrating, so the
+     * RSSI register holds a stale/constant value and the sweep never sees a real
+     * burst (flat waterfall). Wait until the radio has actually reached RX
+     * (MARCSTATE 0x0D) before reading, then let the RSSI filter settle briefly.
+     * Poll up to ~3ms; a settled radio falls through in one read. */
+    for (int i = 0; i < 30; ++i) {
+        if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) == 0x0D) break;  /* RX */
+        delayMicroseconds(100);
+    }
+    /* Fallback: if we never reached RX (e.g. a retune dropped us to IDLE and the
+     * caller didn't re-strobe), force RX once so we never read RSSI out of RX. */
+    if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) != 0x0D) {
+        ELECHOUSE_cc1101.SetRx();
+        for (int i = 0; i < 30; ++i) {
+            if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) == 0x0D) break;
+            delayMicroseconds(100);
+        }
+    }
+    delayMicroseconds(300);   /* RSSI valid time at RxBW 650 */
+    return ELECHOUSE_cc1101.getRssi();
+}
+
+/* TEMP DIAGNOSTIC (Track D): bring the CC1101 up, dump chip ID + MARCSTATE,
+ * then stream RSSI for ~3.5 s so the operator can press a 433 fob and see if
+ * the receiver actually reacts. PARTNUM should read 0x00, VERSION 0x14/0x17;
+ * MARCSTATE 0x0D = RX. Flat RSSI while a fob is pressed = RX front-end dead. */
+void cc1101_diag(void)
+{
+    bool up = cc1101_begin(433.92f);
+    Serial.printf("[cc1101] DIAG begin=%d\n", up);
+    if (!up) return;
+    uint8_t part = ELECHOUSE_cc1101.SpiReadStatus(0x30);
+    uint8_t ver  = ELECHOUSE_cc1101.SpiReadStatus(0x31);
+    Serial.printf("[cc1101] DIAG PARTNUM=0x%02X VERSION=0x%02X\n", part, ver);
+    ELECHOUSE_cc1101.SetRx();
+    for (int i = 0; i < 24; ++i) {
+        int rssi = ELECHOUSE_cc1101.getRssi();
+        uint8_t marc = ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F;
+        Serial.printf("[cc1101] DIAG rssi=%d marc=0x%02X\n", rssi, marc);
+        delay(150);
+    }
+    cc1101_end();
 }
