@@ -37,7 +37,8 @@ static int mk_sign(const uint8_t priv[32],const uint8_t*m,size_t n,
     static const uint8_t der[]={0x30,0x06,0x02,0x01,0x01,0x02,0x01,0x01};
     memcpy(sig,der,sizeof der); *sl=sizeof der; return 0;
 }
-static kerb_crypto_t MOCK = { mk_rand, mk_sha256, mk_keygen, mk_sign, mk_seal, mk_open, nullptr };
+static kerb_crypto_t MOCK = { mk_rand, mk_sha256, mk_keygen, mk_sign, mk_seal, mk_open,
+                              nullptr, nullptr, nullptr, /*ecdh,hmac,aes_cbc*/ nullptr /*ctx*/ };
 
 // --- U2F config helper ---
 static bool g_present = true;

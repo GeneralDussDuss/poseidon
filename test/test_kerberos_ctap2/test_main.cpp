@@ -112,7 +112,8 @@ static int mk_sign(const uint8_t*,const uint8_t*,size_t,uint8_t*sig,size_t*sl,vo
 static uint8_t aad_fp2(const uint8_t*a,size_t n){uint8_t f=0;for(size_t i=0;i<n;i++)f^=a[i];return f;}
 static int mk_seal(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,uint8_t*out,uint8_t tag[16],void*){for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];memset(tag,0,16);tag[0]=aad_fp2(aad,al);return 0;}
 static int mk_open(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,const uint8_t tag[16],uint8_t*out,void*){if(tag[0]!=aad_fp2(aad,al))return -1;for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];return 0;}
-static kerb_crypto_t MOCK={mk_rand,mk_sha256,mk_keygen,mk_sign,mk_seal,mk_open,nullptr};
+static kerb_crypto_t MOCK={mk_rand,mk_sha256,mk_keygen,mk_sign,mk_seal,mk_open,
+                           nullptr,nullptr,nullptr,/*ecdh,hmac,aes_cbc*/ nullptr/*ctx*/};
 
 static bool g_present2 = true;
 static bool up2(void*){ return g_present2; }
