@@ -112,7 +112,14 @@ static bool extract_pmkid_kde(const uint8_t *kd, int kd_len, uint8_t out[16])
 static void emit_pmkid(const uint8_t bssid[6], const uint8_t sta[6],
                        const uint8_t pmkid[16])
 {
-    if (!s_ctx) return;
+    /* Snapshot the context pointer once. pmkid_task NULLs s_ctx and then
+     * free()s the ctx at capture expiry; reading the global again below
+     * (for ->seq / ->requester) could see it turn NULL or dangle between
+     * uses. All derefs go through this local, and they all complete before
+     * esp_now_send() — the only place this task yields — so on the C5's
+     * single core the capture task cannot free ctx out from under us here. */
+    struct pmkid_ctx_t *ctx = s_ctx;
+    if (!ctx) return;
     if (already_seen(sta, pmkid)) return;
 
     posei_msg_t out;
@@ -120,7 +127,7 @@ static void emit_pmkid(const uint8_t bssid[6], const uint8_t sta[6],
     out.magic   = POSEI_MAGIC;
     out.version = POSEI_VERSION;
     out.type    = POSEI_TYPE_RESP_PMKID;
-    out.seq     = s_ctx->seq;
+    out.seq     = ctx->seq;
 
     posei_pmkid_t *p = (posei_pmkid_t *)out.payload;
     memcpy(p->bssid, bssid, 6);
@@ -130,7 +137,7 @@ static void emit_pmkid(const uint8_t bssid[6], const uint8_t sta[6],
     p->ssid[0]  = '\0';
 
     out.payload_len = sizeof(posei_pmkid_t);
-    esp_now_send(s_ctx->requester, (const uint8_t *)&out, sizeof(out));
+    esp_now_send(ctx->requester, (const uint8_t *)&out, sizeof(out));
 
     ESP_LOGI(TAG, "PMKID %02x%02x%02x%02x%02x%02x <- %02x:%02x:%02x:%02x:%02x:%02x",
              pmkid[0], pmkid[1], pmkid[2], pmkid[3], pmkid[4], pmkid[5],

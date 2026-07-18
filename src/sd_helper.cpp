@@ -139,8 +139,14 @@ void sd_rotate_on_size(const char *path, size_t max_bytes)
  * empty, so /poseidon and its subdirs survived. tools.cpp had its
  * own recursive nuke duplicating this responsibility. Consolidate
  * here, called from sd_format below. */
-static void sd_recursive_delete(const char *path)
+/* depth caps the recursion: each level is a real stack frame plus a 192-byte
+ * `sub` buffer, so an arbitrarily deep (or maliciously crafted) directory tree
+ * would otherwise overflow the task stack. FAT nesting this deep is already
+ * pathological; stop rather than crash. */
+#define SD_DELETE_MAX_DEPTH 16
+static void sd_recursive_delete(const char *path, int depth)
 {
+    if (depth > SD_DELETE_MAX_DEPTH) return;
     File f = SD.open(path);
     if (!f) return;
     if (f.isDirectory()) {
@@ -151,7 +157,7 @@ static void sd_recursive_delete(const char *path)
                      strcmp(path, "/") == 0 ? "" : path, c.name());
             bool child_is_dir = c.isDirectory();
             c.close();
-            sd_recursive_delete(sub);
+            sd_recursive_delete(sub, depth + 1);
             if (!child_is_dir) {
                 /* file already removed by recursive call's else branch */
             }
@@ -184,7 +190,7 @@ bool sd_format(void)
         if (!try_mount(4000000, true,  "format slow")) return false;
     /* Full recursive nuke — Arduino SD has no FAT format API, so a
      * complete content wipe is the closest user-meaningful equivalent. */
-    sd_recursive_delete("/");
+    sd_recursive_delete("/", 0);
     s_mounted = true;
     return true;
 }

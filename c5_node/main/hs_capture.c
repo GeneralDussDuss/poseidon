@@ -141,7 +141,14 @@ static void emit_hs(const uint8_t bssid[6], const uint8_t sta[6],
                     const uint8_t anonce[32],
                     const uint8_t *eapol_m2, int eapol_m2_len)
 {
-    if (!s_ctx) return;
+    /* Snapshot the context pointer once. hs_task NULLs s_ctx and then
+     * free()s the ctx at capture expiry; reading the global again below
+     * (for ->seq / ->requester) could see it turn NULL or dangle between
+     * uses. All derefs go through this local, and they all complete before
+     * esp_now_send() — the only place this task yields — so on the C5's
+     * single core the capture task cannot free ctx out from under us here. */
+    struct hs_ctx_t *ctx = s_ctx;
+    if (!ctx) return;
     if (already_emitted(sta, anonce)) return;
     if (eapol_m2_len > 128) eapol_m2_len = 128;
     if (eapol_m2_len < 0)   eapol_m2_len = 0;
@@ -151,7 +158,7 @@ static void emit_hs(const uint8_t bssid[6], const uint8_t sta[6],
     out.magic   = POSEI_MAGIC;
     out.version = POSEI_VERSION;
     out.type    = POSEI_TYPE_RESP_HS;
-    out.seq     = s_ctx->seq;
+    out.seq     = ctx->seq;
 
     posei_hs_t *h = (posei_hs_t *)out.payload;
     memcpy(h->bssid, bssid, 6);
@@ -161,7 +168,7 @@ static void emit_hs(const uint8_t bssid[6], const uint8_t sta[6],
     if (eapol_m2_len > 0) memcpy(h->eapol_m2, eapol_m2, eapol_m2_len);
 
     out.payload_len = sizeof(posei_hs_t);   /* 174 — no overflow */
-    esp_now_send(s_ctx->requester, (const uint8_t *)&out, sizeof(out));
+    esp_now_send(ctx->requester, (const uint8_t *)&out, sizeof(out));
 
     ESP_LOGI(TAG, "HS emitted bssid=%02x:%02x:%02x:%02x:%02x:%02x sta=%02x:%02x:%02x:%02x:%02x:%02x m2=%d",
              bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5],

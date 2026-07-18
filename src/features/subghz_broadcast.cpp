@@ -143,7 +143,9 @@ static int parse_sub_raw(const char *path, int16_t *raw, int max_pulses)
         while (*p && count < max_pulses) {
             while (*p == ' ') p++;
             if (!*p) break;
+            char *start = p;
             int16_t v = (int16_t)strtol(p, &p, 10);
+            if (p == start) break;   /* strtol consumed nothing (stray char / CRLF) — stop, don't spin */
             if (v != 0) raw[count++] = v;
         }
     }

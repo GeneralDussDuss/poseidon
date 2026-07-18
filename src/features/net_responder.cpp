@@ -115,6 +115,11 @@ static void on_nbtns(AsyncUDPPacket p)
     }
     name_len += 1;
     if (name_start + name_len + 4 > inlen) return;
+    /* Bound the copy against the 128-byte reply buffer, not just the input:
+     * the name is walked from attacker-controlled label-length prefixes, so an
+     * unchecked name_len would push memcpy past reply[] and smash the AsyncUDP
+     * task stack. n=12 here; the fixed answer tail below is 16 bytes. */
+    if (n + name_len + 16 > (int)sizeof(reply)) return;
     memcpy(reply + n, in + name_start, name_len);
     n += name_len;
     /* TYPE + CLASS from question. */

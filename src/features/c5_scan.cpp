@@ -21,6 +21,24 @@ extern ap_t g_last_selected_ap;
 extern bool g_last_selected_valid;
 #include "sfx.h"
 
+/* Identity-based flush dedup for the C5 result rings. c5_pmkids()/c5_hss()
+ * copy from FIFO stores that evict oldest-first once full (see MAX_PMKIDS in
+ * c5_cmd.cpp). An absolute "written" index into that shifting window either
+ * stops flushing new captures once the ring is full, or re-emits entries that
+ * slid to a lower index. Track what's been saved by a 16-byte identity key
+ * instead. Cap at 64 distinct keys per session — well past a single target's
+ * realistic yield; if exceeded the worst case is a harmless duplicate line in
+ * hashcat's output, which it dedups on load. */
+struct c5_saved_set { uint8_t keys[64][16]; int n; };
+
+/* Returns true if `key` was not present (caller should persist it). */
+static bool c5_saved_add(c5_saved_set &s, const uint8_t key[16]) {
+    for (int i = 0; i < s.n; ++i)
+        if (memcmp(s.keys[i], key, 16) == 0) return false;
+    if (s.n < 64) memcpy(s.keys[s.n++], key, 16);
+    return true;
+}
+
 /* The C5 pauses its HELLO beacons while mid scan/attack, so right after a
  * deauth its last-seen goes stale and a one-shot online check false-negatives
  * ("no C5 online" when it's right there — hitting Status re-pings and recovers
@@ -793,7 +811,7 @@ void feat_c5_pmkid_5g(void)
     uint32_t end = millis() + dur + 2000;
     uint32_t last = 0;
     int last_count = -1;
-    int written = 0;
+    c5_saved_set saved = {};   /* PMKIDs already written to SD, keyed by pmkid[] */
     ui_clear_body();
     ui_draw_footer("`=stop early");
     while (millis() < end) {
@@ -804,11 +822,10 @@ void feat_c5_pmkid_5g(void)
             bool tick = (got != last_count);
             last_count = got;
 
-            /* Flush new captures to SD. */
-            while (written < got) {
-                save_pmkid_to_sd(buf[written]);
-                written++;
-            }
+            /* Flush any capture not yet persisted (identity-keyed: the ring
+             * evicts oldest-first, so an index would miss shifted entries). */
+            for (int i = 0; i < got; ++i)
+                if (c5_saved_add(saved, buf[i].pmkid)) save_pmkid_to_sd(buf[i]);
 
             ui_dashboard_chrome("C5 PMKID 5G", tick);
             /* Wipe only the status region — hex stream self-clears. */
@@ -843,10 +860,11 @@ void feat_c5_pmkid_5g(void)
     /* Final flush + summary. */
     c5_pmkid_t buf[16];
     int got = c5_pmkids(buf, 16);
-    while (written < got) { save_pmkid_to_sd(buf[written]); written++; }
-    if (written > 0) {
+    for (int i = 0; i < got; ++i)
+        if (c5_saved_add(saved, buf[i].pmkid)) save_pmkid_to_sd(buf[i]);
+    if (saved.n > 0) {
         char msg[40];
-        snprintf(msg, sizeof(msg), "captured %d -> SD", written);
+        snprintf(msg, sizeof(msg), "captured %d -> SD", saved.n);
         ui_toast(msg, T_GOOD, 1200);
     } else {
         ui_toast("no PMKID (try deauth first)", T_WARN, 1500);
@@ -947,8 +965,8 @@ void feat_c5_nuke_5g(void)
     int cursor = 0;
     uint32_t last = 0;
     uint32_t last_rotate = 0;
-    int hs_written = 0;
-    int pmk_written = 0;
+    c5_saved_set hs_saved = {};    /* handshakes on SD, keyed by bssid+sta+anonce */
+    c5_saved_set pmk_saved = {};   /* PMKIDs on SD, keyed by pmkid[] */
     uint32_t last_rescan = millis();
 
     ui_draw_footer("`=stop   deauth-all + HS capture loop");
@@ -1014,27 +1032,31 @@ void feat_c5_nuke_5g(void)
 
             c5_hs_t hs[8];
             int got_hs = c5_hss(hs, 8);
-            while (hs_written < got_hs) {
-                const char *essid = c5_ssid_for_bssid(hs[hs_written].bssid);
-                save_hs_to_sd(hs[hs_written], essid);
-                hs_written++;
+            for (int i = 0; i < got_hs; ++i) {
+                /* Key on bssid+sta+anonce[0..3] — unique per captured handshake. */
+                uint8_t key[16];
+                memcpy(key, hs[i].bssid, 6);
+                memcpy(key + 6, hs[i].sta, 6);
+                memcpy(key + 12, hs[i].anonce, 4);
+                if (c5_saved_add(hs_saved, key)) {
+                    const char *essid = c5_ssid_for_bssid(hs[i].bssid);
+                    save_hs_to_sd(hs[i], essid);
+                }
             }
             c5_pmkid_t pm[8];
             int got_pm = c5_pmkids(pm, 8);
-            while (pmk_written < got_pm) {
-                save_pmkid_to_sd(pm[pmk_written]);
-                pmk_written++;
-            }
+            for (int i = 0; i < got_pm; ++i)
+                if (c5_saved_add(pmk_saved, pm[i].pmkid)) save_pmkid_to_sd(pm[i]);
 
             /* Repaint the dynamic target/stats band only when it changes,
              * over a targeted rect so the static backdrop stays put. */
             int disp_idx = (cursor ? cursor - 1 : 0) % five_n;
-            if (disp_idx != last_disp_idx || hs_written != last_disp_hs ||
-                pmk_written != last_disp_pmk || five_n != last_disp_five ||
+            if (disp_idx != last_disp_idx || hs_saved.n != last_disp_hs ||
+                pmk_saved.n != last_disp_pmk || five_n != last_disp_five ||
                 cursor != last_disp_cursor) {
                 last_disp_idx = disp_idx;
-                last_disp_hs = hs_written;
-                last_disp_pmk = pmk_written;
+                last_disp_hs = hs_saved.n;
+                last_disp_pmk = pmk_saved.n;
                 last_disp_five = five_n;
                 last_disp_cursor = cursor;
 
@@ -1055,9 +1077,9 @@ void feat_c5_nuke_5g(void)
 
                 char row1[48], row2[48];
                 snprintf(row1, sizeof(row1), "%d APs  HS:%d  PMKID:%d",
-                         five_n, hs_written, pmk_written);
+                         five_n, hs_saved.n, pmk_saved.n);
                 snprintf(row2, sizeof(row2), "rotation %d", cursor);
-                d.setTextColor(hs_written > 0 ? 0x07E0 : 0xFFE0, 0);
+                d.setTextColor(hs_saved.n > 0 ? 0x07E0 : 0xFFE0, 0);
                 int w1 = d.textWidth(row1);
                 d.setCursor((SCR_W - w1) / 2, SCR_H - 22);
                 d.print(row1);
@@ -1073,10 +1095,10 @@ void feat_c5_nuke_5g(void)
         if (k == PK_ESC) break;
     }
     c5_cmd_stop();
-    if (hs_written > 0 || pmk_written > 0) {
+    if (hs_saved.n > 0 || pmk_saved.n > 0) {
         char msg[48];
         snprintf(msg, sizeof(msg), "saved %d HS, %d PMKID",
-                 hs_written, pmk_written);
+                 hs_saved.n, pmk_saved.n);
         ui_toast(msg, T_GOOD, 1500);
     }
 }

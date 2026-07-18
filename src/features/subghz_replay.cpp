@@ -49,7 +49,9 @@ static bool parse_sub_file(const char *path, sub_file_t *out)
             while (*p && out->raw_len < MAX_REPLAY_PULSES) {
                 while (*p == ' ') p++;
                 if (!*p) break;
+                char *start = p;
                 int16_t v = (int16_t)strtol(p, &p, 10);
+                if (p == start) break;   /* strtol consumed nothing (stray char / CRLF) — stop, don't spin */
                 if (v != 0) out->raw[out->raw_len++] = v;
             }
         }

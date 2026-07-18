@@ -681,10 +681,13 @@ void feat_wifi_pmkid(void)
     s_running = false;
     s_hunt = false;
     /* Bounded join: both hop_task and hunt_task poll s_running each loop
-     * (hop ~500 ms, hunt ~2 s) then clear their alive flag right before
-     * vTaskDelete. Wait for both to actually exit so a fast re-entry
-     * can't spawn duplicates that fight the radio and leak task stacks. */
-    uint32_t deadline = millis() + 800;
+     * (hop ~500 ms, hunt ~2 s sleep + a scan pass) then clear their alive
+     * flag right before vTaskDelete. Wait for both to actually exit so a
+     * fast re-entry can't spawn duplicates that fight the radio and leak
+     * task stacks. The deadline must exceed one whole hunt_task iteration
+     * (the 2 s delay plus its per-BSSID scan work) or the wait gives up
+     * while hunt_task is still mid-sleep — exactly the leak this guards. */
+    uint32_t deadline = millis() + 3500;
     while ((s_hop_alive || s_hunt_alive) && millis() < deadline) delay(5);
     esp_wifi_set_promiscuous(false);
     if (s_out) { s_out.flush(); s_out.close(); }

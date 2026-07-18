@@ -548,6 +548,11 @@ static void handle_eapol(const uint8_t *frame, int len)
 static void cache_beacon(const uint8_t *bssid, const uint8_t *tags, int len)
 {
     if (len < 2 || tags[0] != 0 || tags[1] == 0 || tags[1] > 32) return;
+    /* tags[1] is the attacker-controlled SSID IE length. Cap it at 32 above,
+     * but also confirm those bytes were actually captured: a beacon can claim
+     * an SSID longer than the frame we received, and the memcpy below would
+     * then read past the promiscuous buffer. 2 = the IE's num+len header. */
+    if (2 + tags[1] > len) return;
     portENTER_CRITICAL(&s_bs_mux);
     int idx = -1;
     for (int i = 0; i < s_bs_n; ++i)

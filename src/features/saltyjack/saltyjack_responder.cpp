@@ -180,6 +180,11 @@ static void extract_hash(const uint8_t *pkt, uint32_t pkt_len, const uint8_t *nt
     };
 
     uint32_t base = ntlm - pkt;
+    /* The security-buffer field headers span ntlm+20 .. ntlm+51. The caller only
+     * checked ntlm+8 < pkt_len, so bounds-check the whole header block against the
+     * packet BEFORE reading any field — otherwise a short crafted SMB2 packet
+     * (pkt is malloc'd to exactly smb_len) reads past the heap allocation. */
+    if (base + 52 > pkt_len) return;
     uint16_t nt_resp_len  = le16(ntlm + 20);
     uint32_t nt_resp_off  = le32(ntlm + 24);
     uint16_t dom_len      = le16(ntlm + 28);
