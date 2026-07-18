@@ -16,9 +16,21 @@ enum {
     CTAP2_ERR_UNSUPPORTED_ALGORITHM = 0x26,
     CTAP2_ERR_OPERATION_DENIED  = 0x27,
     CTAP2_ERR_KEY_STORE_FULL    = 0x28,
+    CTAP2_ERR_UNSUPPORTED_OPTION = 0x2B,
+    CTAP2_ERR_INVALID_OPTION    = 0x2C,
     CTAP2_ERR_NO_CREDENTIALS    = 0x2E,
+    CTAP2_ERR_NOT_ALLOWED       = 0x30,
+    CTAP2_ERR_PIN_INVALID       = 0x31,
+    CTAP2_ERR_PIN_BLOCKED       = 0x32,
+    CTAP2_ERR_PIN_AUTH_INVALID  = 0x33,
+    CTAP2_ERR_PIN_AUTH_BLOCKED  = 0x34,
+    CTAP2_ERR_PIN_NOT_SET       = 0x35,
+    CTAP2_ERR_PUAT_REQUIRED     = 0x36,   // "PIN required"
+    CTAP2_ERR_PIN_POLICY_VIOLATION = 0x37,
     CTAP1_ERR_OTHER             = 0x7F,
 };
+
+#define PIN_MAX_RETRIES 8
 
 static uint16_t err(uint8_t *out, uint8_t code) { out[0] = code; return 1; }
 
@@ -78,24 +90,49 @@ static int store_find_by_id(const ctap2_cfg_t *cfg, const uint8_t rp[32],
     return -1;
 }
 
+// True if a PIN is currently set (pin support present and load reports one).
+static bool pin_is_set(const ctap2_cfg_t *cfg) {
+    if (!cfg->pin) return false;
+    uint8_t h[16], r; return cfg->pin->load(cfg->pin, h, &r) == 1;
+}
+
 static uint16_t get_info(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
+    bool pinSupport = (cfg->pin && cfg->pin_rt);
+    bool pinSet = pinSupport && pin_is_set(cfg);
+
     out[0] = CTAP2_OK;
     cbor_writer w; cw_init(&w, out + 1, cap - 1);
-    cw_map(&w, 3);                                    // keys 1,3,4 (ascending)
+    cw_map(&w, pinSupport ? 4 : 3);                   // keys 1,3,4[,6] (ascending)
     // 1: versions
     cw_key(&w, 1);
-    CborEncoder arr; cbor_encoder_create_array(cw_enc(&w), &arr, 2);
+    CborEncoder arr; cbor_encoder_create_array(cw_enc(&w), &arr, pinSupport ? 3 : 2);
     cbor_encode_text_stringz(&arr, "U2F_V2");
     cbor_encode_text_stringz(&arr, "FIDO_2_0");
+    if (pinSupport) cbor_encode_text_stringz(&arr, "FIDO_2_1");
     cbor_encoder_close_container(cw_enc(&w), &arr);
     // 3: aaguid
     cw_key(&w, 3); cw_bytes(&w, cfg->aaguid, 16);
-    // 4: options {rk, up}  (canonical: "rk" before "up")
+    // 4: options — canonical order (major/len/byte): rk, up, clientPin,
+    //    pinUvAuthToken, makeCredUvNotRqd. CTAP 2.1 §9 requires that a key
+    //    advertising rk:true also advertise clientPin/uv, which is exactly the
+    //    conformance gap that blocked Windows passkey enrollment.
     cw_key(&w, 4);
-    CborEncoder opt; cbor_encoder_create_map(cw_enc(&w), &opt, 2);
+    CborEncoder opt; cbor_encoder_create_map(cw_enc(&w), &opt, pinSupport ? 5 : 2);
     cbor_encode_text_stringz(&opt, "rk"); cbor_encode_boolean(&opt, true);
     cbor_encode_text_stringz(&opt, "up"); cbor_encode_boolean(&opt, true);
+    if (pinSupport) {
+        cbor_encode_text_stringz(&opt, "clientPin");        cbor_encode_boolean(&opt, pinSet);
+        cbor_encode_text_stringz(&opt, "pinUvAuthToken");    cbor_encode_boolean(&opt, true);
+        cbor_encode_text_stringz(&opt, "makeCredUvNotRqd");  cbor_encode_boolean(&opt, true);
+    }
     cbor_encoder_close_container(cw_enc(&w), &opt);
+    // 6: pinUvAuthProtocols [1]
+    if (pinSupport) {
+        cw_key(&w, 6);
+        CborEncoder pr; cbor_encoder_create_array(cw_enc(&w), &pr, 1);
+        cbor_encode_int(&pr, 1);
+        cbor_encoder_close_container(cw_enc(&w), &pr);
+    }
     size_t n = cw_finish(&w);
     return (uint16_t)(1 + n);
 }
@@ -258,6 +295,197 @@ static uint16_t get_assert(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t 
     return (uint16_t)(1 + n);
 }
 
+// ---- CTAP2 clientPIN (pinUvAuthProtocol 1) ----
+
+// Lazily create the authenticator's per-boot key-agreement keypair.
+static int ensure_ka(const ctap2_cfg_t *cfg) {
+    ctap2_pin_rt *rt = cfg->pin_rt;
+    if (rt->ka_ready) return 0;
+    if (cfg->cy->p256_keygen(rt->ka_priv, rt->ka_pub, cfg->cy->ctx)) return -1;
+    rt->ka_ready = true;
+    return 0;
+}
+
+// Parse platform keyAgreement (request key 3, a COSE_Key) and derive
+// sharedSecret = SHA-256(ECDH(ka_priv, platformPub)). Returns 0 or a CTAP2 error.
+static uint8_t pin_shared(const ctap2_cfg_t *cfg, const CborValue *map, uint8_t ss[32]) {
+    if (ensure_ka(cfg)) return CTAP1_ERR_OTHER;
+    CborValue ka;
+    if (cbor_map_enter(map, 3, &ka)) return CTAP2_ERR_MISSING_PARAMETER;
+    uint8_t x[32], y[32]; size_t xl = 32, yl = 32;
+    if (cbor_map_bytes(&ka, -2, x, &xl) || xl != 32) return CTAP2_ERR_MISSING_PARAMETER;
+    if (cbor_map_bytes(&ka, -3, y, &yl) || yl != 32) return CTAP2_ERR_MISSING_PARAMETER;
+    uint8_t pub[65]; pub[0] = 0x04; memcpy(pub + 1, x, 32); memcpy(pub + 33, y, 32);
+    uint8_t sx[32];
+    if (cfg->cy->ecdh_p256(cfg->pin_rt->ka_priv, pub, sx, cfg->cy->ctx))
+        return CTAP2_ERR_PIN_AUTH_INVALID;
+    if (cfg->cy->sha256(sx, 32, ss, cfg->cy->ctx)) return CTAP1_ERR_OTHER;
+    return 0;
+}
+
+// pinUvAuthProtocol-1 verify: first 16 bytes of HMAC(key, msg) == mac[16].
+static bool pin_auth_ok(const ctap2_cfg_t *cfg, const uint8_t *key, size_t keylen,
+                        const uint8_t *msg, size_t msglen, const uint8_t *mac, size_t maclen) {
+    if (maclen != 16) return false;
+    uint8_t full[32];
+    if (cfg->cy->hmac_sha256(key, keylen, msg, msglen, full, cfg->cy->ctx)) return false;
+    uint8_t d = 0; for (int i = 0; i < 16; i++) d |= (uint8_t)(full[i] ^ mac[i]);
+    return d == 0;
+}
+
+// Decrypt pinHashEnc, compare to the stored pinHash, and update retry counter +
+// per-boot lockout. Returns 0 on match, or a CTAP2 error on mismatch/lockout.
+static uint8_t pin_check(const ctap2_cfg_t *cfg, const uint8_t *ss,
+                         const uint8_t pinHashEnc[16], const uint8_t stored[16],
+                         uint8_t *retries) {
+    ctap2_pin_rt *rt = cfg->pin_rt;
+    if (*retries == 0) return CTAP2_ERR_PIN_BLOCKED;
+    uint8_t iv[16] = {0}; uint8_t got[16];
+    if (cfg->cy->aes_cbc(ss, iv, 0, pinHashEnc, 16, got, cfg->cy->ctx)) return CTAP1_ERR_OTHER;
+    // Spec: decrement the persisted retry counter before comparing; restore on success.
+    (*retries)--; cfg->pin->save_retries(cfg->pin, *retries);
+    uint8_t d = 0; for (int i = 0; i < 16; i++) d |= (uint8_t)(got[i] ^ stored[i]);
+    if (d != 0) {
+        rt->boot_fails++;
+        rt->ka_ready = false;   // invalidate shared secret; platform must re-agree
+        if (*retries == 0) return CTAP2_ERR_PIN_BLOCKED;
+        if (rt->boot_fails >= 3) return CTAP2_ERR_PIN_AUTH_BLOCKED;
+        return CTAP2_ERR_PIN_INVALID;
+    }
+    *retries = PIN_MAX_RETRIES; cfg->pin->save_retries(cfg->pin, PIN_MAX_RETRIES);
+    rt->boot_fails = 0;
+    return 0;
+}
+
+// Write the getKeyAgreement COSE_Key (EC2 / P-256 / ECDH) as response key 1.
+static void write_cose_ka(cbor_writer *w, const uint8_t pub[65]) {
+    CborEncoder m; cbor_encoder_create_map(cw_enc(w), &m, 5);
+    cbor_encode_int(&m, 1);  cbor_encode_int(&m, 2);    // kty: EC2
+    cbor_encode_int(&m, 3);  cbor_encode_int(&m, -25);  // alg: ECDH-ES+HKDF-256
+    cbor_encode_int(&m, -1); cbor_encode_int(&m, 1);    // crv: P-256
+    cbor_encode_int(&m, -2); cbor_encode_byte_string(&m, pub + 1, 32);   // X
+    cbor_encode_int(&m, -3); cbor_encode_byte_string(&m, pub + 33, 32);  // Y
+    cbor_encoder_close_container(cw_enc(w), &m);
+}
+
+// Decrypt newPinEnc (64B, zero-padded PIN) with the shared secret, validate the
+// length policy, and store LEFT-16 of SHA-256(pin). Returns 0 or a CTAP2 error.
+static uint8_t pin_set_from_enc(const ctap2_cfg_t *cfg, const uint8_t *ss,
+                                const uint8_t newPinEnc[64]) {
+    uint8_t iv[16] = {0}; uint8_t pin[64];
+    if (cfg->cy->aes_cbc(ss, iv, 0, newPinEnc, 64, pin, cfg->cy->ctx)) return CTAP1_ERR_OTHER;
+    size_t plen = 0; while (plen < 64 && pin[plen] != 0) plen++;
+    if (plen < 4) return CTAP2_ERR_PIN_POLICY_VIOLATION;
+    uint8_t h[32];
+    if (cfg->cy->sha256(pin, plen, h, cfg->cy->ctx)) return CTAP1_ERR_OTHER;
+    if (cfg->pin->save(cfg->pin, h, PIN_MAX_RETRIES)) return CTAP1_ERR_OTHER;
+    return 0;
+}
+
+static uint16_t client_pin(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
+                           uint8_t *out, uint16_t cap) {
+    if (!cfg->pin || !cfg->pin_rt) { out[0] = CTAP1_ERR_INVALID_COMMAND; return 1; }
+    CborParser p; CborValue map;
+    if (cbor_get_map(req + 1, len - 1, &p, &map)) return err(out, CTAP2_ERR_INVALID_CBOR);
+
+    uint64_t proto = 0, sub = 0;
+    if (cbor_map_uint(&map, 1, &proto) || proto != 1) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+    if (cbor_map_uint(&map, 2, &sub))                 return err(out, CTAP2_ERR_MISSING_PARAMETER);
+
+    ctap2_pin_rt *rt = cfg->pin_rt;
+    uint8_t stored[16], retries = PIN_MAX_RETRIES;
+    bool haveStored = (cfg->pin->load(cfg->pin, stored, &retries) == 1);
+
+    switch (sub) {
+    case 1: {  // getPINRetries -> {3: retries}
+        out[0] = CTAP2_OK; cbor_writer w; cw_init(&w, out + 1, cap - 1);
+        cw_map(&w, 1); cw_key(&w, 3); cw_uint(&w, haveStored ? retries : PIN_MAX_RETRIES);
+        return (uint16_t)(1 + cw_finish(&w));
+    }
+    case 2: {  // getKeyAgreement -> {1: COSE_Key}
+        if (ensure_ka(cfg)) return err(out, CTAP1_ERR_OTHER);
+        out[0] = CTAP2_OK; cbor_writer w; cw_init(&w, out + 1, cap - 1);
+        cw_map(&w, 1); cw_key(&w, 1); write_cose_ka(&w, rt->ka_pub);
+        return (uint16_t)(1 + cw_finish(&w));
+    }
+    case 3: {  // setPIN
+        if (haveStored) return err(out, CTAP2_ERR_NOT_ALLOWED);
+        uint8_t ss[32]; uint8_t e = pin_shared(cfg, &map, ss); if (e) return err(out, e);
+        uint8_t newPinEnc[80]; size_t npl = sizeof newPinEnc;
+        if (cbor_map_bytes(&map, 5, newPinEnc, &npl) || npl != 64) return err(out, CTAP2_ERR_PIN_POLICY_VIOLATION);
+        uint8_t mac[16]; size_t macl = sizeof mac;
+        if (cbor_map_bytes(&map, 4, mac, &macl))                    return err(out, CTAP2_ERR_MISSING_PARAMETER);
+        if (!pin_auth_ok(cfg, ss, 32, newPinEnc, 64, mac, macl))    return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+        uint8_t e2 = pin_set_from_enc(cfg, ss, newPinEnc); if (e2) return err(out, e2);
+        rt->boot_fails = 0;
+        out[0] = CTAP2_OK; return 1;
+    }
+    case 4: {  // changePIN
+        if (!haveStored) return err(out, CTAP2_ERR_PIN_NOT_SET);
+        if (retries == 0) return err(out, CTAP2_ERR_PIN_BLOCKED);
+        if (rt->boot_fails >= 3) return err(out, CTAP2_ERR_PIN_AUTH_BLOCKED);
+        uint8_t ss[32]; uint8_t e = pin_shared(cfg, &map, ss); if (e) return err(out, e);
+        uint8_t newPinEnc[80]; size_t npl = sizeof newPinEnc;
+        uint8_t phe[16]; size_t phel = sizeof phe;
+        if (cbor_map_bytes(&map, 5, newPinEnc, &npl) || npl != 64) return err(out, CTAP2_ERR_PIN_POLICY_VIOLATION);
+        if (cbor_map_bytes(&map, 6, phe, &phel) || phel != 16)     return err(out, CTAP2_ERR_PIN_INVALID);
+        uint8_t mac[16]; size_t macl = sizeof mac;
+        if (cbor_map_bytes(&map, 4, mac, &macl))                   return err(out, CTAP2_ERR_MISSING_PARAMETER);
+        uint8_t cat[80]; memcpy(cat, newPinEnc, 64); memcpy(cat + 64, phe, 16);   // newPinEnc || pinHashEnc
+        if (!pin_auth_ok(cfg, ss, 32, cat, 80, mac, macl))         return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+        uint8_t e2 = pin_check(cfg, ss, phe, stored, &retries); if (e2) return err(out, e2);
+        uint8_t e3 = pin_set_from_enc(cfg, ss, newPinEnc); if (e3) return err(out, e3);
+        out[0] = CTAP2_OK; return 1;
+    }
+    case 5:      // getPinToken (legacy, no permissions)
+    case 9: {    // getPinUvAuthTokenUsingPinWithPermissions
+        if (!haveStored) return err(out, CTAP2_ERR_PIN_NOT_SET);
+        if (retries == 0) return err(out, CTAP2_ERR_PIN_BLOCKED);
+        if (rt->boot_fails >= 3) return err(out, CTAP2_ERR_PIN_AUTH_BLOCKED);
+        uint8_t ss[32]; uint8_t e = pin_shared(cfg, &map, ss); if (e) return err(out, e);
+        uint8_t phe[16]; size_t phel = sizeof phe;
+        if (cbor_map_bytes(&map, 6, phe, &phel) || phel != 16)     return err(out, CTAP2_ERR_PIN_INVALID);
+        uint8_t e2 = pin_check(cfg, ss, phe, stored, &retries); if (e2) return err(out, e2);
+        uint8_t perms = PIN_PERM_MC | PIN_PERM_GA;
+        rt->token_rp_set = false;
+        if (sub == 9) {
+            uint64_t pm = 0; if (cbor_map_uint(&map, 9, &pm)) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+            perms = (uint8_t)(pm & (PIN_PERM_MC | PIN_PERM_GA));
+            if (perms == 0) return err(out, CTAP2_ERR_INVALID_OPTION);
+            char rpid[128]; size_t rl = sizeof rpid;
+            if (cbor_map_text(&map, 0x0A, rpid, &rl) == 0) {
+                if (cfg->cy->sha256((const uint8_t *)rpid, strlen(rpid), rt->token_rp, cfg->cy->ctx))
+                    return err(out, CTAP1_ERR_OTHER);
+                rt->token_rp_set = true;
+            }
+        }
+        if (cfg->cy->rand(rt->token, 32, cfg->cy->ctx)) return err(out, CTAP1_ERR_OTHER);
+        rt->token_set = true; rt->token_perms = perms;
+        uint8_t iv[16] = {0}; uint8_t enc[32];
+        if (cfg->cy->aes_cbc(ss, iv, 1, rt->token, 32, enc, cfg->cy->ctx)) return err(out, CTAP1_ERR_OTHER);
+        out[0] = CTAP2_OK; cbor_writer w; cw_init(&w, out + 1, cap - 1);
+        cw_map(&w, 1); cw_key(&w, 2); cw_bytes(&w, enc, 32);
+        return (uint16_t)(1 + cw_finish(&w));
+    }
+    default:
+        return err(out, CTAP2_ERR_INVALID_OPTION);
+    }
+}
+
+static uint16_t reset_cmd(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
+    (void)cap;
+    ctap2_pin_rt *rt = cfg->pin_rt;
+    // Reset must happen within ~10 s of power-up when we have a boot clock.
+    if (rt && rt->boot_ms && cfg->now_ms && (uint32_t)(cfg->now_ms - rt->boot_ms) > 10000)
+        return err(out, CTAP2_ERR_NOT_ALLOWED);
+    if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
+    if (cfg->store && cfg->store->wipe) cfg->store->wipe(cfg->store);
+    if (cfg->pin) cfg->pin->wipe(cfg->pin);
+    if (rt) { rt->ka_ready = false; rt->token_set = false; rt->boot_fails = 0; }
+    if (cfg->counter) *cfg->counter = 0;
+    out[0] = CTAP2_OK; return 1;
+}
+
 uint16_t ctap2_handle(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
                       uint8_t *out, uint16_t cap) {
     if (cap < 1) return 0;
@@ -266,6 +494,8 @@ uint16_t ctap2_handle(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t len,
         case CTAP2_GET_INFO:   return get_info(cfg, out, cap);
         case CTAP2_MAKE_CRED:  return make_cred(cfg, req, len, out, cap);
         case CTAP2_GET_ASSERT: return get_assert(cfg, req, len, out, cap);
+        case CTAP2_CLIENT_PIN: return client_pin(cfg, req, len, out, cap);
+        case CTAP2_RESET:      return reset_cmd(cfg, out, cap);
         default:               out[0] = CTAP1_ERR_INVALID_COMMAND; return 1;
     }
 }

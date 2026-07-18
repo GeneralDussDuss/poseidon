@@ -62,5 +62,9 @@ static int nvs_update(cred_store *, const uint8_t id[32], uint32_t nc) {
     return -1;
 }
 
-static cred_store S = { nvs_add, nvs_find, nvs_update };
+static void nvs_wipe(cred_store *) {
+    Preferences p; p.begin(NS, false); p.clear(); p.end();   // drop all creds (authenticatorReset)
+}
+
+static cred_store S = { nvs_add, nvs_find, nvs_update, nvs_wipe };
 cred_store *cred_store_nvs(void) { return &S; }

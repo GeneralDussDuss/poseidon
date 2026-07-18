@@ -23,6 +23,9 @@ typedef struct cred_store {
     int (*find_by_rp)(struct cred_store *, const uint8_t rpIdHash[32],
                       cred_record *out, int index, int *total);
     int (*update_counter)(struct cred_store *, const uint8_t id[32], uint32_t newCount);
+    // Remove all stored credentials (authenticatorReset). May be null on stores
+    // that don't support it (reset then leaves creds intact).
+    void (*wipe)(struct cred_store *);
 } cred_store;
 
 cred_store *cred_store_mem(void);   // in-memory, reset on each call (tests)

@@ -112,8 +112,22 @@ static int mk_sign(const uint8_t*,const uint8_t*,size_t,uint8_t*sig,size_t*sl,vo
 static uint8_t aad_fp2(const uint8_t*a,size_t n){uint8_t f=0;for(size_t i=0;i<n;i++)f^=a[i];return f;}
 static int mk_seal(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,uint8_t*out,uint8_t tag[16],void*){for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];memset(tag,0,16);tag[0]=aad_fp2(aad,al);return 0;}
 static int mk_open(const uint8_t k[32],const uint8_t iv[12],const uint8_t*aad,size_t al,const uint8_t*in,size_t len,const uint8_t tag[16],uint8_t*out,void*){if(tag[0]!=aad_fp2(aad,al))return -1;for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%12];return 0;}
+// clientPIN mock primitives. mk_keygen is fixed, so mock ECDH just needs to be
+// deterministic (both platform + authenticator agree); real ECDH is mbedtls on device.
+static int mk_ecdh(const uint8_t priv[32],const uint8_t pub[65],uint8_t out[32],void*){uint8_t b[97];memcpy(b,priv,32);memcpy(b+32,pub,65);return mk_sha256(b,97,out,nullptr);}
+static int mk_hmac(const uint8_t*key,size_t kl,const uint8_t*msg,size_t ml,uint8_t out[32],void*){uint8_t b[600];size_t n=0;for(size_t i=0;i<32;i++)b[n++]=i<kl?key[i]:0;for(size_t i=0;i<ml&&n<sizeof b;i++)b[n++]=msg[i];return mk_sha256(b,n,out,nullptr);}
+static int mk_aescbc(const uint8_t k[32],const uint8_t iv[16],int,const uint8_t*in,size_t len,uint8_t*out,void*){for(size_t i=0;i<len;i++)out[i]=in[i]^k[i%32]^iv[i%16];return 0;} // XOR: encrypt==decrypt
 static kerb_crypto_t MOCK={mk_rand,mk_sha256,mk_keygen,mk_sign,mk_seal,mk_open,
-                           nullptr,nullptr,nullptr,/*ecdh,hmac,aes_cbc*/ nullptr/*ctx*/};
+                           mk_ecdh,mk_hmac,mk_aescbc,nullptr/*ctx*/};
+
+// In-memory mock PIN store.
+static uint8_t g_ph[16]; static uint8_t g_pr; static bool g_pset;
+static int ps_load(pin_store*,uint8_t h[16],uint8_t*r){ if(!g_pset)return 0; memcpy(h,g_ph,16); *r=g_pr; return 1; }
+static int ps_save(pin_store*,const uint8_t h[16],uint8_t r){ memcpy(g_ph,h,16); g_pr=r; g_pset=true; return 0; }
+static int ps_saver(pin_store*,uint8_t r){ g_pr=r; return 0; }
+static void ps_wipe(pin_store*){ g_pset=false; }
+static pin_store PS = { ps_load, ps_save, ps_saver, ps_wipe };
+static ctap2_pin_rt g_rt;
 
 static bool g_present2 = true;
 static bool up2(void*){ return g_present2; }
@@ -305,6 +319,150 @@ static void test_resident_make_and_discover(void) {
     TEST_ASSERT_EQUAL_UINT32(1, r.signCount);        // persisted in the store
 }
 
+// ---- clientPIN flow (pinUvAuthProtocol 1) ----
+
+// Encode a COSE_Key {1:2,3:-25,-1:1,-2:X,-3:Y} into `parent`.
+static void enc_cose_key(CborEncoder *parent, const uint8_t pub[65]) {
+    CborEncoder m; cbor_encoder_create_map(parent, &m, 5);
+    cbor_encode_int(&m,1); cbor_encode_int(&m,2);
+    cbor_encode_int(&m,3); cbor_encode_int(&m,-25);
+    cbor_encode_int(&m,-1); cbor_encode_int(&m,1);
+    cbor_encode_int(&m,-2); cbor_encode_byte_string(&m,pub+1,32);
+    cbor_encode_int(&m,-3); cbor_encode_byte_string(&m,pub+33,32);
+    cbor_encoder_close_container(parent,&m);
+}
+
+// getKeyAgreement -> authenticator KA public key (0x04||X||Y).
+static void get_auth_ka(ctap2_cfg_t *cfg, uint8_t authPub[65]) {
+    uint8_t req[64]; req[0]=0x06;
+    CborEncoder e,m; cbor_encoder_init(&e,req+1,sizeof req-1,0);
+    cbor_encoder_create_map(&e,&m,2);
+    cbor_encode_int(&m,1); cbor_encode_int(&m,1);   // pinUvAuthProtocol 1
+    cbor_encode_int(&m,2); cbor_encode_int(&m,2);   // subCommand getKeyAgreement
+    cbor_encoder_close_container(&e,&m);
+    uint16_t rl=(uint16_t)(1+cbor_encoder_get_buffer_size(&e,req+1));
+    uint8_t out[256]; uint16_t n=ctap2_handle(cfg,req,rl,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00,out[0]);
+    CborParser p; CborValue map,ka;
+    TEST_ASSERT_EQUAL_INT(0,cbor_get_map(out+1,n-1,&p,&map));
+    TEST_ASSERT_EQUAL_INT(0,cbor_map_enter(&map,1,&ka));
+    uint8_t x[32],y[32]; size_t xl=32,yl=32;
+    TEST_ASSERT_EQUAL_INT(0,cbor_map_bytes(&ka,-2,x,&xl));
+    TEST_ASSERT_EQUAL_INT(0,cbor_map_bytes(&ka,-3,y,&yl));
+    authPub[0]=0x04; memcpy(authPub+1,x,32); memcpy(authPub+33,y,32);
+}
+
+// Derive the platform-side sharedSecret against the authenticator KA key.
+static void platform_ss(const uint8_t platPriv[32], const uint8_t authPub[65], uint8_t ss[32]) {
+    uint8_t sx[32]; mk_ecdh(platPriv,authPub,sx,nullptr); mk_sha256(sx,32,ss,nullptr);
+}
+
+static bool getinfo_clientpin(ctap2_cfg_t *cfg) {
+    uint8_t rq[1]={0x04}; uint8_t o[256]; uint16_t on=ctap2_handle(cfg,rq,1,o,sizeof o);
+    CborParser p; CborValue mm,opts,cp; cbor_get_map(o+1,on-1,&p,&mm);
+    if (cbor_map_enter(&mm,4,&opts)) return false;
+    if (cbor_value_map_find_value(&opts,"clientPin",&cp)!=CborNoError || !cbor_value_is_boolean(&cp)) return false;
+    bool b=false; cbor_value_get_boolean(&cp,&b); return b;
+}
+
+static void reset_pin_state(void){ g_pset=false; g_pr=0; memset(&g_rt,0,sizeof g_rt); }
+static ctap2_cfg_t pin_cfg(void){ ctap2_cfg_t c=mk_cfg(); c.pin=&PS; c.pin_rt=&g_rt; return c; }
+
+// setPIN "1234" via the real protocol, then confirm getInfo flips clientPin true.
+static void test_clientpin_setpin(void) {
+    reset_pin_state();
+    ctap2_cfg_t cfg = pin_cfg();
+    TEST_ASSERT_FALSE(getinfo_clientpin(&cfg));            // no PIN yet
+
+    uint8_t authPub[65]; get_auth_ka(&cfg, authPub);
+    uint8_t platPriv[32],platPub[65]; mk_keygen(platPriv,platPub,nullptr);
+    uint8_t ss[32]; platform_ss(platPriv,authPub,ss);
+
+    uint8_t pad[64]; memset(pad,0,64); memcpy(pad,"1234",4);
+    uint8_t iv[16]={0}; uint8_t npe[64]; mk_aescbc(ss,iv,1,pad,64,npe,nullptr);
+    uint8_t mac[32]; mk_hmac(ss,32,npe,64,mac,nullptr);
+
+    uint8_t req[256]; req[0]=0x06;
+    CborEncoder e,m; cbor_encoder_init(&e,req+1,sizeof req-1,0);
+    cbor_encoder_create_map(&e,&m,5);
+    cbor_encode_int(&m,1); cbor_encode_int(&m,1);
+    cbor_encode_int(&m,2); cbor_encode_int(&m,3);
+    cbor_encode_int(&m,3); enc_cose_key(&m,platPub);
+    cbor_encode_int(&m,4); cbor_encode_byte_string(&m,mac,16);
+    cbor_encode_int(&m,5); cbor_encode_byte_string(&m,npe,64);
+    cbor_encoder_close_container(&e,&m);
+    uint16_t rl=(uint16_t)(1+cbor_encoder_get_buffer_size(&e,req+1));
+    uint8_t out[256]; ctap2_handle(&cfg,req,rl,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00,out[0]);                  // setPIN ok
+    TEST_ASSERT_TRUE(g_pset);
+    TEST_ASSERT_TRUE(getinfo_clientpin(&cfg));             // now advertises clientPin true
+}
+
+// Build a getPinToken (subCmd 5) request with the given pinHashEnc.
+static uint16_t build_gettoken(uint8_t *req, const uint8_t platPub[65], const uint8_t phe[16]) {
+    req[0]=0x06; CborEncoder e,m; cbor_encoder_init(&e,req+1,240,0);
+    cbor_encoder_create_map(&e,&m,4);
+    cbor_encode_int(&m,1); cbor_encode_int(&m,1);
+    cbor_encode_int(&m,2); cbor_encode_int(&m,5);
+    cbor_encode_int(&m,3); enc_cose_key(&m,platPub);
+    cbor_encode_int(&m,6); cbor_encode_byte_string(&m,phe,16);
+    cbor_encoder_close_container(&e,&m);
+    return (uint16_t)(1+cbor_encoder_get_buffer_size(&e,req+1));
+}
+
+// Right PIN -> token issued; wrong PIN -> PIN_INVALID and retry decrement.
+static void test_clientpin_token(void) {
+    reset_pin_state();
+    ctap2_cfg_t cfg = pin_cfg();
+    // set the PIN first (reuse the flow)
+    { uint8_t ap[65]; get_auth_ka(&cfg,ap); uint8_t pp[32],pub[65]; mk_keygen(pp,pub,nullptr);
+      uint8_t ss[32]; platform_ss(pp,ap,ss);
+      uint8_t pad[64]; memset(pad,0,64); memcpy(pad,"1234",4);
+      uint8_t iv[16]={0}; uint8_t npe[64]; mk_aescbc(ss,iv,1,pad,64,npe,nullptr);
+      uint8_t mac[32]; mk_hmac(ss,32,npe,64,mac,nullptr);
+      uint8_t req[256]; req[0]=0x06; CborEncoder e,m; cbor_encoder_init(&e,req+1,240,0);
+      cbor_encoder_create_map(&e,&m,5);
+      cbor_encode_int(&m,1);cbor_encode_int(&m,1); cbor_encode_int(&m,2);cbor_encode_int(&m,3);
+      cbor_encode_int(&m,3);enc_cose_key(&m,pub); cbor_encode_int(&m,4);cbor_encode_byte_string(&m,mac,16);
+      cbor_encode_int(&m,5);cbor_encode_byte_string(&m,npe,64); cbor_encoder_close_container(&e,&m);
+      uint16_t rl=(uint16_t)(1+cbor_encoder_get_buffer_size(&e,req+1));
+      uint8_t o[256]; ctap2_handle(&cfg,req,rl,o,sizeof o); TEST_ASSERT_EQUAL_UINT8(0,o[0]); }
+
+    uint8_t authPub[65]; get_auth_ka(&cfg,authPub);
+    uint8_t platPriv[32],platPub[65]; mk_keygen(platPriv,platPub,nullptr);
+    uint8_t ss[32]; platform_ss(platPriv,authPub,ss);
+    uint8_t iv[16]={0};
+
+    // correct PIN
+    uint8_t ph[32]; mk_sha256((const uint8_t*)"1234",4,ph,nullptr);
+    uint8_t phe[16]; mk_aescbc(ss,iv,1,ph,16,phe,nullptr);
+    uint8_t req[256]; uint16_t rl=build_gettoken(req,platPub,phe);
+    uint8_t out[256]; ctap2_handle(&cfg,req,rl,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00,out[0]);                  // token issued
+    TEST_ASSERT_TRUE(g_rt.token_set);
+    TEST_ASSERT_EQUAL_UINT8(8,g_pr);                       // retries restored to 8
+
+    // wrong PIN -> 0x31 and retries 8 -> 7
+    get_auth_ka(&cfg,authPub); platform_ss(platPriv,authPub,ss);
+    uint8_t bad[32]; mk_sha256((const uint8_t*)"9999",4,bad,nullptr);
+    uint8_t bphe[16]; mk_aescbc(ss,iv,1,bad,16,bphe,nullptr);
+    rl=build_gettoken(req,platPub,bphe);
+    ctap2_handle(&cfg,req,rl,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x31,out[0]);                  // CTAP2_ERR_PIN_INVALID
+    TEST_ASSERT_EQUAL_UINT8(7,g_pr);
+}
+
+// authenticatorReset wipes the PIN (with user presence).
+static void test_reset_wipes_pin(void) {
+    reset_pin_state();
+    ctap2_cfg_t cfg = pin_cfg(); g_present2 = true;
+    g_pset = true; memset(g_ph,0x22,16); g_pr = 5;         // pretend a PIN is set
+    uint8_t req[1]={0x07}; uint8_t out[8];
+    ctap2_handle(&cfg,req,1,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00,out[0]);
+    TEST_ASSERT_FALSE(g_pset);                             // PIN wiped
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -318,6 +476,9 @@ int main(int, char **) {
     RUN_TEST(test_getassert_no_cred);
     RUN_TEST(test_cred_store_mem);
     RUN_TEST(test_resident_make_and_discover);
+    RUN_TEST(test_clientpin_setpin);
+    RUN_TEST(test_clientpin_token);
+    RUN_TEST(test_reset_wipes_pin);
     return UNITY_END();
 }
 

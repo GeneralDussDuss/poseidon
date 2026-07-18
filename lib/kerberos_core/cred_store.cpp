@@ -33,11 +33,13 @@ static int mem_update(cred_store *s, const uint8_t id[32], uint32_t nc) {
         if (memcmp(m->recs[i].id, id, 32) == 0) { m->recs[i].signCount = nc; return 0; }
     return -1;
 }
+static void mem_wipe(cred_store *s) { ((mem_store *)s)->n = 0; }
 
 cred_store *cred_store_mem(void) {
     g_mem.base.add            = mem_add;
     g_mem.base.find_by_rp     = mem_find;
     g_mem.base.update_counter = mem_update;
+    g_mem.base.wipe           = mem_wipe;
     g_mem.n = 0;
     return &g_mem.base;
 }
