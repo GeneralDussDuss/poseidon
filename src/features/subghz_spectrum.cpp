@@ -76,15 +76,17 @@ static void run_bar_spectrum(const freq_range_t &range)
             cc1101_set_freq(range.start + i * step); cc1101_set_rx();
             delayMicroseconds(800);
             int raw = cc1101_get_rssi();
-            /* EMA: 30% new, 70% old. Fast enough to track bursts,
-             * smooth enough to not jitter between idle samples. */
-            smooth[i] = smooth[i] * 0.7f + raw * 0.3f;
-            int cur = (int)smooth[i];
-            if (cur > peak[i]) peak[i] = cur;
+            /* Lighter EMA (50/50) so the live bar tracks bursts, but PEAK-HOLD ON
+             * THE RAW SAMPLE — the sweep sits on any given bin only briefly, so a
+             * short fob burst shows up in a single raw read; peak-holding the
+             * smoothed value (old code) averaged it away to near-invisible. */
+            smooth[i] = smooth[i] * 0.5f + raw * 0.5f;
+            if (raw > peak[i]) peak[i] = (int8_t)raw;
         }
-        /* Peak decay — slow fall-off after hit. */
+        /* Peak decay toward the live floor — slow (2 dB/sweep) so a caught burst
+         * lingers a beat instead of vanishing before the eye catches it. */
         for (int i = 0; i < bins; ++i)
-            if (peak[i] > (int)smooth[i] + 1) peak[i]--;
+            if (peak[i] > (int)smooth[i]) peak[i] -= 2;
 
         if (have_canvas) {
             /* All rendering goes into the off-screen canvas. */
@@ -111,7 +113,9 @@ static void run_bar_spectrum(const freq_range_t &range)
                 int pn = peak[i] + 110;
                 if (pn > 0) {
                     int py = GH - (pn * GH) / 80;
-                    if (py >= 0) canvas.drawPixel(i, py, 0xFFFF);
+                    /* Bright 2px peak marker so a held-peak spike is unmissable. */
+                    if (py >= 0)        canvas.drawPixel(i, py, 0xFFFF);
+                    if (py + 1 < GH)    canvas.drawPixel(i, py + 1, 0xFFFF);
                 }
             }
             canvas.pushSprite(GX, GY);
@@ -197,6 +201,12 @@ static void run_waterfall(const freq_range_t &range)
     float step = (range.end - range.start) / GW;
     memset(ring, 0, (size_t)rows * WF_MAX_BINS * sizeof(uint16_t));
     int head = 0, count = 0;
+    /* Per-column peak-hold with slow decay: the sweep sits on any bin only
+     * briefly, so a short fob burst caught in one sweep would be a single stray
+     * pixel. Holding the max per column (decaying 1/sweep) turns it into a
+     * visible vertical streak. */
+    static int8_t peakcol[WF_MAX_BINS];
+    for (int i = 0; i < GW; ++i) peakcol[i] = -110;
 
     d.fillScreen(T_BG);
 
@@ -212,7 +222,10 @@ static void run_waterfall(const freq_range_t &range)
         for (int i = 0; i < GW; ++i) {
             cc1101_set_freq(range.start + i * step); cc1101_set_rx();
             delayMicroseconds(500);
-            row[i] = rssi_color(cc1101_get_rssi());
+            int raw = cc1101_get_rssi();
+            if (raw > peakcol[i]) peakcol[i] = (int8_t)raw;      /* hold the burst */
+            else if (peakcol[i] > -110) peakcol[i]--;            /* slow decay */
+            row[i] = rssi_color(peakcol[i]);
         }
         head = (head + 1) % rows;
         if (count < rows) count++;
