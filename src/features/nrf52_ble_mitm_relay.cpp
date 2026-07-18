@@ -47,6 +47,7 @@ static bool ensure_feather(void) {
     ui_clear_body(); auto &d = M5Cardputer.Display;
     d.setTextColor(T_ACCENT, T_BG); d.setCursor(4, BODY_Y+10);
     d.print("Connecting to Feather...");
+    ui_spinner(SCR_W-16, BODY_Y+14, T_ACCENT);
     if (NRF52Hardware::begin()) { ui_toast("nRF52 OK", T_GOOD, 600); return true; }
     d.setTextColor(T_BAD, T_BG); d.setCursor(4, BODY_Y+24);
     d.print("Feather not found."); d.setCursor(4, BODY_Y+38);
@@ -130,6 +131,11 @@ static bool select_target(void) {
     auto &d = M5Cardputer.Display;
     d.setTextColor(T_ACCENT, T_BG); d.setCursor(4, BODY_Y+2);
     d.print("MITM: Scanning targets...");
+    /* getResults() blocks ~10s in one call and cannot animate; a persistent
+     * labeled radar frame makes the wait read as intentional, not frozen. */
+    d.setTextColor(T_ACCENT2, T_BG); d.setCursor(4, BODY_Y+24); d.print("SCANNING BLE");
+    d.setTextColor(T_DIM, T_BG); d.setCursor(4, BODY_Y+38); d.print("up to 10s...");
+    ui_radar(SCR_W/2, BODY_Y+70, 28, T_ACCENT);
     do_mitm_scan();
 
     int cursor = 0;
@@ -198,6 +204,7 @@ static void relay_phase(void) {
     String resp;
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "BLE_MITM_CLONE %s", mac_str);
+    ui_spinner(SCR_W-16, BODY_Y+44, T_ACCENT);
     bool ok = NRF52Hardware::send_command(cmd, resp, 3000);
 
     if (!ok) {
@@ -211,6 +218,7 @@ static void relay_phase(void) {
     /* Step 2: ESP32 becomes fake GATT server with cloned name */
     d.setTextColor(T_DIM, T_BG); d.setCursor(4, BODY_Y+56);
     d.print("ESP32: starting fake GATT...");
+    ui_spinner(SCR_W-16, BODY_Y+56, T_ACCENT);
 
     /* We don't actually need to fully implement the GATT server here —
      * the nRF52 handles the raw radio relay. The ESP32 just needs to

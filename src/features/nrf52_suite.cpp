@@ -43,6 +43,7 @@ static bool ensure_dongle(void)
     d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 10);
     d.print("Connecting to Feather...");
+    ui_spinner(SCR_W - 16, BODY_Y + 14, T_ACCENT);
 
     if (NRF52Hardware::begin()) {
         ui_toast("nRF52840 connected!", T_GOOD, 800);
@@ -138,6 +139,9 @@ void feat_nrf52_longrange(void)
             }
         }
 
+        /* Coded PHY advertisers are sparse — animate so waiting reads live. */
+        ui_scanning_indicator("long range", count);
+
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
         if (k == 'r' || k == 'R') {
@@ -202,6 +206,9 @@ void feat_nrf52_sniff(void)
                 }
             }
         }
+
+        /* Sniffer updates only on PKT — animate so idle never looks frozen. */
+        ui_scanning_indicator("sniffing", (int)pkt_count);
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
@@ -278,6 +285,9 @@ void feat_nrf52_scan(void)
             }
         }
 
+        /* Updates only on DEV — keep an animated pulse while none arrive. */
+        ui_scanning_indicator("scanning", count);
+
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
         if (k == 'r' || k == 'R') {
@@ -339,6 +349,10 @@ void feat_nrf52_zigbee(void)
                 d.print(line.substring(3, min((int)line.length(), 38)));
             }
         }
+
+        /* 802.15.4 is silent until a device transmits — animate an active
+         * indicator each iteration so a quiet channel never reads as frozen. */
+        ui_scanning_indicator("802.15.4", (int)pkt_count);
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;

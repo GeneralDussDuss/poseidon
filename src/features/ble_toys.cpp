@@ -295,6 +295,8 @@ void feat_ble_toys(void)
     draw_picker_force(cursor, true, true);
     while (true) {
         if (millis() - last > 300) { last = millis(); draw_picker(cursor, true); }
+        /* Keep the empty wait alive: animated radar + "toys..." strip. */
+        if (s_toy_count == 0) ui_scanning_indicator("toys", s_toy_count);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) { scan->stop(); return; }
@@ -302,7 +304,7 @@ void feat_ble_toys(void)
         if ((k == '.' || k == PK_DOWN) && cursor + 1 < s_toy_count) { cursor++; }
         if (k == PK_ENTER && s_toy_count > 0) {
             scan->stop();
-            ui_toast("connecting...", T_WARN, 0);
+            ui_connecting_screen(s_toys[cursor].name);
             if (!connect_lovense(s_toys[cursor])) {
                 ui_toast("connect failed", T_BAD, 1200);
                 scan->start(0, false);

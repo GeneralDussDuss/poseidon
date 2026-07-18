@@ -221,7 +221,13 @@ static void diag_drive(int pin, int freq_hz, bool invert, int dur_ms)
         .flags = { .output_invert = (unsigned)(invert ? 1 : 0) },
     };
     ledc_channel_config(&c);
-    delay(dur_ms);
+    /* The LEDC carrier is generated in hardware and keeps running while
+     * the CPU idles here, so repainting a spinner does not disturb it. */
+    uint32_t end = millis() + (uint32_t)dur_ms;
+    while ((int32_t)(end - millis()) > 0) {
+        ui_spinner(SCR_W - 16, BODY_Y + 70, T_ACCENT);
+        delay(50);
+    }
     /* Stop the LEDC channel cleanly, with idle level HIGH (= LED OFF
      * on active-low). Earlier this fn did ledc_set_duty(0) + a manual
      * digitalWrite(LOW), which on an active-LOW LED leaves it stuck

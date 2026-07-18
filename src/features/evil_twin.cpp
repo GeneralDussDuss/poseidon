@@ -228,9 +228,10 @@ static bool et_ap_up(uint8_t channel)
     /* CRITICAL: force channel post-start; config-side channel is
      * ignored by the AP path on Bruce libs. */
     esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
-    /* 1500 ms settle for AP_START / first beacon. */
+    /* 1500 ms settle for AP_START / first beacon. Spin an active spinner
+     * so the settle wait doesn't read as a freeze. */
     uint32_t t0 = millis();
-    while (millis() - t0 < 1500) { delay(20); }
+    while (millis() - t0 < 1500) { ui_spinner(SCR_W / 2, BODY_Y + 54, T_ACCENT); delay(20); }
     return true;
 }
 

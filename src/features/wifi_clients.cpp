@@ -451,6 +451,10 @@ void feat_wifi_clients(void)
             ui_draw_status(radio_name(), "clients");
         }
 
+        /* While no client has been seen, animate an active listening
+         * indicator so the wait never reads as a frozen device. */
+        if (s_count == 0) ui_scanning_indicator("listening", s_count);
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

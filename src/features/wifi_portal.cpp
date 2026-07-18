@@ -428,7 +428,12 @@ static void run_portal(void)
     esp_wifi_set_promiscuous(false);
     esp_wifi_stop();
     esp_wifi_deinit();
-    delay(300);
+    /* Paint the bring-up screen up front and animate a spinner through the
+     * settle waits so the ~1.8 s of AP init never reads as a frozen device. */
+    ui_clear_body();
+    ui_text(4, BODY_Y + 20, T_ACCENT, "STARTING PORTAL...");
+    { uint32_t t_reinit = millis();
+      while (millis() - t_reinit < 300) { ui_spinner(SCR_W / 2, BODY_Y + 54, T_ACCENT); delay(20); } }
     /* Destroy default STA netif if a prior feature created it.
      * esp_netif_create_default_wifi_ap below will then succeed. */
     esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -545,7 +550,7 @@ static void run_portal(void)
     /* Settle. AP needs the AP_START event to fully process before it
      * starts beaconing. 1.5 s matches Bruce's 3 s upper bound halved. */
     uint32_t t_settle = millis();
-    while (millis() - t_settle < 1500) { delay(20); }
+    while (millis() - t_settle < 1500) { ui_spinner(SCR_W / 2, BODY_Y + 54, T_ACCENT); delay(20); }
 
     int8_t actual_pwr = 0;
     esp_wifi_get_max_tx_power(&actual_pwr);

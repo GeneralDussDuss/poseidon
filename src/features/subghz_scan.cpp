@@ -301,7 +301,6 @@ void feat_subghz_scan(void)
         }
         if (k == 'a' || k == 'A') {
             detachInterrupt(digitalPinToInterrupt(CC1101_GDO0));
-            ui_toast("scanning...", T_ACCENT, 200);
             int best_rssi = -200; float best_freq = freq;
             for (int i = 0; i < (int)FREQ_COUNT; ++i) {
                 ELECHOUSE_cc1101.setSidle();
@@ -310,6 +309,8 @@ void feat_subghz_scan(void)
                 delay(15);
                 int r = cc1101_get_rssi();
                 if (r > best_rssi) { best_rssi = r; best_freq = COMMON_FREQS[i]; }
+                /* RSSI sweep, not a TX, so animating between steps is safe. */
+                ui_scanning_indicator("autoscan", i);
                 yield();
             }
             freq = best_freq;

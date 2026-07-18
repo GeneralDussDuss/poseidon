@@ -163,6 +163,9 @@ void feat_ble_tracker(void)
             ui_draw_status(radio_name(), "tracker");
         }
 
+        /* Keep the empty wait alive: animated radar + "trackers..." strip. */
+        if (s_tracker_count == 0) ui_scanning_indicator("trackers", s_tracker_count);
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

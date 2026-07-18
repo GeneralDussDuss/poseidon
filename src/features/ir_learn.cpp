@@ -60,6 +60,9 @@ static uint16_t ir_capture(uint32_t timeout_ms) {
 
     uint32_t end = millis() + timeout_ms;
     while (!s_rx_done && millis() < end) {
+        /* RMT captures the IR edge in hardware, so repainting here does
+         * not affect RX timing — keep the wait visibly alive. */
+        ui_scanning_indicator("waiting for signal", -1);
         if (input_poll() == PK_ESC) break;
         delay(10);
     }

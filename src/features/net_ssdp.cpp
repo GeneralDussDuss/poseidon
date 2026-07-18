@@ -139,6 +139,9 @@ void feat_net_ssdp(void)
             d.setCursor(4, BODY_Y + 22);
             d.printf("found %d  %s", s_dev_n, e.ip);
         }
+        /* Animate the whole listen window so a silent LAN (zero responses)
+         * never leaves the screen frozen on "sending M-SEARCH...". */
+        ui_scanning_indicator("listening", s_dev_n);
         if (input_poll() == PK_ESC) break;
     }
     udp.stop();
@@ -149,6 +152,7 @@ void feat_net_ssdp(void)
         d.setTextColor(T_ACCENT, T_BG);
         d.setCursor(4, BODY_Y + 22);
         d.printf("probing %d/%d", i + 1, s_dev_n);
+        ui_scanning_indicator("probing", i + 1);
         fetch_desc(&s_dev[i]);
     }
 

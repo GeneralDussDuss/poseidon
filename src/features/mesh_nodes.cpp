@@ -42,8 +42,9 @@ void feat_mesh_nodes(void)
             d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 30);
             d.print("no nodes seen yet");
-            d.setCursor(4, BODY_Y + 42);
-            d.print("waiting for mesh traffic...");
+            /* Animated indicator so the wait for the first packet reads
+             * as live (body is fully repainted each loop). */
+            ui_scanning_indicator("waiting for nodes", count);
         } else {
             if (cursor < 0) cursor = 0;
             if (cursor >= count) cursor = count - 1;

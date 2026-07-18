@@ -667,6 +667,10 @@ static void triton_tick(uint16_t &seq, uint32_t &last_hunt)
                     if (input_poll() == PK_ESC) { s_alive = false; break; }
                 }
                 if (!s_alive) break;
+                /* Between APs only (never inside a burst's delay(25) run):
+                 * a lightweight spinner so the Argus face doesn't read as
+                 * frozen across the burst window. Outer level = RF safe. */
+                ui_spinner(SCR_W - 12, BODY_Y + 12, T_BAD);
             }
         }
         wifi_silent_ap_end();
@@ -1106,11 +1110,14 @@ void feat_triton(void)
     TRITON_RAM_PROBE("after pick_mode");
     if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
     TRITON_RAM_PROBE("after sd_mount");
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);  /* advance sweep */
     SD.mkdir("/poseidon");
     s_file = SD.open("/poseidon/hashcat.22000", FILE_APPEND);
     if (!s_file) { ui_toast("file open fail", T_BAD, 1500); return; }
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);  /* advance sweep */
 
     triton_learn_load();
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);  /* advance sweep */
     s_pmk = 0; s_hs = 0; s_eapol = 0; s_deauth_frames = 0;
     s_bs_n = 0; s_m1_n = 0;
 
@@ -1147,6 +1154,7 @@ void feat_triton(void)
      * geo-tag captures on its own. With GPS off, emit_pmkid / emit_hs see
      * sats == 0 and skip the wardrive coordinate row entirely. */
     if (gps_user_enabled()) gps_begin();
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);  /* advance sweep */
 
     /* Set TX power once at session entry — moved out of the per-burst
      * wifi_silent_ap_begin path. Evil-Cardputer never touches tx_power
@@ -1171,6 +1179,7 @@ void feat_triton(void)
      * 5G phase. The old c5_stop() here was a freeze mitigation — if Argus
      * destabilises, gate the 5G window (s_phase_5g) back off. */
     c5_begin();
+    ui_radar(SCR_W - 24, BODY_Y + 28, 10, T_ACCENT);  /* advance sweep */
     bool c5_online = false;   /* set live from c5_any_online() in the loop */
     uint32_t last_c5_deauth = 0;
     int c5_target_idx = 0;

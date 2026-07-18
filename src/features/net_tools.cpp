@@ -122,6 +122,9 @@ void feat_net_dns(void)
     char host[64];
     if (!input_line("hostname:", host, sizeof(host))) return;
 
+    ui_clear_body();
+    ui_text(4, BODY_Y + 2, T_ACCENT, "DNS LOOKUP");
+    ui_scanning_indicator("resolving", -1);
     IPAddress ip;
     bool ok = WiFi.hostByName(host, ip);
     ui_clear_body();

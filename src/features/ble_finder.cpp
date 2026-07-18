@@ -280,8 +280,6 @@ static bool beep_tracker(const uint8_t mac[6], const char *kind)
     d.setCursor(4, BODY_Y + 18);
     d.printf("%-9s %02X:%02X:%02X:%02X:%02X:%02X",
              kind ? kind : "?", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    d.setTextColor(T_DIM, T_BG);
-    d.setCursor(4, BODY_Y + 32); d.print("connecting...");
 
     /* Stop the current scan — concurrent scan + connect on the same
      * NimBLE host fails on ESP32-S3. */
@@ -300,6 +298,12 @@ static bool beep_tracker(const uint8_t mac[6], const char *kind)
 
     /* Use random address type — AirTags advertise with random MACs. */
     NimBLEAddress target(mac, BLE_ADDR_RANDOM);
+    /* Animated CONNECTING screen right before the blocking 5s connect. */
+    char tname[24];
+    if (kind && kind[0]) snprintf(tname, sizeof(tname), "%s", kind);
+    else snprintf(tname, sizeof(tname), "%02X:%02X:%02X:%02X:%02X:%02X",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    ui_connecting_screen(tname);
     bool connected = client->connect(target);
     Serial.printf("[beep] connect %02X:%02X:%02X:%02X:%02X:%02X -> %d\n",
                   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], (int)connected);
@@ -402,6 +406,8 @@ void feat_ble_finder(void)
             last_drawn_count = s_found_n;
             draw_picker(cursor);
         }
+        /* Keep the empty wait alive: animated radar + "trackers..." strip. */
+        if (s_found_n == 0) ui_scanning_indicator("trackers", s_found_n);
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) { scan->stop(); return; }

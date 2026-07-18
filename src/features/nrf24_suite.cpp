@@ -407,6 +407,11 @@ void feat_nrf24_mousejack(void)
                 uint8_t hid = ascii_to_hid(inject_buf[i], &mod);
                 if (hid == 0) continue;
 
+                /* Move a progress counter so long strings don't look frozen. */
+                if (i % 4 == 0)
+                    ui_text_w(4, BODY_Y + 62, SCR_W - 8, T_ACCENT,
+                              "injecting %d/%d", i, inject_len);
+
                 if (is_logi) {
                     uint8_t p[10] = {0};
                     p[1] = 0xC1; p[2] = mod; p[3] = hid;

@@ -35,6 +35,7 @@ static bool ensure_feather(void)
     auto &d = M5Cardputer.Display;
     d.setTextColor(T_ACCENT, T_BG); d.setCursor(4, BODY_Y+10);
     d.print("Connecting to Feather...");
+    ui_spinner(SCR_W-16, BODY_Y+14, T_ACCENT);
     if (NRF52Hardware::begin()) { ui_toast("nRF52 connected!", T_GOOD, 800); return true; }
     d.setTextColor(T_BAD, T_BG); d.setCursor(4, BODY_Y+24);
     d.print("Feather not found.");
@@ -120,6 +121,11 @@ static void scout_phase(void) {
     auto &d = M5Cardputer.Display;
     d.setTextColor(T_ACCENT, T_BG); d.setCursor(4, BODY_Y+2);
     d.print("SCOUT: NimBLE scan..."); d.drawFastHLine(4, BODY_Y+12, SCR_W-8, T_ACCENT2);
+    /* getResults() blocks ~10s in one call and cannot animate; a persistent
+     * labeled radar frame makes the wait read as intentional, not frozen. */
+    d.setTextColor(T_ACCENT2, T_BG); d.setCursor(4, BODY_Y+24); d.print("SCANNING BLE");
+    d.setTextColor(T_DIM, T_BG); d.setCursor(4, BODY_Y+38); d.print("up to 10s...");
+    ui_radar(SCR_W/2, BODY_Y+70, 28, T_ACCENT);
     do_nimble_scan();
 
     int cursor = 0;
@@ -222,6 +228,9 @@ static void strike_phase(void) {
                             nrf52_led_oneshot(NRF52_LED_CAPTURE, NRF52_LED_SCOUT_STRIKE, 1500);
                     }
                 }
+                /* Idle sniff can sit silent until a packet arrives — keep an
+                 * animated indicator alive so it never reads as frozen. */
+                ui_scanning_indicator("sniffing", (int)pkt);
                 uint16_t k2 = input_poll();
                 if (k2 == PK_ESC) break;
                 if ((k2 == 's' || k2 == 'S') && pf) { pf.flush(); ui_toast("Saved", T_GOOD, 600); }

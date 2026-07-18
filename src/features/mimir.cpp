@@ -34,6 +34,7 @@ struct APRow {
 
 static APRow s_targets[MIMIR_MAX_APS];
 static int   s_target_count = 0;
+static bool  s_scanning     = false;  /* true between scan_started and scan_done */
 
 struct MimirStatus {
     char     state[16];
@@ -196,11 +197,13 @@ static void handle_line(const char *buf)
     else if (strcmp(evt, "scan_started") == 0) {
         s_target_count = 0;
         s_target_sel   = 0;
+        s_scanning     = true;
         snprintf(s_live_msg, sizeof(s_live_msg), "Scanning...");
         s_live_color = T_ACCENT;
     }
     else if (strcmp(evt, "scan_done") == 0) {
         int cnt = json_int(buf, "count", s_target_count);
+        s_scanning = false;
         snprintf(s_live_msg, sizeof(s_live_msg), "Scan done: %d APs", cnt);
         s_live_color = T_GOOD;
     }
@@ -332,6 +335,9 @@ static void draw_main(bool full)
 
     /* Live message. */
     ui_text_w(4, BODY_Y + 72, SCR_W - 8, s_live_color, "%.38s", s_live_msg);
+
+    /* Animated indicator while awaiting companion scan results. */
+    if (s_scanning) ui_scanning_indicator("scanning", s_target_count);
 }
 
 static void draw_targets(bool full)
@@ -344,6 +350,11 @@ static void draw_targets(bool full)
     for (int i = 0; i < s_target_count; ++i) {
         if (ap_matches_filter(s_targets[i])) idx[n++] = i;
     }
+
+    /* While a scan is running, keep an animated indicator alive even when
+     * the list content has not changed (the guard below early returns
+     * otherwise, leaving the "no targets" wait looking frozen). */
+    if (s_scanning) ui_scanning_indicator("scanning", s_target_count);
 
     /* Repaint only when the selection or list content changed. */
     static int  last_sel = -1, last_n = -1, last_count = -1;
@@ -574,6 +585,7 @@ void feat_mimir(void)
     /* Reset state. */
     s_connected    = false;
     s_target_count = 0;
+    s_scanning     = false;
     s_target_sel   = 0;
     s_rx_len       = 0;
     s_live_msg[0]  = '\0';

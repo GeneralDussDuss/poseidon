@@ -354,6 +354,8 @@ static wp_verdict_t run_probe(const wp_target_t &t)
     c->setConnectTimeout(6000);  /* milliseconds — was 6 ms */
 
     NimBLEAddress addr((uint8_t *)t.addr, t.addr_type);
+    /* One spinner frame on the PROBING screen before the blocking connect. */
+    ui_spinner(SCR_W - 14, BODY_Y + 6, T_ACCENT);
     if (!c->connect(addr)) {
         NimBLEDevice::deleteClient(c);
         return WP_CONNECT_FAIL;

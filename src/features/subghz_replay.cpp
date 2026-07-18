@@ -181,6 +181,26 @@ void feat_subghz_replay(void)
              * while CC1101 settles back to RX. */
             cc1101_set_tx();
             pinMode(CC1101_GDO0, OUTPUT);
+            /* Static ON AIR badge painted BEFORE the timing critical
+             * cc1101_rmt_tx (no animation possible during RMT TX). */
+            {
+                int by = BODY_Y;
+                d.fillRect(0, by, SCR_W, 4, T_BAD);
+                d.fillRect(0, by, 4, BODY_H, T_BAD);
+                d.fillRect(SCR_W - 4, by, 4, BODY_H, T_BAD);
+                int cx = SCR_W / 2;
+                int cy = by + 40;
+                d.fillCircle(cx - 50, cy, 8, T_BAD);
+                d.setTextColor(0xFFFF, T_BAD);
+                d.fillRoundRect(cx - 36, cy - 10, 86, 22, 4, T_BAD);
+                d.setTextSize(2);
+                d.setCursor(cx - 32, cy - 7);
+                d.print("ON AIR");
+                d.setTextSize(1);
+                d.setTextColor(T_FG, T_BG);
+                d.setCursor(cx - 44, cy + 22);
+                d.printf("TX %.3f MHz", sub.freq_mhz);
+            }
             cc1101_rmt_tx(sub.raw, sub.raw_len);
             cc1101_set_rx();
             /* Restore GDO0 to INPUT so subsequent scans / digitalRead

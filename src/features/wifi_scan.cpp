@@ -472,6 +472,9 @@ void feat_wifi_scan(void)
             int      last_n   = 0;
             uint32_t last_chk = 0;
             while (millis() < deadline) {
+                /* Keep the scan screen alive — animate the same radar so the
+                 * 5 GHz merge wait doesn't read as a freeze. */
+                scan_screen_frame(2, s_ap_count, millis());
                 if (millis() - last_chk > 150) {
                     last_chk = millis();
                     c5_ap_t tmp[4];

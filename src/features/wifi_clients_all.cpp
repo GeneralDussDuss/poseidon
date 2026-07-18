@@ -339,6 +339,10 @@ void feat_wifi_clients_all(void)
             ui_draw_status(radio_name(), s_locked ? "lock" : "hunt");
         }
 
+        /* While hopping with no data-frame clients yet, animate an active
+         * indicator so the wait never reads as a frozen device. */
+        if (s_all_n == 0) ui_scanning_indicator("hopping", s_all_n);
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

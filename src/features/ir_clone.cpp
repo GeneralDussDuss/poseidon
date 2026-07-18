@@ -379,6 +379,10 @@ static void prank_run_screen(const char *title, const char *blurb,
         y += 10;
         while (*p == ' ') p++;
     }
+    /* IR blast timing inside body() is carrier critical, so we cannot
+     * repaint during it — draw one labeled spinner frame here so the
+     * screen does not read as frozen while the prank runs. */
+    ui_spinner(SCR_W - 16, BODY_Y + 22, T_BAD);
     delay(120);
     body();
     digitalWrite(IR_TX_PIN, HIGH);  /* park OFF (active-LOW: HIGH=off) */

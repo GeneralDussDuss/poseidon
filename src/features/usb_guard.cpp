@@ -164,6 +164,9 @@ void feat_usb_guard(void)
     d.setCursor(4, BODY_Y + 44); d.print("scanning 2.4 GHz (1/3)");
     ui_draw_footer("scanning baseline");
 
+    /* The IDF scan blocks, so it cannot animate mid call — draw one
+     * radar frame as a persistent "scan in progress" marker. */
+    ui_radar(SCR_W / 2, BODY_Y + 72, 18, T_ACCENT);
     s_before_n = ug_scan(s_before, UG_MAX);
 
     /* ---- Phase 2: prompt to plug ---- */
@@ -192,12 +195,19 @@ void feat_usb_guard(void)
     d.setCursor(4, BODY_Y + 2); d.print("ANALYZING...");
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_BAD);
     ui_draw_footer("scanning");
-    ui_radar(SCR_W / 2, BODY_Y + 50, 22, T_BAD);
-    delay(1500);
+    /* Animate the radar across the wait instead of freezing on one frame. */
+    {
+        uint32_t end = millis() + 1500;
+        while ((int32_t)(end - millis()) > 0) {
+            ui_radar(SCR_W / 2, BODY_Y + 50, 22, T_BAD);
+            delay(50);
+        }
+    }
 
     /* ---- Phase 3: detect deltas, run twice to catch slow beacons ---- */
     d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 78); d.print("scanning 2.4 GHz (2/3)");
+    ui_radar(SCR_W / 2, BODY_Y + 50, 22, T_BAD);
     s_after_n = ug_scan(s_after, UG_MAX);
     delay(800);
     /* merge a second pass so a once-per-second beacon isn't missed */
@@ -205,6 +215,7 @@ void feat_usb_guard(void)
         ug_ap_t pass2[UG_MAX];
         d.setTextColor(T_DIM, T_BG);
         d.setCursor(4, BODY_Y + 78); d.print("scanning 2.4 GHz (3/3)");
+        ui_radar(SCR_W / 2, BODY_Y + 50, 22, T_BAD);
         int p2 = ug_scan(pass2, UG_MAX);
         for (int i = 0; i < p2 && s_after_n < UG_MAX; ++i) {
             bool dup = false;

@@ -13,6 +13,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_heap_caps.h>
+#include <esp_event.h>
 
 /* ========== Broadcast deauth: nuke every AP in range ========== */
 
@@ -74,6 +75,20 @@ static void broad_task(void *)
     vTaskDelete(nullptr);
 }
 
+/* SCAN_DONE event flag so the 2.4 GHz scan below can run non-blocking and
+ * animate — mirrors wifi_scan.cpp's ensure_scan_evt / wifi_scan_evt_cb. */
+static volatile bool s_db_scan_done = false;
+static void db_scan_evt_cb(void *, esp_event_base_t base, int32_t id, void *) {
+    if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) s_db_scan_done = true;
+}
+static void db_ensure_scan_evt(void) {
+    static bool reg = false;
+    if (!reg) {
+        esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, db_scan_evt_cb, nullptr);
+        reg = true;
+    }
+}
+
 static void db_scan_populate(void)
 {
     s_b_target_n = 0;
@@ -96,12 +111,25 @@ static void db_scan_populate(void)
     scfg.scan_type            = WIFI_SCAN_TYPE_ACTIVE;
     scfg.scan_time.active.min = 80;
     scfg.scan_time.active.max = 150;
-    /* The blocking scan below stalls the UI ~2 s. Paint a clear scanning
-     * screen first so the freeze reads as intentional, not a hang. */
+    /* Non-blocking scan so the UI stays alive — a blocking scan stalls
+     * ~2 s and reads as a hang. Mirror wifi_scan.cpp's scan_pass_animated:
+     * esp_wifi's own task hops channels while we spin an active scanning
+     * indicator; a SCAN_DONE event ends the wait. */
     ui_clear_body();
     ui_text(4, BODY_Y + 20, T_ACCENT, "SCANNING 2.4 GHz");
     ui_text(4, BODY_Y + 34, T_DIM, "finding targets...");
-    esp_err_t scan_rc = esp_wifi_scan_start(&scfg, true);
+    db_ensure_scan_evt();
+    s_db_scan_done = false;
+    esp_err_t scan_rc = esp_wifi_scan_start(&scfg, false);
+    if (scan_rc == ESP_OK) {
+        uint32_t t0 = millis();
+        while (!s_db_scan_done) {
+            ui_scanning_indicator("scan", s_b_target_n);
+            if (input_poll() == PK_ESC) { esp_wifi_scan_stop(); break; }
+            delay(35);
+            if (millis() - t0 > 9000) break;   /* safety: never hang forever */
+        }
+    }
     uint16_t n_u = 0;
     esp_wifi_scan_get_ap_num(&n_u);
     if (scan_rc == ESP_OK && n_u > 0) {
@@ -137,6 +165,7 @@ static void db_scan_populate(void)
         uint32_t last_check = 0;
         int last_n = 0;
         while (millis() < deadline) {
+            ui_scanning_indicator("5G scan", last_n);
             if (millis() - last_check > 150) {
                 last_check = millis();
                 c5_ap_t tmp[4];
@@ -320,7 +349,8 @@ void feat_wifi_deauth_broadcast(void)
     d.setTextColor(T_DIM, T_BG);
     d.setCursor(4, BODY_Y + 20); d.print("scanning 2.4 GHz...");
     ui_draw_footer("scanning");
-    ui_radar(SCR_W / 2, BODY_Y + 60, 24, T_ACCENT);
+    /* db_scan_populate() clears the body and drives its own animated
+     * scanning indicator, so no static radar frame is left here. */
 
     radio_switch(RADIO_WIFI);
     if (!wifi_lean_sta_init()) { ui_toast("STA init failed", T_BAD, 1500); return; }

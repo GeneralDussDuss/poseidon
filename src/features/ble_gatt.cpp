@@ -257,6 +257,8 @@ void feat_ble_gatt(void)
     d.fillRect(0, BODY_Y + 36, SCR_W, 16, T_BG);
     d.setTextColor(T_GOOD, T_BG);
     d.setCursor(4, BODY_Y + 36); d.print("connected, enumerating...");
+    /* One spinner frame before the blocking service discovery. */
+    ui_spinner(SCR_W - 14, BODY_Y + 6, T_ACCENT);
     enumerate_services();
 
     int cursor = 0;

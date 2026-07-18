@@ -38,6 +38,8 @@ void feat_mesh(void)
                 d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 22);
                 d.print("no peers yet. broadcasting HELLO every 5s.");
+                /* Animate so the wait for the first peer looks alive. */
+                ui_scanning_indicator("meshing", (int)mesh_tx_count());
             } else {
                 for (int i = 0; i < n && i < 7; ++i) {
                     int y = BODY_Y + 18 + i * 12;

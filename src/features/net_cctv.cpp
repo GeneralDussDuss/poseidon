@@ -474,6 +474,7 @@ static void scan_lan(void)
         /* Redraw before each probe so the current IP is always visible. */
         draw_progress(host, total, s_hits_n, "LAN /24 sweep", cur);
         int before = s_hits_n;
+        ui_scanning_indicator("probing", s_hits_n);
         scan_host(ip);
         if (s_hits_n > before) log_hit(s_hits[s_hits_n - 1]);
         uint16_t k = input_poll();
@@ -501,6 +502,7 @@ static void scan_single(void)
     s_scan_start_ms = millis();
     draw_cctv_chrome();
     draw_progress(0, 1, 0, "single host", buf);
+    ui_scanning_indicator("probing", s_hits_n);
     scan_host(ip);
     if (s_hits_n) log_hit(s_hits[0]);
     close_log();
@@ -540,6 +542,7 @@ static void scan_file(void)
             snprintf(cur, sizeof(cur), "%s", l.c_str());
             draw_progress(done, total, s_hits_n, "from file", cur);
             int before = s_hits_n;
+            ui_scanning_indicator("probing", s_hits_n);
             scan_host(ip);
             if (s_hits_n > before) log_hit(s_hits[s_hits_n - 1]);
         }

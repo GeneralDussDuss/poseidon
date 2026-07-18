@@ -499,6 +499,14 @@ static void run_karma(void)
             }
         }
 
+        /* Active listening indicator every iteration so a quiet channel
+         * (no probes yet) never reads as a frozen device. Self-throttles. */
+        int lcnt;
+        portENTER_CRITICAL(&s_probe_mux);
+        lcnt = s_probe_count;
+        portEXIT_CRITICAL(&s_probe_mux);
+        ui_scanning_indicator("listening", lcnt);
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
         if (k == PK_ESC) break;
@@ -572,6 +580,14 @@ static void run_probe_sniff(void)
                 draw_probe_list(cursor);
             }
         }
+        /* Active listening indicator every iteration so a quiet channel
+         * (no probes yet) never reads as a frozen device. Self-throttles. */
+        int lcnt;
+        portENTER_CRITICAL(&s_probe_mux);
+        lcnt = s_probe_count;
+        portEXIT_CRITICAL(&s_probe_mux);
+        ui_scanning_indicator("listening", lcnt);
+
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;

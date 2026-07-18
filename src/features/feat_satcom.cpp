@@ -128,6 +128,15 @@ static void track_screen(void)
         if (k == PK_ESC) return;
         if (k == 'r' || k == 'R') {
             ui_toast("refreshing TLE...", T_ACCENT, 800);
+            /* Blocking HTTPS GET (up to ~8s). Synchronous, so it cannot
+             * animate — draw one labeled spinner frame before it. */
+            ui_clear_body();
+            d.setTextColor(T_ACCENT, T_BG);
+            d.setCursor(4, BODY_Y + 2); d.print("SATCOM");
+            d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT);
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 30); d.print("fetching TLE...");
+            ui_spinner(SCR_W / 2, BODY_Y + 56, T_ACCENT);
             satcom_fetch_tle(s_tle.norad, &s_tle);
             dirty = true;
         }
@@ -143,9 +152,21 @@ static void track_screen(void)
             double obs_lon = g.valid ? g.lon_deg : 0.0;
             double obs_alt = g.valid ? g.alt_m   : 0.0;
             uint32_t utc = (uint32_t)time(nullptr);
+
+            /* The SGP4 sweep is a synchronous ~2880 step loop; it cannot
+             * animate, so draw one labeled spinner frame so the screen
+             * does not read as frozen. (Low risk option: keeps satcom.cpp
+             * UI free rather than wiring a repaint into the compute loop.) */
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 20); d.print("computing passes...");
+            ui_spinner(SCR_W / 2, BODY_Y + 54, T_ACCENT);
+
             satcom_pass_t passes[6];
             int np = satcom_predict_passes(&s_tle, obs_lat, obs_lon, obs_alt,
                                            utc, 86400, 10.0, passes, 6);
+
+            /* Wipe the spinner frame before rendering the pass list. */
+            d.fillRect(0, BODY_Y + 16, SCR_W, BODY_H - 24, T_BG);
             if (np == 0) {
                 d.setTextColor(T_DIM, T_BG);
                 d.setCursor(4, BODY_Y + 20);
@@ -237,12 +258,19 @@ void feat_satcom(void)
     d.setTextColor(T_FG, T_BG);
     d.setCursor(4, BODY_Y + 22);
     d.printf("Loading %.20s...", SATCOM_FAVORITES[s_sel_idx].name);
+    /* fetch may block (HTTPS GET up to ~8s if it falls through to live);
+     * it is synchronous so it cannot animate — draw one spinner frame. */
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 34); d.print("fetching TLE...");
+    ui_spinner(SCR_W / 2, BODY_Y + 62, T_ACCENT);
 
     /* Offline-first: TLEs are baked into firmware via
      * scripts/fetch_satcom_tles.py. No WiFi connection required at
      * runtime. SD cache (if any) wins over baked; baked wins over
      * live (which only fires if WiFi is already up — never auto). */
     if (!satcom_fetch_tle(norad, &s_tle)) {
+        /* Clear the "fetching" spinner frame before the error text. */
+        d.fillRect(0, BODY_Y + 30, SCR_W, BODY_H - 38, T_BG);
         d.setTextColor(T_BAD, T_BG);
         d.setCursor(4, BODY_Y + 40);
         d.print("No baked TLE for this NORAD.");

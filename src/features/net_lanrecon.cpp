@@ -175,6 +175,7 @@ static void phase_arp(IPAddress gw, IPAddress mask)
         s_current = i;
         s_progress = (int)(i * 100 / max_host);
         if (i % 4 == 0) draw_status("arp sweep");
+        ui_scanning_indicator("arp sweep", s_host_count);
         if (input_poll() == PK_ESC) return;
 
         /* Short ping to populate the ARP cache. */
@@ -206,6 +207,7 @@ static void phase_portscan(void)
     s_phase = 2;
     int total = s_host_count * PORT_N;
     int done = 0;
+    int open_found = 0;
     for (int i = 0; i < s_host_count; ++i) {
         host_t &h = s_hosts[i];
         s_current = i + 1;
@@ -214,11 +216,13 @@ static void phase_portscan(void)
             c.setTimeout(250);
             if (c.connect(h.ip, PORTS[j].port)) {
                 h.open_ports |= (1U << j);
+                open_found++;
                 c.stop();
             }
             done++;
             s_progress = done * 100 / (total > 0 ? total : 1);
             if (done % 4 == 0) draw_status("port scan");
+            ui_scanning_indicator("port scan", open_found);
             if (input_poll() == PK_ESC) return;
         }
     }
@@ -233,6 +237,7 @@ static void phase_banner(void)
         s_current = i + 1;
         s_progress = (i + 1) * 100 / (total > 0 ? total : 1);
         draw_status("banner grab");
+        ui_scanning_indicator("banner grab", i + 1);
         if (input_poll() == PK_ESC) return;
         if (h.banner[0]) continue;
 

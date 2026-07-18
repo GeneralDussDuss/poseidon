@@ -201,6 +201,14 @@ void feat_ble_hidsniff(void)
         return;
     }
 
+    /* Connected: animate through the blocking Report Map read + char
+     * discovery so the stale connecting screen does not look frozen. */
+    ui_spinner(SCR_W - 14, BODY_Y + 6, T_ACCENT);
+    M5Cardputer.Display.fillRect(0, BODY_Y + 74, SCR_W, 10, T_BG);
+    M5Cardputer.Display.setTextColor(T_DIM, T_BG);
+    M5Cardputer.Display.setCursor(4, BODY_Y + 74);
+    M5Cardputer.Display.print("reading HID map...");
+
     /* Find the HID service + Report Map. */
     NimBLERemoteService *svc = s_client->getService(NimBLEUUID(HID_SVC_UUID));
     if (!svc) {

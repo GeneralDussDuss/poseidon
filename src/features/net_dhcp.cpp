@@ -491,6 +491,7 @@ void feat_net_hijack(void)
                     }
                 }
                 ui_text(4, BODY_Y+14, T_FG, "time: %lus", (millis()-t0)/1000);
+                ui_scanning_indicator("rogue DHCP", s_pool_n);
                 delay(10);
             }
             udp.stop();

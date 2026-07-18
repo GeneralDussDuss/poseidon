@@ -39,6 +39,9 @@ void feat_mesh_position(void)
         d.setTextColor(fix.valid ? T_GOOD : T_WARN, T_BG);
         d.setCursor(4, BODY_Y + 34);
         d.printf("GPS fix   : %s", fix.valid ? "yes" : "searching");
+        /* Spinner next to the line so "searching" reads as live (the
+         * body is repainted each loop). */
+        if (!fix.valid) ui_spinner(SCR_W - 16, BODY_Y + 38, T_WARN);
         if (fix.valid) {
             d.setTextColor(T_FG, T_BG);
             d.setCursor(4, BODY_Y + 46); d.printf("lat %+8.4f", fix.lat_deg);

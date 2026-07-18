@@ -183,7 +183,20 @@ void feat_subghz_record(void)
              * the RMT capture. 20s timeout, 10ms silence = signal end. */
             cc1101_set_rx();
             pinMode(CC1101_GDO0, INPUT);
-            ui_toast("recording 20s...", T_ACCENT, 400);
+            /* Persistent LISTENING screen. cc1101_rmt_rx below is a single
+             * blocking, timing critical capture (up to 20s), so no
+             * animation is possible during it: paint one clear frame now. */
+            d.fillRect(0, BODY_Y, SCR_W, BODY_H, T_BG);
+            d.setTextColor(T_ACCENT, T_BG);
+            d.setTextSize(2);
+            d.setCursor(4, BODY_Y + 18);
+            d.print("LISTENING");
+            d.setTextSize(1);
+            d.setTextColor(T_DIM, T_BG);
+            d.setCursor(4, BODY_Y + 44);
+            d.print("hold near TX, up to 20s");
+            ui_radar(SCR_W - 28, BODY_Y + 28, 14, T_ACCENT2);
+            ui_draw_footer("`=stop");
             s_raw_len = cc1101_rmt_rx(s_raw, RAW_MAX_PULSES, 20000, 10000);
             if (s_raw_len > 0) {
                 recorded = true;

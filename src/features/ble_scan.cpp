@@ -266,6 +266,12 @@ static void start_scan(void)
     Serial.printf("[ble] entry heap=%u\n", (unsigned)ESP.getFreeHeap());
     Serial.flush();
 
+    /* Animate from the first instant. Everything below until the scan passes
+     * (deinit + the mandatory 500 ms controller settle + init) blocks with
+     * nothing moving on screen, so it read as a hard freeze. Keep the shared
+     * radar sweeping across the whole bring-up. */
+    s_scanning = true;
+
     /* Bruce's exact pattern from selectTargetFromScan in BLE_Suite.cpp.
      * Bruce ships this on the same Cardputer + NimBLE 2.x stack and it
      * populates 30+ devices reliably. Deviations from this recipe caused
@@ -283,11 +289,19 @@ static void start_scan(void)
         Serial.println("[ble] deinit"); Serial.flush();
         NimBLEDevice::deinit(true);
     }
-    delay(500);
+    /* Animated settle instead of a blind delay(500) — the controller needs
+     * ~500 ms after deinit before init, and the old blank wait looked frozen. */
+    uint32_t settle = millis() + 500;
+    while (millis() < settle) {
+        ui_scanning_indicator("starting BLE", -1);
+        delay(20);
+    }
 
+    ui_scanning_indicator("starting BLE", -1);   /* fresh sweep just before the blocking init */
     Serial.println("[ble] init"); Serial.flush();
     if (!NimBLEDevice::init("")) {
         Serial.println("[ble] init FAILED"); Serial.flush();
+        s_scanning = false;   /* clear the flag we raised up front */
         return;
     }
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -322,7 +336,7 @@ static void start_scan(void)
         }
     };
 
-    s_scanning = true;
+    /* s_scanning already raised at entry so the whole bring-up animates. */
 
     /* Dual-pass scan matching Bruce's selectTargetFromScan: 8 s active
      * (fetches scan-response packets — where device names and some
@@ -334,22 +348,35 @@ static void start_scan(void)
      * OOM-rebooted on the no-PSRAM S3. Cap it — ingest still gets plenty, and
      * the cap sits well under the reboot threshold. */
     pBLEScan->setMaxResults(200);
-    pBLEScan->setActiveScan(true);
-    Serial.println("[ble] active pass"); Serial.flush();
-    NimBLEScanResults active_results = pBLEScan->getResults(8000, false);
-    Serial.printf("[ble] active: %d devices\n", (int)active_results.getCount());
-    Serial.flush();
-    ingest(active_results);
-    pBLEScan->clearResults();
 
-    pBLEScan->setActiveScan(false);
-    Serial.println("[ble] passive pass"); Serial.flush();
-    NimBLEScanResults passive_results = pBLEScan->getResults(5000, false);
-    Serial.printf("[ble] passive: %d devices (total s_count=%d)\n",
-                  (int)passive_results.getCount(), s_count);
-    Serial.flush();
-    ingest(passive_results);
-    pBLEScan->clearResults();
+    /* Drive the scan non-blocking and animate here. getResults(duration)
+     * blocks the caller for the whole pass, so the scan was already finished
+     * by the time the main loop's scanning indicator ran — BLE scan looked
+     * frozen on an empty list for the full ~13 s window. start() returns
+     * immediately; we poll isScanning() and pump the shared indicator so the
+     * radar sweeps live. ESC aborts and drops to whatever was found so far. */
+    bool aborted = false;
+    auto run_pass = [&](bool active, uint32_t ms, const char *tag) {
+        if (aborted) return;
+        pBLEScan->setActiveScan(active);
+        Serial.printf("[ble] %s pass\n", tag); Serial.flush();
+        pBLEScan->start(ms, false);
+        while (pBLEScan->isScanning()) {
+            ui_scanning_indicator("scanning", s_count);
+            if (input_poll() == PK_ESC) { pBLEScan->stop(); aborted = true; break; }
+            delay(30);
+        }
+        NimBLEScanResults results = pBLEScan->getResults();
+        Serial.printf("[ble] %s: %d devices (total s_count=%d)\n",
+                      tag, (int)results.getCount(), s_count);
+        Serial.flush();
+        ingest(results);
+        pBLEScan->clearResults();
+    };
+    /* 8 s active (fetches scan-response packets — names + tracker data) then
+     * 5 s passive (catches AirTag/Tile/SmartTag + LE low-power advertisers). */
+    run_pass(true,  8000, "active");
+    run_pass(false, 5000, "passive");
 
     qsort(s_devs, s_count, sizeof(ble_dev_t), sort_fn);
     s_scanning = false;
@@ -366,6 +393,9 @@ void feat_ble_scan(void)
     s_count = 0;
     s_filter[0] = '\0';
     s_cb_fire_count = 0;
+    /* Mark scanning before the first paint so the empty list shows
+     * "scanning..." from the outset, never a frozen "no devices". */
+    s_scanning = true;
 
     ui_draw_status(radio_name(), "scan");
     ui_draw_footer("/=flt S=save R=rescan ENTER=info `=back");

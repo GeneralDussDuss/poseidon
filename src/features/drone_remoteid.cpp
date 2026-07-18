@@ -285,9 +285,7 @@ void feat_drone_remoteid(void)
             }
 
             if (s_drone_count == 0) {
-                d.setTextColor(T_DIM, T_BG);
-                d.setCursor(4, BODY_Y + 30); d.print("(no drones detected yet)");
-                d.setCursor(4, BODY_Y + 42); d.print("waiting for ASTM 0xFFFA adv...");
+                ui_scanning_indicator("waiting for drones", s_drone_count);
             } else {
                 int rows = 5;
                 for (int i = 0; i < rows && i < s_drone_count; i++) {

@@ -80,6 +80,7 @@ static int detect_baud(void)
                 total++;
                 if (isprint((uint8_t)c) || c == '\r' || c == '\n') good++;
             }
+            ui_scanning_indicator("detecting", -1);
             if (input_poll() == PK_ESC) { uart1.end(); return -1; }
         }
         uart1.end();
@@ -245,6 +246,7 @@ void feat_tcp_tunnel(void)
     bool connected = false;
     while (millis() - t0 < 10000) {
         if (cli.connect(host_buf, port)) { connected = true; break; }
+        ui_scanning_indicator("connecting", -1);
         if (input_poll() == PK_ESC) return;
         delay(500);
     }
@@ -644,6 +646,7 @@ void feat_printer(void)
     for (int i = 1; i <= 254; ++i) {
         if (i % 16 == 0)
             ui_text(4, BODY_Y + 26, T_DIM, "scanning %d/254...", i);
+        ui_scanning_indicator("printers", (int)found.size());
 
         IPAddress t(base[0], base[1], base[2], i);
         if (probe_port(t, 9100, 100))
@@ -693,6 +696,7 @@ void feat_printer(void)
     File f = SD.open(path);
     if (!f) { ui_toast("SD read error", T_BAD, 1000); return; }
 
+    ui_connecting_screen(found[sel].toString().c_str());
     WiFiClient printer;
     if (!printer.connect(found[sel], 9100)) {
         f.close();
