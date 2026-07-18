@@ -463,6 +463,80 @@ static void test_reset_wipes_pin(void) {
     TEST_ASSERT_FALSE(g_pset);                             // PIN wiped
 }
 
+// Set a PIN, obtain + decrypt a token. Leaves cfg ready; returns token[32].
+static void setup_pin_and_token(ctap2_cfg_t *cfg, uint8_t token[32]) {
+    uint8_t authPub[65]; get_auth_ka(cfg,authPub);
+    uint8_t pp[32],pub[65]; mk_keygen(pp,pub,nullptr);
+    uint8_t ss[32]; platform_ss(pp,authPub,ss); uint8_t iv[16]={0};
+    // setPIN "1234"
+    uint8_t pad[64]; memset(pad,0,64); memcpy(pad,"1234",4);
+    uint8_t npe[64]; mk_aescbc(ss,iv,1,pad,64,npe,nullptr);
+    uint8_t mac[32]; mk_hmac(ss,32,npe,64,mac,nullptr);
+    uint8_t req[256]; req[0]=0x06; CborEncoder e,m; cbor_encoder_init(&e,req+1,240,0);
+    cbor_encoder_create_map(&e,&m,5);
+    cbor_encode_int(&m,1);cbor_encode_int(&m,1); cbor_encode_int(&m,2);cbor_encode_int(&m,3);
+    cbor_encode_int(&m,3);enc_cose_key(&m,pub); cbor_encode_int(&m,4);cbor_encode_byte_string(&m,mac,16);
+    cbor_encode_int(&m,5);cbor_encode_byte_string(&m,npe,64); cbor_encoder_close_container(&e,&m);
+    uint16_t rl=(uint16_t)(1+cbor_encoder_get_buffer_size(&e,req+1));
+    uint8_t o[256]; ctap2_handle(cfg,req,rl,o,sizeof o); TEST_ASSERT_EQUAL_UINT8(0,o[0]);
+    // getPinToken -> decrypt
+    get_auth_ka(cfg,authPub); platform_ss(pp,authPub,ss);
+    uint8_t ph[32]; mk_sha256((const uint8_t*)"1234",4,ph,nullptr);
+    uint8_t phe[16]; mk_aescbc(ss,iv,1,ph,16,phe,nullptr);
+    uint8_t treq[256]; uint16_t trl=build_gettoken(treq,pub,phe);
+    uint8_t tout[256]; uint16_t tn=ctap2_handle(cfg,treq,trl,tout,sizeof tout);
+    TEST_ASSERT_EQUAL_UINT8(0,tout[0]);
+    CborParser p; CborValue mm; cbor_get_map(tout+1,tn-1,&p,&mm);
+    uint8_t tenc[32]; size_t tel=32; cbor_map_bytes(&mm,2,tenc,&tel);
+    mk_aescbc(ss,iv,0,tenc,32,token,nullptr);   // token plaintext
+}
+
+// makeCredential rk request with pinUvAuthParam (keys 1,2,3,4,7,8,9), cdh=0xCC.
+static uint16_t build_makecred_uv(uint8_t *out, size_t cap, const uint8_t pap[16]) {
+    CborEncoder enc,map; cbor_encoder_init(&enc,out+1,cap-1,0);
+    cbor_encoder_create_map(&enc,&map,7);
+    cbor_encode_int(&map,1); uint8_t cdh[32]; memset(cdh,0xCC,32); cbor_encode_byte_string(&map,cdh,32);
+    cbor_encode_int(&map,2); CborEncoder rp; cbor_encoder_create_map(&map,&rp,1);
+    cbor_encode_text_stringz(&rp,"id"); cbor_encode_text_stringz(&rp,"example.com"); cbor_encoder_close_container(&map,&rp);
+    cbor_encode_int(&map,3); CborEncoder u; cbor_encoder_create_map(&map,&u,2);
+    cbor_encode_text_stringz(&u,"id"); uint8_t uid[4]={9,8,7,6}; cbor_encode_byte_string(&u,uid,4);
+    cbor_encode_text_stringz(&u,"name"); cbor_encode_text_stringz(&u,"bob"); cbor_encoder_close_container(&map,&u);
+    cbor_encode_int(&map,4); CborEncoder arr; cbor_encoder_create_array(&map,&arr,1);
+    CborEncoder al; cbor_encoder_create_map(&arr,&al,2);
+    cbor_encode_text_stringz(&al,"alg"); cbor_encode_int(&al,-7);
+    cbor_encode_text_stringz(&al,"type"); cbor_encode_text_stringz(&al,"public-key");
+    cbor_encoder_close_container(&arr,&al); cbor_encoder_close_container(&map,&arr);
+    cbor_encode_int(&map,7); CborEncoder opt; cbor_encoder_create_map(&map,&opt,1);
+    cbor_encode_text_stringz(&opt,"rk"); cbor_encode_boolean(&opt,true); cbor_encoder_close_container(&map,&opt);
+    cbor_encode_int(&map,8); cbor_encode_byte_string(&map,pap,16);
+    cbor_encode_int(&map,9); cbor_encode_int(&map,1);
+    cbor_encoder_close_container(&enc,&map);
+    out[0]=0x01; return (uint16_t)(1+cbor_encoder_get_buffer_size(&enc,out+1));
+}
+
+static void test_makecred_uv(void) {
+    reset_pin_state();
+    ctap2_cfg_t cfg = pin_cfg(); g_present2 = true;
+    cfg.store = cred_store_mem();
+    uint8_t token[32]; setup_pin_and_token(&cfg, token);
+
+    // rk=true, PIN set, NO pinUvAuthParam -> PUAT_REQUIRED (0x36)
+    uint8_t req[256]; uint16_t rl = build_makecred_rk(req, sizeof req);
+    uint8_t out[512]; ctap2_handle(&cfg, req, rl, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x36, out[0]);
+
+    // with a valid token over cdh (0xCC) -> success + UV flag set
+    uint8_t cdh[32]; memset(cdh,0xCC,32);
+    uint8_t pap[32]; mk_hmac(token,32,cdh,32,pap,nullptr);
+    rl = build_makecred_uv(req, sizeof req, pap);
+    uint16_t n = ctap2_handle(&cfg, req, rl, out, sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    CborParser p; CborValue map; cbor_get_map(out+1, n-1, &p, &map);
+    uint8_t ad[320]; size_t adl = sizeof ad; cbor_map_bytes(&map, 2, ad, &adl);
+    TEST_ASSERT_TRUE(ad[32] & 0x04);                       // UV flag set
+    TEST_ASSERT_TRUE(ad[32] & 0x01);                       // UP
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -479,6 +553,7 @@ int main(int, char **) {
     RUN_TEST(test_clientpin_setpin);
     RUN_TEST(test_clientpin_token);
     RUN_TEST(test_reset_wipes_pin);
+    RUN_TEST(test_makecred_uv);
     return UNITY_END();
 }
 

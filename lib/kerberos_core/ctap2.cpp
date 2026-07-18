@@ -34,6 +34,11 @@ enum {
 
 static uint16_t err(uint8_t *out, uint8_t code) { out[0] = code; return 1; }
 
+// pinUvAuthProtocol-1 token verify (defined with the clientPIN block below).
+static bool pin_auth_ok(const ctap2_cfg_t *cfg, const uint8_t *key, size_t keylen,
+                        const uint8_t *msg, size_t msglen, const uint8_t *mac, size_t maclen);
+static bool pin_is_set(const ctap2_cfg_t *cfg);
+
 // Read a text field by string key from a sub-map (rp, user).
 static int submap_text(CborValue *submap, const char *key, char *dst, size_t *len) {
     CborValue v;
@@ -159,6 +164,30 @@ static uint16_t make_cred(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t l
     if (!has_es256(&pk)) return err(out, CTAP2_ERR_UNSUPPORTED_ALGORITHM);
 
     bool rk = opt_true(&map, 7, "rk");
+    bool uvOpt = opt_true(&map, 7, "uv");
+
+    // ---- PIN/UV (CTAP 2.1 §6.1) ----
+    // A passkey is a discoverable credential requiring user verification. If a
+    // PIN is set, the platform must present a pinUvAuthParam over the client
+    // data hash; verifying it sets the UV flag. This is the half of the flow
+    // Windows drives after setPIN — without it, enrollment silently produces a
+    // UV-less credential that Windows rejects.
+    uint8_t uvFlag = 0;
+    if (cfg->pin && cfg->pin_rt && pin_is_set(cfg)) {
+        uint8_t pap[16]; size_t papl = sizeof pap;
+        bool havePap = (cbor_map_bytes(&map, 8, pap, &papl) == 0);
+        if (havePap) {
+            uint64_t proto = 0;
+            if (cbor_map_uint(&map, 9, &proto) || proto != 1) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            ctap2_pin_rt *rt = cfg->pin_rt;
+            if (!rt->token_set || !(rt->token_perms & PIN_PERM_MC)) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            if (rt->token_rp_set && memcmp(rt->token_rp, rpIdHash, 32) != 0) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            if (!pin_auth_ok(cfg, rt->token, 32, cdh, 32, pap, papl)) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            uvFlag = AD_FLAG_UV;
+        } else if (rk || uvOpt) {
+            return err(out, CTAP2_ERR_PUAT_REQUIRED);   // 0x36 "PIN required"
+        }
+    }
 
     if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
 
@@ -188,7 +217,7 @@ static uint16_t make_cred(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t l
     uint8_t cose[128]; size_t coseLen = cose_es256_from_pubkey(pub, cose, sizeof cose);
     uint8_t acd[256]; size_t acdLen = att_cred_data(cfg->aaguid, credId, (uint16_t)credIdLen,
                                                     cose, coseLen, acd, sizeof acd);
-    uint8_t authData[320]; size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP | AD_FLAG_AT, 0,
+    uint8_t authData[320]; size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP | AD_FLAG_AT | uvFlag, 0,
                                                          acd, acdLen, authData, sizeof authData);
     // Packed self attestation: sign authData || clientDataHash with the credential key.
     uint8_t tosign[320 + 32]; memcpy(tosign, authData, adLen); memcpy(tosign + adLen, cdh, 32);
@@ -224,6 +253,21 @@ static uint16_t get_assert(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t 
     // 2: clientDataHash
     uint8_t cdh[32]; size_t cdhl = sizeof cdh;
     if (cbor_map_bytes(&map, 2, cdh, &cdhl) || cdhl != 32) return err(out, CTAP2_ERR_MISSING_PARAMETER);
+
+    // ---- PIN/UV: verify a presented token (getAssertion keys 6/7) and set UV ----
+    uint8_t uvFlag = 0;
+    if (cfg->pin && cfg->pin_rt && pin_is_set(cfg)) {
+        uint8_t pap[16]; size_t papl = sizeof pap;
+        if (cbor_map_bytes(&map, 6, pap, &papl) == 0) {
+            uint64_t proto = 0;
+            if (cbor_map_uint(&map, 7, &proto) || proto != 1) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            ctap2_pin_rt *rt = cfg->pin_rt;
+            if (!rt->token_set || !(rt->token_perms & PIN_PERM_GA)) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            if (rt->token_rp_set && memcmp(rt->token_rp, rpIdHash, 32) != 0) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            if (!pin_auth_ok(cfg, rt->token, 32, cdh, 32, pap, papl)) return err(out, CTAP2_ERR_PIN_AUTH_INVALID);
+            uvFlag = AD_FLAG_UV;
+        }
+    }
 
     // Resolve the credential: allowList (non-resident unwrap, or resident by id),
     // else discoverable lookup by rp when the allowList is empty.
@@ -275,7 +319,7 @@ static uint16_t get_assert(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t 
     }
 
     uint8_t authData[37];
-    size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP, ctr, nullptr, 0, authData, sizeof authData);
+    size_t adLen = authdata_build(rpIdHash, AD_FLAG_UP | uvFlag, ctr, nullptr, 0, authData, sizeof authData);
     uint8_t tosign[37 + 32]; memcpy(tosign, authData, adLen); memcpy(tosign + adLen, cdh, 32);
     uint8_t sig[72]; size_t sigLen = 0;
     if (cfg->cy->p256_sign(priv, tosign, adLen + 32, sig, &sigLen, cfg->cy->ctx))
