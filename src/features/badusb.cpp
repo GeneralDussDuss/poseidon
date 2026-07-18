@@ -243,6 +243,72 @@ static int pick_payload(void)
     }
 }
 
+/* ---------------------------------------------------------------------------
+ * Live keyboard — real-time USB HID passthrough.
+ *
+ * Every Cardputer keypress is forwarded to the connected USB host the instant
+ * it is pressed (no line buffering, unlike [T] Type custom). Built for driving
+ * a phone whose touchscreen is dead: plug Cardputer -> phone over USB-C, then
+ * type the PIN to unlock. USB HID input is accepted at the Android
+ * before-first-unlock (BFU) lock screen even though adb is blocked there, so
+ * this works right after a reboot. Printable keys, Enter, Backspace, Tab and
+ * the arrow keys all pass through. Backtick / ESC is reserved to exit.
+ * ------------------------------------------------------------------------- */
+void feat_badusb_live(void)
+{
+    extern bool g_trident_cdc_active;
+    if (g_mimir_cdc_active || g_trident_cdc_active) {
+        ui_toast("CDC in use", T_WARN, 1000); return;
+    }
+
+    ui_clear_body();
+    auto &d = M5Cardputer.Display;
+    d.setTextColor(T_ACCENT, T_BG);
+    d.setCursor(4, BODY_Y + 2); d.print("LIVE KEYBOARD");
+    d.drawFastHLine(4, BODY_Y + 12, 130, T_ACCENT);
+    d.setTextColor(T_FG, T_BG);
+    d.setCursor(4, BODY_Y + 20); d.print("Cardputer keys -> host");
+    d.setTextColor(T_DIM, T_BG);
+    d.setCursor(4, BODY_Y + 32); d.print("Enter/Bksp/arrows pass");
+    d.setCursor(4, BODY_Y + 44); d.print("through. `=exit");
+    ui_draw_footer("`=exit live kbd");
+    ui_draw_status("usb-hid", "live");
+
+    hid_ensure();
+
+    uint32_t sent = 0;
+    for (;;) {
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(6); continue; }
+        if (k == PK_ESC) break;                 /* reserved: exit live mode */
+
+        const char *lbl = nullptr;
+        char cbuf[2] = { 0, 0 };
+
+        if (k >= 0x20 && k <= 0x7E) {           /* printable ASCII */
+            s_kbd.write((uint8_t)k);
+            cbuf[0] = (char)k; lbl = cbuf;
+        }
+        else if (k == PK_ENTER) { s_kbd.write(KEY_RETURN);      lbl = "ENTER"; }
+        else if (k == PK_BKSP)  { s_kbd.write(KEY_BACKSPACE);   lbl = "BKSP";  }
+        else if (k == PK_TAB)   { s_kbd.write(KEY_TAB);         lbl = "TAB";   }
+        else if (k == PK_UP)    { s_kbd.write(KEY_UP_ARROW);    lbl = "UP";    }
+        else if (k == PK_DOWN)  { s_kbd.write(KEY_DOWN_ARROW);  lbl = "DOWN";  }
+        else if (k == PK_LEFT)  { s_kbd.write(KEY_LEFT_ARROW);  lbl = "LEFT";  }
+        else if (k == PK_RIGHT) { s_kbd.write(KEY_RIGHT_ARROW); lbl = "RIGHT"; }
+        else continue;                          /* ignore FN and unknowns */
+
+        sent++;
+        d.fillRect(0, BODY_Y + 56, SCR_W, 14, T_BG);
+        d.setTextColor(T_GOOD, T_BG);
+        d.setCursor(4, BODY_Y + 58);
+        d.printf("sent %lu  last:%s", (unsigned long)sent, lbl);
+    }
+
+    s_kbd.releaseAll();
+    ui_toast("live kbd off", T_DIM, 600);
+}
+
 void feat_badusb(void)
 {
     extern bool g_trident_cdc_active;

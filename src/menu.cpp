@@ -116,6 +116,7 @@ extern void feat_settings(void);
 extern void feat_heap_census(void);
 extern void feat_about(void);
 extern void feat_badusb(void);
+extern void feat_badusb_live(void);
 extern void feat_badusb_win(void);
 extern void feat_badusb_mac(void);
 extern void feat_badusb_linux(void);
@@ -644,6 +645,16 @@ static const menu_node_t MENU_IR[] = {
  * UberGuidoZ-derived); the Pranks entry opens the vibe-organized
  * highlight reel (badusb_pranks_data.h, 59 entries × 7 categories). */
 static const menu_node_t MENU_BADUSB[] = {
+    { 'k', "Live Keyboard", "Type on Cardputer -> host in real time (unlock a dead-touch phone)",
+      nullptr, feat_badusb_live,
+      "Turns the Cardputer into a live USB keyboard for a connected phone or PC. "
+      "Every keypress is sent the instant you press it (no line buffering) — type "
+      "your PIN to unlock a phone with a broken touchscreen, then keep driving it: "
+      "digits, letters, Enter, Backspace, Tab and arrow keys all pass through. "
+      "Plug Cardputer into the phone with a USB-C to USB-C cable; the phone hosts "
+      "it as a keyboard (use a powered OTG hub if the phone won't power it). USB "
+      "HID is accepted even at the Android before-first-unlock PIN screen, where "
+      "adb does not work. Backtick/ESC exits." },
     { 'b', "Built-in", "5 starter payloads (Hello/Notepad/Rickroll/Lock/Terminal)",
       nullptr, feat_badusb,
       "The original POSEIDON BadUSB shortlist. Hello (types a greeting), "
