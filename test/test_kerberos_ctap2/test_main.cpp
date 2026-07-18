@@ -537,6 +537,25 @@ static void test_makecred_uv(void) {
     TEST_ASSERT_TRUE(ad[32] & 0x01);                       // UP
 }
 
+// Reset is rejected outside the power-up window, accepted inside it.
+static void test_reset_window(void) {
+    reset_pin_state();
+    ctap2_cfg_t cfg = pin_cfg(); g_present2 = true;
+    g_pset = true; memset(g_ph,0x22,16); g_pr = 5;
+    g_rt.boot_ms = 1000;
+    uint8_t req[1]={0x07}; uint8_t out[8];
+    // > 30 s since boot -> NOT_ALLOWED (0x30), PIN preserved
+    cfg.now_ms = 40000;
+    ctap2_handle(&cfg,req,1,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x30, out[0]);
+    TEST_ASSERT_TRUE(g_pset);
+    // within window -> success, wiped
+    cfg.now_ms = 5000;
+    ctap2_handle(&cfg,req,1,out,sizeof out);
+    TEST_ASSERT_EQUAL_UINT8(0x00, out[0]);
+    TEST_ASSERT_FALSE(g_pset);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_cbor_encode_small_map);
@@ -553,6 +572,7 @@ int main(int, char **) {
     RUN_TEST(test_clientpin_setpin);
     RUN_TEST(test_clientpin_token);
     RUN_TEST(test_reset_wipes_pin);
+    RUN_TEST(test_reset_window);
     RUN_TEST(test_makecred_uv);
     return UNITY_END();
 }
