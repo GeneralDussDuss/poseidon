@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>POSEIDON — Commander of the Deep</title>
-<meta name="description" content="164 feature keyboard-first pentesting firmware for M5Stack Cardputer-Adv. WiFi / BLE / sub-GHz / LoRa / nRF24 / IR / BadUSB / RJ45, plus a hand-built FIDO2 passkey. v0.6.8 shipped with KERBEROS, the on-device security key.">
+<meta name="description" content="164 feature keyboard-first pentesting firmware for M5Stack Cardputer-Adv. WiFi / BLE / sub-GHz / LoRa / nRF24 / IR / BadUSB / RJ45. v0.6.8 is a stability and heap hardening pass: a memory safety audit and no-freeze scan screens. KERBEROS, a hand-built FIDO2 passkey, is in progress.">
 <meta property="og:title" content="POSEIDON">
-<meta property="og:description" content="Commander of the Deep. 164 pocket pentest tools across 6 radio bands plus wired, and KERBEROS, a hand-built FIDO2 passkey. v0.6.8 shipped.">
+<meta property="og:description" content="Commander of the Deep. 164 pocket pentest tools across 6 radio bands plus wired. v0.6.8: a stability and heap hardening pass. KERBEROS, a hand-built FIDO2 passkey, is in progress.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://generaldussduss.github.io/poseidon/">
 <meta property="og:image" content="https://generaldussduss.github.io/poseidon/assets/og.png">
@@ -71,7 +71,7 @@
   <canvas id="heroCanvas"></canvas>
   <canvas id="causticLayer"></canvas>
   <div class="hero-content">
-    <div class="hero-badge"><span class="dot"></span> v0.6.8 SHIPPED &mdash; 164 TOOLS &middot; SIX RADIO BANDS &middot; KERBEROS PASSKEY</div>
+    <div class="hero-badge"><span class="dot"></span> v0.6.8 &middot; 164 TOOLS &middot; SIX RADIO BANDS &middot; STABILITY AND HEAP HARDENED</div>
     <div class="hero-epithet">COMMANDER OF THE DEEP</div>
     <h1 class="hero-title">POSEIDON</h1>
     <p class="hero-sub">Keyboard-first pentesting firmware for the M5Stack <span class="hl">Cardputer-Adv</span>. 164 features across <span class="hl">six radio bands</span> plus wired Ethernet. Sub-GHz. 2.4 GHz. LoRa. WiFi. BLE. Zigbee. RJ45. All from your pocket.</p>
@@ -145,11 +145,68 @@
   </div>
 </div>
 
-<!-- FEATURED DROP — KERBEROS: hand-built FIDO2 / U2F hardware security key, verified with python-fido2 -->
+<!-- FEATURED DROP — Stability and heap hardening: memory-safety audit + heap budget + no-freeze scans -->
+<section id="stability" class="acc-section" data-open="1" style="padding:clamp(4rem,8vw,7rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(63,214,230,0.11) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(6,182,212,0.04) 0%,rgba(6,10,22,1) 85%);border-top:1px solid rgba(63,214,230,0.20);border-bottom:1px solid rgba(63,214,230,0.20);">
+  <div style="max-width:1150px;margin:0 auto;">
+    <div class="section-label reveal" style="color:var(--ocean-bright);letter-spacing:.18em;">★ FEATURED · STABILITY AND HEAP HARDENING</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.4rem,5.5vw,4.2rem);background:linear-gradient(135deg,var(--ocean-bright) 0%,#7fe9f5 40%,#6ee7b7 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Rock solid: a deck that will not crash, leak, or look frozen</h2>
+    <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">A pentest deck is only as good as the moment you actually need it. This pass is all about reliability: a full <b style="color:#7fe9f5;">memory safety audit</b>, a real <b style="color:#7fe9f5;">heap budget</b> so the radios stop starving each other on cold boot, and an <b style="color:#7fe9f5;">active indicator on every screen you wait on</b> so nothing ever reads as a hang.</p>
+
+    <!-- RECEIPT panel -->
+    <div class="reveal frame" style="margin-top:2.5rem;padding:clamp(1.5rem,3vw,2.2rem);border:1px solid rgba(63,214,230,0.35);border-radius:18px;background:linear-gradient(135deg,rgba(63,214,230,0.08) 0%,rgba(14,165,233,0.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(63,214,230,0.25) 0%,transparent 70%);pointer-events:none;"></div>
+      <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ocean-bright);margin-bottom:.5rem;">✓ STABILITY AUDIT · MEMORY SAFETY AND LIFECYCLE PASS</div>
+      <h3 style="font-family:var(--font-display);font-size:clamp(1.3rem,2.2vw,1.8rem);margin:0 0 .6rem;color:#7fe9f5;letter-spacing:.02em;">Eleven real bugs, found and closed</h3>
+      <p style="font-size:1rem;line-height:1.6;color:#e2e8f0;margin:0 0 1rem;">Use after free, double free, unchecked allocations, and teardown races, the kind that reboot you mid capture. Hunted across the whole feature set and fixed at the root, not papered over.</p>
+      <div style="font-family:var(--font-mono);font-size:.82rem;line-height:1.75;background:rgba(6,10,22,0.6);border:1px solid rgba(63,214,230,0.25);border-radius:12px;padding:1rem 1.2rem;color:#94a3b8;overflow-x:auto;position:relative;">
+        <div><span style="color:var(--ocean-bright);">$</span> stability audit · memory safety and lifecycle</div>
+        <div>memory safety and lifecycle bugs closed: <span style="color:#6ee7b7;font-weight:700;">11</span></div>
+        <div>heap budget guard: <span style="color:#6ee7b7;font-weight:700;">ACTIVE</span>&nbsp;&nbsp;cold boot WiFi scan ENOMEM: <span style="color:#6ee7b7;font-weight:700;">GONE</span></div>
+        <div>scan and wait screens that can look frozen: <span style="color:#6ee7b7;font-weight:700;">0</span></div>
+        <div><span style="color:#6ee7b7;font-weight:700;">RESULT: STABLE UNDER LOAD · NOTHING READS AS A HANG</span></div>
+      </div>
+    </div>
+
+    <h3 class="reveal" style="margin-top:3rem;font-family:var(--font-display);font-size:1.75rem;color:#7fe9f5;letter-spacing:.04em;">Reliability, engineered in</h3>
+    <p class="reveal" style="max-width:720px;color:#94a3b8;font-size:.95rem;margin:.4rem 0 1.5rem;">Four fronts, one goal: a deck you can trust in the field.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
+
+      <div class="feature-card reveal" style="border-color:rgba(63,214,230,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:var(--ocean-bright);border-color:rgba(63,214,230,.4);"><svg viewBox="0 0 24 24"><path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z M9 12l2 2 4-4"/></svg></span><h3 style="color:#7fe9f5;">Memory safety audit</h3></div>
+        <p>Eleven memory safety and lifecycle bugs traced and fixed: use after free, double free, unchecked allocations, and teardown races that crashed features mid run. Closed at the source.</p>
+        <div class="count" style="color:var(--ocean-bright);">AUDIT</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(63,214,230,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:var(--ocean-bright);border-color:rgba(63,214,230,.4);"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z M4 11h16 M8 15h2 M12 15h4"/></svg></span><h3 style="color:#7fe9f5;">A real heap budget</h3></div>
+        <p>The radios share a tight heap. A heap budget guard plus the removal of idle BSS and DMA hogs stopped the cold boot WiFi scan from dying on ENOMEM, so scans come up on the first try.</p>
+        <div class="count" style="color:var(--ocean-bright);">HEAP</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(63,214,230,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:var(--ocean-bright);border-color:rgba(63,214,230,.4);"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 M12 7v5l3 2"/></svg></span><h3 style="color:#7fe9f5;">Nothing looks frozen</h3></div>
+        <p>Every scan, connect, and capture screen now animates while you wait: a live radar sweep and a moving count, or a labeled working frame where a radio call has to block. No more guessing whether it hung.</p>
+        <div class="count" style="color:var(--ocean-bright);">UX</div>
+      </div>
+
+      <div class="feature-card reveal" style="border-color:rgba(63,214,230,0.35);">
+        <div class="fc-head"><span class="fc-glyph" style="color:var(--ocean-bright);border-color:rgba(63,214,230,.4);"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8 M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span><h3 style="color:#7fe9f5;">Proven on host tests</h3></div>
+        <p>Portable logic carries native unit tests that run off device, so the safety fixes stay fixed. Green on the host before it ever reaches the metal.</p>
+        <div class="count" style="color:var(--ocean-bright);">TDD</div>
+      </div>
+
+    </div>
+
+    <p class="reveal" style="max-width:820px;margin:2.5rem 0 0;font-style:italic;opacity:.85;text-align:center;color:#cbd5e1;">The unglamorous work that separates a demo from a tool: it comes up, it stays up, and it always tells you what it is doing.</p>
+  </div>
+</section>
+
+<!-- FEATURED DROP — KERBEROS: hand-built FIDO2 / U2F hardware security key, verified with python-fido2 (work in progress) -->
 <section id="kerberos" class="acc-section" data-open="1" style="padding:clamp(4rem,8vw,7rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(16,185,129,0.11) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(6,182,212,0.04) 0%,rgba(6,10,22,1) 85%);border-top:1px solid rgba(16,185,129,0.20);border-bottom:1px solid rgba(16,185,129,0.20);">
   <div style="max-width:1150px;margin:0 auto;">
-    <div class="section-label reveal" style="color:#10b981;letter-spacing:.18em;">★ FEATURED · NEW · KERBEROS</div>
+    <div class="section-label reveal" style="color:#f59e0b;letter-spacing:.18em;">◐ WORK IN PROGRESS · KERBEROS</div>
     <h2 class="section-title reveal" style="font-size:clamp(2.4rem,5.5vw,4.2rem);background:linear-gradient(135deg,#10b981 0%,#6ee7b7 40%,var(--ocean-bright) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">KERBEROS: a FIDO2 passkey, built from the protocol up</h2>
+    <div class="reveal" style="display:inline-block;margin-top:.7rem;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:#f59e0b;border:1px solid rgba(245,166,35,.5);background:rgba(245,166,35,.08);border-radius:999px;padding:.32rem .85rem;">◐ Work in progress · functional and verified, still hardening toward release</div>
     <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">Press <code style="background:rgba(16,185,129,0.15);padding:.2rem .5rem;border-radius:5px;color:#6ee7b7;font-family:var(--font-mono);font-weight:700;">k</code> from the root menu and the Cardputer becomes a real hardware security key. Not a wrapper around a library — the <b style="color:#6ee7b7;">U2F and CTAP2 stacks are hand written</b> on the ESP32-S3. It registers and authenticates as a FIDO2 and U2F key over USB, creates on device <b style="color:#6ee7b7;">passkeys</b>, and signs in usernameless. Every signature it produces is checked against Yubico's own reference library.</p>
 
     <!-- VERIFIED panel -->
@@ -412,7 +469,7 @@
     <a class="teaser reveal" href="testers.html">
       <div class="t-num">04 · TESTERS</div>
       <h3>Help us harden v0.6.</h3>
-      <p>v0.6.8 just shipped with KERBEROS, a hand-built FIDO2 / U2F hardware security key, on top of the v0.6.3 deauth fix and the v0.6.0 Argus mood sprite.</p>
+      <p>v0.6.8 is a stability and heap hardening pass: a memory safety audit and scan screens that never look frozen. KERBEROS, a hand-built FIDO2 / U2F security key, is in progress on top.</p>
       <div class="t-arrow">Join the field team →</div>
     </a>
     <a class="teaser reveal" href="credits.html">

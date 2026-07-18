@@ -21,14 +21,14 @@
 ![features](https://img.shields.io/badge/features-164-magenta?style=flat-square)
 ![release](https://img.shields.io/github/v/release/GeneralDussDuss/poseidon?style=flat-square)
 ![version](https://img.shields.io/badge/version-0.6.8-cyan?style=flat-square)
-![security key](https://img.shields.io/badge/KERBEROS-FIDO2%20passkey-10b981?style=flat-square)
+![security key](https://img.shields.io/badge/KERBEROS-FIDO2%20(WIP)-f59e0b?style=flat-square)
 
 **163 attacks in your pocket — WiFi, BLE, sub-GHz, 2.4 GHz, LoRa, IR, and LAN — driven by a real QWERTY keyboard.**
 POSEIDON turns the M5Stack Cardputer-Advance into a keyboard-first hacking deck: type to navigate, type your parameters, and watch **Argus** — an autonomous handshake-hunting gotchi with a 96x96 mood sprite — work the airwaves while you do. Same family as Flipper Zero, Bruce, Evil-M5Project, and Marauder, but built around a keyboard instead of a D-pad.
 
 [**Flash it now →**](#quick-start--flash-it) · [Download latest .bin](https://github.com/GeneralDussDuss/poseidon/releases/latest) · [Web site](https://generaldussduss.github.io/poseidon) · [Changelog](CHANGELOG.md)
 
-**🔐 New in 0.6.8: KERBEROS.** POSEIDON is now also a real **FIDO2 / U2F hardware security key**. Press `k`, plug into a PC, and register actual **passkeys**, including usernameless discoverable login. The U2F and CTAP2 stacks are hand written on the ESP32-S3 and verified end to end against Yubico's `python-fido2`. [Details ↓](#-kerberos-fido2-security-key)
+**🔐 Work in progress: KERBEROS.** POSEIDON is growing into a real **FIDO2 / U2F hardware security key**. Press `k`, plug into a PC, and register actual **passkeys**, including usernameless discoverable login. The U2F and CTAP2 stacks are hand written on the ESP32-S3 and already verify end to end against Yubico's `python-fido2`, but the feature is still being hardened and is not yet stable. [Details ↓](#-kerberos-fido2-security-key)
 
 </div>
 
@@ -132,7 +132,9 @@ The TRIDENT C5 firmware builds with **ESP-IDF** (`idf.py build flash`) — see t
 
 ## Feature Overview (164)
 
-### 🔐 KERBEROS: FIDO2 security key
+### 🔐 KERBEROS: FIDO2 security key (work in progress)
+
+> **Status: work in progress.** The FIDO2 and U2F stacks are functional and verified against `python-fido2`, but KERBEROS is still being hardened and is not yet a finished, stable feature. Treat it as experimental.
 
 **KERBEROS** turns the Cardputer into a real hardware security key. Press `k`, plug into a PC over USB, and it enumerates as a FIDO2 and U2F authenticator.
 
@@ -142,7 +144,7 @@ The TRIDENT C5 firmware builds with **ESP-IDF** (`idf.py build flash`) — see t
 - **Verified end to end** against Yubico's `python-fido2` reference library: attestation and assertion signatures both check out.
 - The screen and keyboard open the door to on device relying-party display and a PIN, hardware a sealed key cannot match.
 
-Enter KERBEROS and it reboots into a FIDO only USB personality; exit and it reboots to normal. Works today as a second factor on Google, GitHub, and any WebAuthn site.
+Enter KERBEROS and it reboots into a FIDO only USB personality; exit and it reboots to normal. It already works as a second factor on Google, GitHub, and any WebAuthn site, but it remains a work in progress and is being hardened toward a stable release.
 
 ### WiFi (17)
 Scan · Clients (all-channel + per-AP) · Deauth · Deauth All · Deauth Detector · AP Clone · Evil Portal (4 templates) · Karma · Beacon Spam · Probe Sniff · PMKID + 4-Way Handshake Capture · 2.4 GHz Spectrum · GPS Wardrive (WiGLE CSV) · Connect · **CIW Zeroclick** (157 SSID payloads: cmd injection, Log4Shell, XSS, buffer overflow)
