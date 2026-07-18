@@ -15,3 +15,8 @@ bool kerb_boot_key_mode(void);
 
 // Persist the desired personality and restart into it. Does not return.
 void kerb_request_key_mode(bool on);
+
+// Call FIRST in setup(): re-assert key mode from NVS after a cold boot
+// (unplug/reinsert), so the OS FIDO reset flow keeps the FIDO device present.
+// May reboot once (does not return in that case).
+void kerb_boot_sync(void);

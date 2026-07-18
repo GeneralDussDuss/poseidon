@@ -67,6 +67,7 @@ static void ir_watchdog_task(void *_)
 }
 
 extern bool kerb_boot_key_mode(void);
+extern void kerb_boot_sync(void);
 extern void feat_kerberos(void);
 
 void setup()
@@ -78,6 +79,11 @@ void setup()
      * etc.) so the pin is firmly OFF from the very first instruction. */
     pinMode(44, OUTPUT);
     digitalWrite(44, HIGH);
+
+    /* Re-assert KERBEROS key mode from NVS after a cold boot (the OS FIDO reset
+     * flow makes the user unplug + reinsert, which wipes the RTC personality
+     * flag). May reboot once so the FIDO USB interface enumerates. */
+    kerb_boot_sync();
 
     /* Cardputer-Adv hat compatibility: the CAP-LoRa1262 wires SX1262
      * NSS=G5, BUSY=G6, DIO1=G4, RST=G3. At power-on the SX1262 drives
