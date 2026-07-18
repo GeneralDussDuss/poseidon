@@ -47,6 +47,11 @@ static void serial_cmd_task(void *)
                     delay(50);
                     ESP.restart();
                 }
+                else if (buf[0] == 'C') {
+                    /* TEMP DIAGNOSTIC: CC1101 chip-ID + live RSSI probe. */
+                    extern void cc1101_diag(void);
+                    cc1101_diag();
+                }
                 else if (buf[0] == '?') {
                     Serial.printf("[CMD] poseidon %s harness=v1\n",
                                   poseidon_version());

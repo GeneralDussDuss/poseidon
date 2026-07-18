@@ -22,3 +22,4 @@ int  cc1101_get_rssi(void);
 
 /* Park CS lines for other SPI peripherals HIGH before CC1101 SPI ops. */
 void cc1101_park_others(void);
+void cc1101_diag(void);   /* TEMP: chip-ID + live RSSI probe over serial */
