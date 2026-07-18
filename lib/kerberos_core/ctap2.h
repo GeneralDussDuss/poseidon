@@ -41,6 +41,8 @@ enum {
     PIN_PERM_GA = 0x02,     // getAssertion
 };
 
+pin_store *pin_store_nvs(void);   // NVS-backed PIN hash + retry counter (device only)
+
 // Everything a CTAP2 command needs. Reuses the Phase 1 crypto vtable, device
 // wrapping key, attestation identity, and on-device presence callback.
 typedef struct {

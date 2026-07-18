@@ -60,9 +60,12 @@ static const uint8_t KERB_AAGUID[16] = {
     0x4B,0x45,0x52,0x42,0x45,0x52,0x4F,0x53, 0x50,0x4F,0x53,0x45,0x49,0x44,0x4F,0x4E
 };
 static ctap2_cfg_t s_c2;
+static ctap2_pin_rt s_pin_rt;             // volatile per-boot clientPIN runtime
 static uint16_t ctap2_msg_thunk(const uint8_t *req, uint16_t rl,
                                 uint8_t *resp, uint16_t cap, void *ctx) {
-    return ctap2_handle((const ctap2_cfg_t *)ctx, req, rl, resp, cap);
+    ctap2_cfg_t *c = (ctap2_cfg_t *)ctx;
+    c->now_ms = (uint32_t)millis();        // for the authenticatorReset 10s window
+    return ctap2_handle(c, req, rl, resp, cap);
 }
 
 static void persist_counter(void) {
@@ -139,6 +142,13 @@ void feat_kerberos(void) {
     s_c2.user_present = kerberos_user_present; s_c2.ui = nullptr;
     s_c2.counter = &s_counter;            // shared with U2F; persisted by persist_counter()
     s_c2.store = cred_store_nvs();        // resident (discoverable) credentials
+    // clientPIN: NVS-persisted PIN hash + retry counter, plus a per-boot runtime
+    // (key-agreement keypair, PIN token, reset-window clock) zeroed each key-mode
+    // boot. This is what unblocks Windows passkey enrollment.
+    memset(&s_pin_rt, 0, sizeof s_pin_rt);
+    s_pin_rt.boot_ms = (uint32_t)millis();
+    s_c2.pin    = pin_store_nvs();
+    s_c2.pin_rt = &s_pin_rt;
     kerberos_hid_set_cbor_handler(ctap2_msg_thunk, &s_c2);
 
     kerberos_hid_begin();
