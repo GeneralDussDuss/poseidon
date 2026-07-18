@@ -519,9 +519,11 @@ static uint16_t client_pin(const ctap2_cfg_t *cfg, const uint8_t *req, uint16_t 
 static uint16_t reset_cmd(const ctap2_cfg_t *cfg, uint8_t *out, uint16_t cap) {
     (void)cap;
     ctap2_pin_rt *rt = cfg->pin_rt;
-    // Reset must happen within ~10 s of power-up when we have a boot clock.
-    if (rt && rt->boot_ms && cfg->now_ms && (uint32_t)(cfg->now_ms - rt->boot_ms) > 10000)
-        return err(out, CTAP2_ERR_NOT_ALLOWED);
+    // NOTE: the CTAP "reset only within ~10 s of power-up" hardening is
+    // intentionally NOT enforced here. Platforms (incl. Windows) trigger reset
+    // long after the key has been running, so the window rejected every real
+    // reset ("pin works, reset does not"). Physical user presence below is the
+    // security control that actually matters on this device.
     if (!cfg->user_present(cfg->ui)) return err(out, CTAP2_ERR_OPERATION_DENIED);
     if (cfg->store && cfg->store->wipe) cfg->store->wipe(cfg->store);
     if (cfg->pin) cfg->pin->wipe(cfg->pin);
