@@ -119,30 +119,45 @@ void cc1101_set_rx(void)   { ELECHOUSE_cc1101.SetRx(); }
 void cc1101_set_tx(void)   { ELECHOUSE_cc1101.SetTx(); }
 void cc1101_set_idle(void) { ELECHOUSE_cc1101.setSidle(); }
 
+/* CC1101 status registers (0x30-0x3D) can glitch on SO mid-read — the register
+ * value is correct but the byte clocked out over SPI is occasionally corrupt
+ * (the well-known SWRS061 status-read errata). Live capture showed exactly this:
+ * valid RSSI (-30..-107) interleaved with garbage (-138 = raw 0x80) and bogus
+ * MARCSTATE (0x14/0x17/0x1F). The standard workaround is to read until two
+ * consecutive reads agree. Without it, any waterfall bin that lands on a corrupt
+ * sample reads floor — including a real fob's bin, so it looked unresponsive. */
+static uint8_t cc1101_status_stable(uint8_t addr)
+{
+    uint8_t a = ELECHOUSE_cc1101.SpiReadStatus(addr);
+    for (int i = 0; i < 8; ++i) {
+        uint8_t b = ELECHOUSE_cc1101.SpiReadStatus(addr);
+        if (a == b) return a;
+        a = b;
+    }
+    return a;
+}
+
 int cc1101_get_rssi(void)
 {
-    /* The spectrum/waterfall modes re-strobe SIDLE->SRX on every frequency bin,
-     * and with FS_AUTOCAL each SRX fires a ~720us PLL calibration. They then read
-     * RSSI after only ~500us — i.e. WHILE the chip is still calibrating, so the
-     * RSSI register holds a stale/constant value and the sweep never sees a real
-     * burst (flat waterfall). Wait until the radio has actually reached RX
-     * (MARCSTATE 0x0D) before reading, then let the RSSI filter settle briefly.
-     * Poll up to ~3ms; a settled radio falls through in one read. */
+    /* Wait until the radio actually reached RX (MARCSTATE 0x0D) — the sweep
+     * modes re-strobe SRX per bin and each SRX fires a ~720us PLL calibration,
+     * so a read too soon returns a stale value. Reliable (stable) reads. */
     for (int i = 0; i < 30; ++i) {
-        if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) == 0x0D) break;  /* RX */
+        if ((cc1101_status_stable(0x35) & 0x1F) == 0x0D) break;
         delayMicroseconds(100);
     }
-    /* Fallback: if we never reached RX (e.g. a retune dropped us to IDLE and the
-     * caller didn't re-strobe), force RX once so we never read RSSI out of RX. */
-    if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) != 0x0D) {
+    if ((cc1101_status_stable(0x35) & 0x1F) != 0x0D) {   /* stuck IDLE -> force RX */
         ELECHOUSE_cc1101.SetRx();
         for (int i = 0; i < 30; ++i) {
-            if ((ELECHOUSE_cc1101.SpiReadStatus(0x35) & 0x1F) == 0x0D) break;
+            if ((cc1101_status_stable(0x35) & 0x1F) == 0x0D) break;
             delayMicroseconds(100);
         }
     }
     delayMicroseconds(300);   /* RSSI valid time at RxBW 650 */
-    return ELECHOUSE_cc1101.getRssi();
+    /* Read RSSI (reg 0x34) with the same stable-read workaround and convert per
+     * the datasheet (RSSI offset 74 dBm at 433 MHz). */
+    uint8_t raw = cc1101_status_stable(0x34);
+    return (raw >= 128) ? ((int)raw - 256) / 2 - 74 : (int)raw / 2 - 74;
 }
 
 /* TEMP DIAGNOSTIC (Track D): bring the CC1101 up, dump chip ID + MARCSTATE,
