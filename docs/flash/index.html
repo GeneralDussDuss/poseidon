@@ -75,7 +75,7 @@
 
 <div class="sub">POSEIDON SUITE</div>
 <h1>FIRMWARE FLASHER</h1>
-<div class="sub">Chrome / Edge / Opera — uses Web Serial</div>
+<div class="sub">Chrome / Edge / Opera — uses Web Serial · <span style="color:var(--ok)">build: uint8-fix</span></div>
 
 <div class="panel">
   <div id="unsupported" class="status bad" hidden>
@@ -218,17 +218,13 @@ if (!("serial" in navigator)) {
   connectBtn.disabled = true;
 }
 
-async function fetchBinaryString(url){
+async function fetchBytes(url){
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${url} -> HTTP ${res.status}`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  // esptool-js wants a "binary string" (one char per byte). Build in chunks to
-  // avoid call-stack limits from String.fromCharCode.apply on big images.
-  let out = "", CH = 0x8000;
-  for (let i = 0; i < bytes.length; i += CH){
-    out += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
-  }
-  return { str: out, size: bytes.length };
+  // esptool-js 0.6.x wants `data` as a Uint8Array. The old binary-string form
+  // made esptool UTF-8-expand bytes >= 0x80 during compression, so the stub
+  // inflated more than declared -> ESP_TOO_MUCH_DATA (status 201) mid-write.
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 connectBtn.addEventListener("click", async () => {
@@ -273,9 +269,9 @@ programBtn.addEventListener("click", async () => {
     setStatus(`Loading ${t.parts.length} file(s)…`);
     const fileArray = [];
     for (const p of t.parts){
-      const { str, size } = await fetchBinaryString(p.url);
-      log(`Loaded ${p.url.split("/").pop()} (${size.toLocaleString()} bytes) -> ${hex(p.offset)}`);
-      fileArray.push({ data: str, address: p.offset });
+      const bytes = await fetchBytes(p.url);
+      log(`Loaded ${p.url.split("/").pop()} (${bytes.length.toLocaleString()} bytes) -> ${hex(p.offset)}`);
+      fileArray.push({ data: bytes, address: p.offset });
     }
     setStatus("Flashing… do not unplug.", "warn");
     await esploader.writeFlash({
@@ -294,9 +290,17 @@ programBtn.addEventListener("click", async () => {
     progEl.style.width = "100%";
     log("Flash complete.");
     setStatus("✅ Done. Resetting…", "ok");
+    try { fetch("/__diag?ok=1&target=" + targetSel.value + "&chip=" + encodeURIComponent(connectedChip||"")); } catch {}
     try { await esploader.hardReset(); } catch { log("(auto-reset unavailable — unplug and replug to boot)"); }
   } catch (e) {
-    log("ERROR: " + (e && e.message ? e.message : e));
+    const em = (e && e.message ? e.message : String(e));
+    log("ERROR: " + em);
+    /* Local diagnostic: report the exact error to the dev server via a GET it
+     * logs, so the failure can be seen without copy-paste. Harmless 404 off
+     * localhost; removed before ship. */
+    try { fetch("/__diag?fail=1&target=" + targetSel.value + "&chip=" + encodeURIComponent(connectedChip||"") +
+                "&baud=" + baudSel.value + "&nc=" + ($("nocompress").checked?1:0) +
+                "&msg=" + encodeURIComponent(em)); } catch {}
     setStatus("Flash failed — see log. Try a lower baud (115200) or full erase, and replug.", "bad");
   } finally {
     programBtn.disabled = false; disconnectBtn.disabled = false;
