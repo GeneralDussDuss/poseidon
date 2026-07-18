@@ -160,8 +160,11 @@ const TARGETS = {
   s3: {
     chip: "ESP32-S3",
     label: "POSEIDON · Cardputer-Adv",
-    // S3 stub flash-detect works, so keep the factory image's own geometry.
-    flashSize: "keep", flashMode: "keep", flashFreq: "keep",
+    // Pin flash size to the Cardputer's real 8MB. "keep" was resolving to ~2MB,
+    // so the write died the instant it crossed 0x200000 (~73% of the image) —
+    // the SAME failure class the C5 hit at 1MB (fixed by pinning 4MB). Mode/freq
+    // are correct in the factory image header, so keep those.
+    flashSize: "8MB", flashMode: "keep", flashFreq: "keep",
     parts: [{ url: "bin/cardputer/poseidon-factory.bin", offset: 0x0 }],
   },
   c5: {
