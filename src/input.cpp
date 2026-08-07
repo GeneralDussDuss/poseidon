@@ -17,6 +17,7 @@
 #include "app.h"
 #include "theme.h"
 #include "sfx.h"
+#include "board/encoder_tembed.h"
 
 /* Last-seen debug state — shown by input_debug_draw(). */
 static uint16_t s_last_key = PK_NONE;
@@ -61,6 +62,9 @@ static uint16_t input_poll_raw(void)
         s_last_key = code;
         return code;
     }
+#if defined(POSEIDON_BOARD_TEMBED)
+    return tembed_input_poll();
+#else
     M5Cardputer.update();
     if (!M5Cardputer.Keyboard.isChange()) return PK_NONE;
     if (!M5Cardputer.Keyboard.isPressed()) return PK_NONE;
@@ -90,6 +94,7 @@ static uint16_t input_poll_raw(void)
         return (uint16_t)c;
     }
     return PK_NONE;
+#endif
 }
 
 /* -------------------- modal line editor -------------------- */

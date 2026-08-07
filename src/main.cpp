@@ -16,6 +16,7 @@
 #include "heap_budget.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 #include "board/panel_tembed.h"
+#include "board/encoder_tembed.h"
 
 /* Strong override: tell Arduino-ESP32 core that BT is in use. Without
  * this the core calls esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)
@@ -107,6 +108,7 @@ void setup()
         cfg.internal_mic = false;
         M5.begin(cfg);
         tembed_display_init();
+        tembed_input_begin();
     }
 #else
     auto cfg = M5.config();
