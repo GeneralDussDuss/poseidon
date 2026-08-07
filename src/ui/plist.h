@@ -15,7 +15,10 @@ struct plist_t {
 };
 
 void plist_init(plist_t *m, int count, int rows);
-/* Returns true if `top` changed (repaint everything), false if only `sel`
- * changed (repaint the old and new selected rows only). */
+/* Returns true when the caller must repaint the whole list: either the
+ * window scrolled, or the selection wrapped around an end (which is a
+ * large visual jump even when the window itself did not move). Returns
+ * false when only the selection moved within the visible window, in
+ * which case repainting just the old and new selected rows is enough. */
 bool plist_move(plist_t *m, int delta);
 int  plist_visible_count(const plist_t *m);
