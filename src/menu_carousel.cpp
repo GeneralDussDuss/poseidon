@@ -1,33 +1,38 @@
 /*
  * menu_carousel.cpp — see menu_carousel.h.
  *
- * Layout (per card):
+ * Card layout, all coordinates derived from SCR_W / SCR_H / BODY_Y /
+ * BODY_H (never hardcoded), so the same drawing code adapts to both the
+ * 320x170 T-Embed and the 240x135 Cardputer:
  *
  *  [STATUS BAR ... 12 px ........... magenta divider ........]
  *  parent-name                                     N / TOTAL
  *  ===================== magenta double rule ===================
  *  +--                                                       --+
- *  |                                                           |
- *  |   ((W))   WiFi                                            |
- *  |    ===    recon + attacks                                 |
- *  |                                                           |
- *  |                                                  MENU >   |
+ *  |                       (( icon, scale 3, glow ))            |
+ *  |                            WiFi                            |
+ *  |                       recon + attacks                      |
+ *  <                                                             >
+ *  |                                                             |
  *  +--                                                       --+
- *   <                                                        >
+ *                          o o *o o o o
  *  [FOOTER ... ;/.=swipe  ENTER=open  letter=jump  `=back ...]
  *
- * Corner brackets in T_ACCENT (cyan), small magenta accent dots inside
- * the corners, big hotkey badge in a 2-ring circle (outer ring pulses
- * on a 1.5 s sin so the focus has a heartbeat), size-2 label + size-1
- * description.
+ * Corner brackets in T_ACCENT2 frame the card (arms only — not a full
+ * box). The icon is the glow renderer in ui/picons.*, falling back to
+ * the big hotkey letter when a node has no bitmap (all submenu items).
+ * A dot row along the card's bottom edge replaces the old "N / TOTAL"
+ * text as the at-a-glance position readout; the title bar keeps the
+ * text version too since it also names the parent domain.
  *
  * Slide animation: when ;/. flips siblings, the new card slides in
- * from the corresponding edge over 200 ms (linear ease-out). Letter
- * mnemonics jump instantly without animation so power-users don't pay
- * for the visual cost.
+ * from the corresponding edge over 200 ms (linear ease-out) — only the
+ * card content (brackets/icon/label/hint) slides, chevrons and the dot
+ * row are chrome and stay put. Letter mnemonics jump instantly.
  */
 #include "menu_carousel.h"
 #include "menu_icons.h"
+#include "ui/picons.h"
 #include "ui.h"
 #include "ui_ambient.h"
 #include "input.h"
@@ -50,6 +55,12 @@ extern void               ui_show_current_help(void);
 
 #define CAROUSEL_FOOTER ";/.=swipe  ENTER=open  =help  letter=jump  `=back"
 
+/* Reserved band at the bottom of the body for the position-dot row,
+ * below the card frame proper. Shared between layout and dot drawing
+ * so the two never drift apart. */
+static const int DOTS_AREA_H  = 14;
+static const int MAX_DOTS     = 12;
+
 static int count_children(const menu_node_t *parent)
 {
     int n = 0;
@@ -67,8 +78,9 @@ static int index_of(const menu_node_t *parent, char hotkey)
     return -1;
 }
 
-/* Linear interpolation 8-bit channel blend used for the badge ring
- * pulse. Returns RGB565 where `a` and `b` are blended by t in [0..255]. */
+/* Linear interpolation 8-bit channel blend used for the current-dot
+ * heartbeat pulse. Returns RGB565 where `a` and `b` are blended by t
+ * in [0..255]. */
 static uint16_t blend565(uint16_t a, uint16_t b, uint8_t t)
 {
     uint8_t ar = (a >> 11) & 0x1F, ag = (a >> 5) & 0x3F, ab = a & 0x1F;
@@ -79,8 +91,7 @@ static uint16_t blend565(uint16_t a, uint16_t b, uint8_t t)
     return (uint16_t)((r << 11) | (g << 5) | bl);
 }
 
-/* Compute the pulse color for the badge ring at the current millis().
- * Used by both the full-paint and the lightweight idle path. */
+/* Pulse color for the current position dot at the current millis(). */
 static uint16_t pulse_color_now(void)
 {
     uint32_t now   = millis();
@@ -88,6 +99,108 @@ static uint16_t pulse_color_now(void)
     float    cosw  = (1.0f - cosf(phase * 2.0f * 3.14159f)) * 0.5f;
     uint8_t  blend = (uint8_t)(cosw * 255.0f);
     return blend565(T_ACCENT, T_ACCENT2, blend);
+}
+
+/* All card geometry in one place, derived from SCR_W/SCR_H/BODY_Y/
+ * BODY_H, so draw_card_full() and draw_card_anim() can never disagree
+ * about where anything is. Bigger icon/text on the 170-tall T-Embed;
+ * a step down on the 135-tall Cardputer so label+hint still fit under
+ * a scale-3 icon in the smaller body. */
+struct carousel_layout_t {
+    int card_x, card_y, card_w, card_h, card_bottom;
+    int ck;                 /* corner bracket arm length */
+    int icon_cx, icon_cy;
+    int icon_scale, icon_half;   /* icon_half includes the glow margin */
+    int fallback_text_size;
+    int label_y, hint_y;
+    int chevron_y, chevron_size;
+    int dots_y;
+};
+
+static carousel_layout_t compute_layout(void)
+{
+    carousel_layout_t L{};
+    bool big = (SCR_H >= 170);
+
+    L.card_x      = 6;
+    L.card_w      = SCR_W - 12;
+    L.card_y      = BODY_Y + 16;                      /* below title + divider */
+    L.card_bottom = BODY_Y + BODY_H - DOTS_AREA_H;     /* leave room for dots */
+    L.card_h      = L.card_bottom - L.card_y;
+    L.ck          = 12;
+
+    L.icon_scale = big ? 3 : 2;
+    L.fallback_text_size = big ? 4 : 3;
+    int top_gap   = big ? 4 : 2;
+    int label_gap = big ? 4 : 2;
+    int hint_gap  = big ? 3 : 2;
+
+    L.icon_half = (menu_icon_h() * L.icon_scale) / 2 + L.icon_scale;
+    L.icon_cx   = L.card_x + L.card_w / 2;
+    L.icon_cy   = L.card_y + top_gap + L.icon_half;
+
+    L.label_y = L.icon_cy + L.icon_half + label_gap;   /* size-2 text baseline */
+    L.hint_y  = L.label_y + 16 + hint_gap;              /* size-2 glyph = 16 px tall */
+
+    L.chevron_y    = L.card_y + L.card_h / 2;
+    L.chevron_size = big ? 2 : 1;
+
+    L.dots_y = L.card_bottom + DOTS_AREA_H / 2;
+
+    return L;
+}
+
+/* Windowed dot-row range: which sibling indices get a dot this frame,
+ * and where the current one sits, shared by the full paint and the
+ * idle pulse repaint so they never disagree. */
+struct dot_layout_t {
+    int start, end;      /* [start, end) sibling indices shown */
+    int spacing;
+    int x0;               /* x of the first shown dot */
+    int cur_x;            /* x of the current-item dot */
+};
+
+static dot_layout_t compute_dots(int n, int cursor, const carousel_layout_t &L)
+{
+    dot_layout_t dl{};
+    dl.start = 0;
+    dl.end   = n;
+    if (n > MAX_DOTS) {
+        int half = MAX_DOTS / 2;
+        dl.start = cursor - half;
+        dl.end   = dl.start + MAX_DOTS;
+        if (dl.start < 0)  { dl.start = 0; dl.end = MAX_DOTS; }
+        if (dl.end > n)    { dl.end = n; dl.start = n - MAX_DOTS; }
+    }
+    int shown   = dl.end - dl.start;
+    dl.spacing  = 8;
+    int total_w = (shown > 0) ? (shown - 1) * dl.spacing : 0;
+    dl.x0       = L.icon_cx - total_w / 2;
+    dl.cur_x    = dl.x0 + (cursor - dl.start) * dl.spacing;
+    return dl;
+}
+
+/* Centre a string at (cx, y) using the 6x8 glyph cell, truncating to
+ * max_px if needed. Buffer is scratch owned by the caller. */
+static void draw_centered_fit(int cx, int y, int textsize, uint16_t color,
+                              const char *src, int max_px)
+{
+    auto &d = M5Cardputer.Display;
+    char buf[48];
+    int  max_chars = max_px / (6 * textsize);
+    if (max_chars < 1)  max_chars = 1;
+    if (max_chars > (int)sizeof(buf) - 1) max_chars = sizeof(buf) - 1;
+    int n = (int)strlen(src);
+    if (n > max_chars) n = max_chars;
+    memcpy(buf, src, n);
+    buf[n] = 0;
+
+    int w = n * 6 * textsize;
+    d.setTextSize(textsize);
+    d.setTextColor(color, T_BG);
+    d.setCursor(cx - w / 2, y);
+    d.print(buf);
+    d.setTextSize(1);
 }
 
 /* Full card paint — every layer, every glyph, every bracket. Called on
@@ -105,7 +218,8 @@ static void draw_card_full(const menu_node_t *parent, int cursor, int slide_x)
     ui_ambient_tick(0, BODY_Y, SCR_W, BODY_H);
 
     /* Title bar: parent name on the left, "N / TOTAL" position on the
-     * right in magenta. Matches terminal-mode aesthetics. */
+     * right in magenta. Matches terminal-mode aesthetics; the dot row
+     * below gives the at-a-glance version. */
     d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);
     d.print(parent->label);
@@ -116,168 +230,115 @@ static void draw_card_full(const menu_node_t *parent, int cursor, int slide_x)
     d.setCursor(SCR_W - pw - 4, BODY_Y + 2);
     d.print(pos);
 
-    /* Magenta double-divider directly under the title — same splash
-     * the terminal mode uses, full body width, 2 px thick. */
+    /* Magenta double-divider directly under the title. */
     d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
     d.drawFastHLine(4, BODY_Y + 13, SCR_W - 8, T_ACCENT2);
 
-    /* Card frame box. cx/cy/cw/ch are the bracket-frame coordinates;
-     * bracket arms are 8 px L-shapes at each corner. */
-    int cx = 6 + slide_x;
-    int cy = BODY_Y + 18;
-    int cw = SCR_W - 12;
-    int ch = BODY_H - 24;
-    int ck = 8;
+    carousel_layout_t L = compute_layout();
+    int cx = L.card_x + slide_x;   /* card content slides; chrome doesn't */
 
-    /* 4 corner brackets in cyan. */
-    d.drawFastHLine(cx,            cy,             ck, T_ACCENT);
-    d.drawFastVLine(cx,            cy,             ck, T_ACCENT);
-    d.drawFastHLine(cx + cw - ck,  cy,             ck, T_ACCENT);
-    d.drawFastVLine(cx + cw - 1,   cy,             ck, T_ACCENT);
-    d.drawFastHLine(cx,            cy + ch - 1,    ck, T_ACCENT);
-    d.drawFastVLine(cx,            cy + ch - ck,   ck, T_ACCENT);
-    d.drawFastHLine(cx + cw - ck,  cy + ch - 1,    ck, T_ACCENT);
-    d.drawFastVLine(cx + cw - 1,   cy + ch - ck,   ck, T_ACCENT);
+    /* 4 corner brackets, arms only — cyberpunk framing, not a box. */
+    d.drawFastHLine(cx,                 L.card_y,                    L.ck, T_ACCENT2);
+    d.drawFastVLine(cx,                 L.card_y,                    L.ck, T_ACCENT2);
+    d.drawFastHLine(cx + L.card_w - L.ck, L.card_y,                  L.ck, T_ACCENT2);
+    d.drawFastVLine(cx + L.card_w - 1,  L.card_y,                    L.ck, T_ACCENT2);
+    d.drawFastHLine(cx,                 L.card_y + L.card_h - 1,     L.ck, T_ACCENT2);
+    d.drawFastVLine(cx,                 L.card_y + L.card_h - L.ck,  L.ck, T_ACCENT2);
+    d.drawFastHLine(cx + L.card_w - L.ck, L.card_y + L.card_h - 1,   L.ck, T_ACCENT2);
+    d.drawFastVLine(cx + L.card_w - 1,  L.card_y + L.card_h - L.ck,  L.ck, T_ACCENT2);
 
-    /* Tiny magenta accent dots tucked just inside each corner — gives
-     * the frame the "registration mark" / cyberpunk-spec-sheet feel. */
-    d.drawPixel(cx + 2,        cy + 2,        T_ACCENT2);
-    d.drawPixel(cx + cw - 3,   cy + 2,        T_ACCENT2);
-    d.drawPixel(cx + 2,        cy + ch - 3,   T_ACCENT2);
-    d.drawPixel(cx + cw - 3,   cy + ch - 3,   T_ACCENT2);
-
-    /* Big hotkey badge — 2-ring circle with the letter centered.
-     * Outer ring pulses cyan -> magenta -> cyan over 1.5 s as a focus
-     * heartbeat. Inner ring stays solid cyan. */
-    int  bx = cx + 22;
-    int  by = cy + ch / 2;
-    int  br = 14;
-    uint16_t pulse = pulse_color_now();
-    d.fillCircle(bx, by, br, T_SEL_BG);
-    d.drawCircle(bx, by, br,     pulse);
-    d.drawCircle(bx, by, br - 1, T_ACCENT);
-    /* Try the icon dispatcher first — top-level POSEIDON entries get
-     * their pictograph (cyan in POSEIDON theme, green in MATRIX, black
-     * in E-INK because drawBitmap inherits the passed color). Submenu
-     * items fall through to the big-letter rendering. */
-    if (!draw_menu_icon(bx, by, T_FG, parent, item)) {
-        d.setTextColor(T_FG, T_SEL_BG);
-        d.setTextSize(2);
-        /* Letter is 12x16 at size 2. Center it in the 28-px-diameter circle. */
-        d.setCursor(bx - 6, by - 7);
+    /* Icon, glowing, centred in the upper portion of the card. Falls
+     * back to the big hotkey letter for nodes with no bitmap (every
+     * submenu item — only MENU_ROOT entries have icons). */
+    int icon_cx = L.icon_cx + slide_x;
+    if (!picon_draw_hotkey(item->hotkey, icon_cx, L.icon_cy, L.icon_scale, T_ACCENT, 2)) {
+        d.setTextSize(L.fallback_text_size);
+        d.setTextColor(T_ACCENT, T_BG);
+        int cw_px = 6 * L.fallback_text_size;
+        int ch_px = 8 * L.fallback_text_size;
+        d.setCursor(icon_cx - cw_px / 2, L.icon_cy - ch_px / 2);
         d.printf("%c", toupper(item->hotkey));
         d.setTextSize(1);
     }
 
-    /* Big label: size 2, to the right of the badge. Truncate to fit. */
-    int lx = bx + br + 10;
-    int ly = cy + (ch / 2) - 14;
-    d.setTextSize(2);
-    d.setTextColor(T_FG, T_BG);
-    d.setCursor(lx, ly);
-    {
-        char buf[24];
-        int  max_chars = (cx + cw - 8 - lx) / 12;   /* size-2 char = 12 px wide */
-        if (max_chars < 1)  max_chars = 1;
-        if (max_chars > 23) max_chars = 23;
-        strncpy(buf, item->label, max_chars);
-        buf[max_chars] = 0;
-        d.print(buf);
+    /* Label + hint, centred under the icon, truncated to fit. */
+    int text_max_px = SCR_W - 32;
+    draw_centered_fit(icon_cx, L.label_y, 2, T_FG, item->label, text_max_px);
+    if (item->hint) {
+        draw_centered_fit(icon_cx, L.hint_y, 1, T_DIM, item->hint, text_max_px);
     }
+
+    /* Chevrons at the card's vertical centre, near the screen edges.
+     * Navigation always wraps, so there's no real boundary to dim for
+     * — except the degenerate n==1 case, where neither direction goes
+     * anywhere. */
+    uint16_t chev_color = (n > 1) ? T_ACCENT2 : T_DIM;
+    int chev_h = 8 * L.chevron_size;
+    d.setTextSize(L.chevron_size);
+    d.setTextColor(chev_color, T_BG);
+    d.setCursor(2, L.chevron_y - chev_h / 2);
+    d.print("<");
+    int chev_w = 6 * L.chevron_size;
+    d.setCursor(SCR_W - 4 - chev_w, L.chevron_y - chev_h / 2);
+    d.print(">");
     d.setTextSize(1);
 
-    /* Hint: size 1, just below the label. */
-    if (item->hint) {
-        d.setTextColor(T_DIM, T_BG);
-        d.setCursor(lx, ly + 18);
-        char hbuf[64];
-        int  max_hint = (cx + cw - 8 - lx) / 6;     /* size-1 char = 6 px wide */
-        if (max_hint < 1)  max_hint = 1;
-        if (max_hint > 63) max_hint = 63;
-        strncpy(hbuf, item->hint, max_hint);
-        hbuf[max_hint] = 0;
-        d.print(hbuf);
+    /* Position dots along the bottom of the body — windowed if there
+     * are more siblings than MAX_DOTS. Current item is bigger and in
+     * T_ACCENT; the rest are small and T_DIM. */
+    dot_layout_t dl = compute_dots(n, cursor, L);
+    for (int i = dl.start; i < dl.end; ++i) {
+        int dx = dl.x0 + (i - dl.start) * dl.spacing;
+        if (i == cursor) {
+            d.fillCircle(dx, L.dots_y, 2, T_ACCENT);
+        } else {
+            d.fillCircle(dx, L.dots_y, 1, T_DIM);
+        }
     }
-
-    /* Type indicator at bottom-right inside the card. */
-    {
-        const char *type = item->action ? "OPEN" : "MENU >";
-        d.setTextColor(T_ACCENT, T_BG);
-        int tw = d.textWidth(type);
-        d.setCursor(cx + cw - tw - 6, cy + ch - 11);
-        d.print(type);
-    }
-
-    /* Side scroll arrows — bright magenta when scrollable, dim otherwise. */
-    int amid = cy + ch / 2 - 4;
-    d.setTextColor(cursor > 0     ? T_ACCENT2 : T_DIM, T_BG);
-    d.setCursor(0, amid);
-    d.print("<");
-    d.setTextColor(cursor < n - 1 ? T_ACCENT2 : T_DIM, T_BG);
-    d.setCursor(SCR_W - 6, amid);
-    d.print(">");
 }
 
 /* Lightweight idle paint — only touches the parts of the card that
- * actually change frame-to-frame: two ambient strips (above and below
- * the text band) and the pulsing outer ring of the badge. The label,
- * hint, brackets, dividers, type indicator, and scroll arrows are NOT
- * touched, so they don't strobe.
- *
- * Layout (matching draw_card_full):
- *
- *  +-                               -+    <- top corner brackets at cy
- *  | [ambient zone above text]       |    <- amb_top strip
- *  |                                  |
- *  |  ((W))   WIFI                   |    <- TEXT BAND — never repainted
- *  |   ===    recon + attacks        |       in idle path
- *  |                                  |
- *  | [ambient zone below text]       |    <- amb_bot strip
- *  |                       MENU >    |
- *  +-                               -+    <- bottom corner brackets
- */
+ * actually change frame-to-frame: the ambient strip above the icon,
+ * the ambient strip below the hint text, and the pulsing current-item
+ * dot. Brackets, icon, label, hint, chevrons, and the rest of the dot
+ * row are NOT touched, so they don't strobe. */
 static void draw_card_anim(const menu_node_t *parent, int cursor)
 {
-    auto &d = M5Cardputer.Display;
     int n = count_children(parent);
     if (n <= 0 || cursor < 0 || cursor >= n) return;
 
-    /* Card geometry — must match draw_card_full with slide_x = 0. */
-    const int cx = 6;
-    const int cy = BODY_Y + 18;
-    const int cw = SCR_W - 12;
-    const int ch = BODY_H - 24;
-    const int bx = cx + 22;
-    const int by = cy + ch / 2;
-    const int br = 14;
+    auto &d = M5Cardputer.Display;
+    carousel_layout_t L = compute_layout();
 
-    /* Ambient strips — inset 8 px from card edges (so corner brackets
-     * + magenta accent dots are never erased), starting below the top
-     * brackets and ending above the type indicator / bottom brackets. */
-    const int amb_x      = cx + 8;
-    const int amb_w      = cw - 16;
-    const int amb_top_y  = cy + 4;
-    const int amb_top_h  = (ch / 2) - 20;
-    const int amb_bot_y  = cy + (ch / 2) + 14;
-    const int amb_bot_h  = (ch / 2) - 27;
+    /* Ambient strips — inset 8 px from card edges so the corner
+     * brackets are never erased. Clipped per strip so ambient motes
+     * still compute against the full card bounds. */
+    int amb_x = L.card_x + 8;
+    int amb_w = L.card_w - 16;
 
-    /* Clear both strips back to T_BG, then paint ambient — clipped per
-     * strip so the ambient mote/grid/packet positions stay computed
-     * against the FULL card bounds (otherwise motes would loop in a
-     * strip-sized box and the animation would feel cramped). */
-    d.fillRect(amb_x, amb_top_y, amb_w, amb_top_h, T_BG);
-    d.setClipRect(amb_x, amb_top_y, amb_w, amb_top_h);
-    ui_ambient_tick(0, BODY_Y, SCR_W, BODY_H);
+    int top_y = L.card_y + L.ck;
+    int top_h = (L.icon_cy - L.icon_half) - top_y;
+    if (top_h > 0) {
+        d.fillRect(amb_x, top_y, amb_w, top_h, T_BG);
+        d.setClipRect(amb_x, top_y, amb_w, top_h);
+        ui_ambient_tick(0, BODY_Y, SCR_W, BODY_H);
+        d.clearClipRect();
+    }
 
-    d.fillRect(amb_x, amb_bot_y, amb_w, amb_bot_h, T_BG);
-    d.setClipRect(amb_x, amb_bot_y, amb_w, amb_bot_h);
-    ui_ambient_tick(0, BODY_Y, SCR_W, BODY_H);
+    int bot_y = L.hint_y + 8;
+    int bot_h = (L.card_y + L.card_h - L.ck) - bot_y;
+    if (bot_h > 0) {
+        d.fillRect(amb_x, bot_y, amb_w, bot_h, T_BG);
+        d.setClipRect(amb_x, bot_y, amb_w, bot_h);
+        ui_ambient_tick(0, BODY_Y, SCR_W, BODY_H);
+        d.clearClipRect();
+    }
 
-    d.clearClipRect();
-
-    /* Repaint just the pulsing outer ring of the badge. The fill,
-     * inner ring, and icon stay where they are. */
-    d.drawCircle(bx, by, br, pulse_color_now());
+    /* Repaint just the current-item dot with its heartbeat pulse. */
+    if (n > 0) {
+        dot_layout_t dl = compute_dots(n, cursor, L);
+        d.fillCircle(dl.cur_x, L.dots_y, 2, pulse_color_now());
+    }
 }
 
 void carousel_run_submenu(const menu_node_t *parent)
@@ -313,9 +374,7 @@ void carousel_run_submenu(const menu_node_t *parent)
             }
         } else {
             /* Idle: only repaint the parts that actually animate — the
-             * two ambient strips (above + below the text band) and the
-             * pulsing outer ring of the badge. Text / brackets / divider
-             * / type indicator / arrows stay put, so they don't strobe. */
+             * two ambient strips and the pulsing current-item dot. */
             static uint32_t last_idle_paint = 0;
             if (now - last_idle_paint > 33) {
                 last_idle_paint = now;

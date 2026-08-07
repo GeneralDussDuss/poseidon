@@ -17,6 +17,8 @@
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
 #include "board/panel_tembed.h"
 #include "board/encoder_tembed.h"
+#include "board/leds_tembed.h"
+#include "board/audio_tembed.h"
 
 /* Strong override: tell Arduino-ESP32 core that BT is in use. Without
  * this the core calls esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)
@@ -96,10 +98,16 @@ void setup()
      * the probe and the Adv branch is taken correctly. We also park
      * G5 HIGH afterwards so the chip stays NSS-deselected on the
      * shared SPI bus (same bus as SD). The feature module will drive
-     * G3 HIGH when LoRa is actually opened. */
+     * G3 HIGH when LoRa is actually opened.
+     *
+     * G3/G4/G5/G6 on T-Embed are the rotary encoder (A=4, B=5, back=6)
+     * and free GPIO3 — this whole hat-detect hack is Cardputer-only and
+     * must not run there, or it fights the encoder init that follows. */
+#if !defined(POSEIDON_BOARD_TEMBED)
     pinMode(3, OUTPUT);
     digitalWrite(3, LOW);
     delay(5);
+#endif
 
 #if defined(POSEIDON_BOARD_TEMBED)
     {
@@ -109,6 +117,8 @@ void setup()
         M5.begin(cfg);
         tembed_display_init();
         tembed_input_begin();
+        leds_begin();
+        tembed_speaker_init();
     }
 #else
     auto cfg = M5.config();

@@ -15,36 +15,44 @@
 
 extern const menu_node_t MENU_ROOT;
 
+int menu_icon_w(void) { return MENU_ICON_W; }
+int menu_icon_h(void) { return MENU_ICON_H; }
+
+const uint8_t *menu_icon_bitmap_for_hotkey(char hotkey)
+{
+    switch (hotkey) {
+    case 'w': return MENU_ICON_WIFI;
+    case 'b': return MENU_ICON_BLE;
+    case 'i': return MENU_ICON_IR;
+    case 't': return MENU_ICON_TRIDENT;
+    case 'u': return MENU_ICON_USB;
+    case 'n': return MENU_ICON_NETWORK;
+    case 'j': return MENU_ICON_SKULL;
+    case 'r': return MENU_ICON_RADIO;
+    case 'o': return MENU_ICON_TOOLS;
+    case 'm': return MENU_ICON_MESH;
+    case '5': return MENU_ICON_SATELLITE;
+    case 'x': return MENU_ICON_EYE;
+    case 'p': return MENU_ICON_LAPTOP;
+    case 's': return MENU_ICON_GEAR;
+    default:  return nullptr;
+    }
+}
+
 bool draw_menu_icon(int cx, int cy, uint16_t color,
                     const menu_node_t *parent, const menu_node_t *item)
 {
     if (parent != &MENU_ROOT) return false;
     if (!item) return false;
 
+    const uint8_t *bmp = menu_icon_bitmap_for_hotkey(item->hotkey);
+    if (!bmp) return false;
+
     auto &d = M5Cardputer.Display;
     /* drawBitmap origin is top-left; we want the icon centered on
      * (cx, cy) — offset by half the bitmap dimensions. */
     int x = cx - (MENU_ICON_W / 2);
     int y = cy - (MENU_ICON_H / 2);
-
-    const uint8_t *bmp = nullptr;
-    switch (item->hotkey) {
-    case 'w': bmp = MENU_ICON_WIFI;      break;
-    case 'b': bmp = MENU_ICON_BLE;       break;
-    case 'i': bmp = MENU_ICON_IR;        break;
-    case 't': bmp = MENU_ICON_TRIDENT;   break;
-    case 'u': bmp = MENU_ICON_USB;       break;
-    case 'n': bmp = MENU_ICON_NETWORK;   break;
-    case 'j': bmp = MENU_ICON_SKULL;     break;
-    case 'r': bmp = MENU_ICON_RADIO;     break;
-    case 'o': bmp = MENU_ICON_TOOLS;     break;
-    case 'm': bmp = MENU_ICON_MESH;      break;
-    case '5': bmp = MENU_ICON_SATELLITE; break;
-    case 'x': bmp = MENU_ICON_EYE;       break;
-    case 'p': bmp = MENU_ICON_LAPTOP;    break;
-    case 's': bmp = MENU_ICON_GEAR;      break;
-    default: return false;
-    }
     d.drawBitmap(x, y, bmp, MENU_ICON_W, MENU_ICON_H, color);
     return true;
 }

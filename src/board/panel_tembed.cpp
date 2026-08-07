@@ -45,11 +45,17 @@ void tembed_display_init(void) {
         cfg.pin_cs         = TE_TFT_CS;
         cfg.pin_rst        = TE_TFT_RST;
         cfg.pin_busy       = -1;
-        cfg.panel_width    = TE_PANEL_W;
-        cfg.panel_height   = TE_PANEL_H;
-        cfg.memory_width   = TE_PANEL_W;
-        cfg.memory_height  = TE_PANEL_H;
-        cfg.offset_x       = 0;
+        /* The ST7789 controller has 240x320 of GRAM but this panel is only
+         * 170 wide, and the visible window sits centred in it. Without the
+         * 35px x offset ((240-170)/2) everything draws into the wrong part
+         * of memory: content clipped off one edge, a dead strip at the other.
+         * TFT_eSPI hides this in a per-variant offset table, which is why
+         * Bruce looks correct without stating it; LovyanGFX requires it. */
+        cfg.panel_width    = TE_PANEL_W;   /* 170 visible */
+        cfg.panel_height   = TE_PANEL_H;   /* 320 visible */
+        cfg.memory_width   = 240;          /* controller GRAM, not panel */
+        cfg.memory_height  = 320;
+        cfg.offset_x       = 35;           /* (240 - 170) / 2 */
         cfg.offset_y       = 0;
         cfg.offset_rotation = 0;
         cfg.readable       = false;

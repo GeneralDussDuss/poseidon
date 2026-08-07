@@ -1330,7 +1330,14 @@ static void slide_to(const menu_node_t *p, int c, int dir) {
     ui_slide_transition(slide_paint, dir);
 }
 
+/* Footer hints are per-board: the Cardputer strip names keyboard keys that
+ * simply do not exist on an encoder-driven board, where it is just noise
+ * occupying the bottom of every screen. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define FOOTER_HINTS "turn=move   press=select   side=back"
+#else
 #define FOOTER_HINTS "letter=go  ;/.=move  ENTER=sel  ==info  `=back"
+#endif
 
 static void run_submenu(const menu_node_t *parent)
 {
