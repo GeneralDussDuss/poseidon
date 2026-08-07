@@ -181,7 +181,7 @@ void ui_draw_freq_band(int x, int y, int w, int h, float freq_mhz)
 
 /* ---- scrolling RSSI scope ---- */
 
-#define SCOPE_MAX_W 240
+#define SCOPE_MAX_W SCR_W
 static int8_t  s_scope_hist[SCOPE_MAX_W];
 static int     s_scope_head = 0;
 static int     s_scope_count = 0;

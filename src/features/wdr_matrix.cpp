@@ -18,8 +18,8 @@
 #include <esp_random.h>
 #include <string.h>
 
-#define MXW      240
-#define MXH      135
+#define MXW      SCR_W
+#define MXH      SCR_H
 #define MXCW     6
 #define MXCH     8
 #define MX_MAXDEC 3

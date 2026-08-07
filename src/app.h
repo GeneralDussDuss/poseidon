@@ -17,8 +17,15 @@
 #define COL_MAGENTA  0xF81F
 
 /* ---- display geometry ---- */
+#if defined(POSEIDON_BOARD_TEMBED)
+/* T-Embed CC1101: ST7789 170x320 physical, run at rotation 3. */
+#define SCR_W 320
+#define SCR_H 170
+#else
+/* M5Stack Cardputer. */
 #define SCR_W 240
 #define SCR_H 135
+#endif
 #define STATUS_H 12
 #define FOOTER_H 10
 #define BODY_Y   (STATUS_H)

@@ -17,9 +17,11 @@
 #include <SD.h>
 #include <esp_heap_caps.h>
 
-/* Stream frame in scanline chunks — only 480 bytes of buffer needed
- * instead of 64KB. Same wire format: JSON header then raw RGB565. */
-static uint16_t s_line[240];  /* one scanline = 480 bytes */
+/* Stream frame in scanline chunks — only one row of buffer needed
+ * instead of a full framebuffer. Same wire format: JSON header then
+ * raw RGB565. Sized to SCR_W so the whole panel width streams on
+ * either board. */
+static uint16_t s_line[SCR_W];  /* one scanline = SCR_W * 2 bytes */
 static bool s_streaming = false;
 static uint32_t s_last_frame_ms = 0;
 static const uint32_t FRAME_INTERVAL_MS = 100;  /* 10 fps */
@@ -29,13 +31,14 @@ bool g_trident_cdc_active = false;
 static void send_frame(void)
 {
     auto &d = M5Cardputer.Display;
-    const int frame_bytes = 240 * 135 * 2;
-    Serial.printf("{\"evt\":\"frame\",\"w\":240,\"h\":135,\"fmt\":\"rgb565\",\"len\":%d}\n", frame_bytes);
-    for (int y = 0; y < 135; y++) {
-        d.readRect(0, y, 240, 1, s_line);
+    const int frame_bytes = SCR_W * SCR_H * 2;
+    Serial.printf("{\"evt\":\"frame\",\"w\":%d,\"h\":%d,\"fmt\":\"rgb565\",\"len\":%d}\n",
+                  SCR_W, SCR_H, frame_bytes);
+    for (int y = 0; y < SCR_H; y++) {
+        d.readRect(0, y, SCR_W, 1, s_line);
         /* Swap to big-endian — TRIDENT expects BE, ESP32-S3 is LE. */
-        for (int i = 0; i < 240; i++) s_line[i] = __builtin_bswap16(s_line[i]);
-        Serial.write(reinterpret_cast<const uint8_t *>(s_line), 480);
+        for (int i = 0; i < SCR_W; i++) s_line[i] = __builtin_bswap16(s_line[i]);
+        Serial.write(reinterpret_cast<const uint8_t *>(s_line), SCR_W * 2);
     }
 }
 
