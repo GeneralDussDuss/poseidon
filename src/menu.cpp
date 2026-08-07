@@ -18,7 +18,13 @@
 #include <Preferences.h>
 
 /* ---- menu render style: NVS-backed terminal/carousel toggle ---- */
-static menu_style_t s_style        = MENU_STYLE_TERMINAL;
+#if defined(POSEIDON_BOARD_TEMBED)
+#define MENU_STYLE_DEFAULT MENU_STYLE_CAROUSEL
+#else
+#define MENU_STYLE_DEFAULT MENU_STYLE_TERMINAL
+#endif
+
+static menu_style_t s_style        = MENU_STYLE_DEFAULT;
 static bool         s_style_loaded = false;
 
 menu_style_t menu_style_get(void)
@@ -26,9 +32,9 @@ menu_style_t menu_style_get(void)
     if (!s_style_loaded) {
         Preferences p;
         if (p.begin("pui", true)) {
-            uint8_t v = p.getUChar("mnustyle", (uint8_t)MENU_STYLE_TERMINAL);
+            uint8_t v = p.getUChar("mnustyle", (uint8_t)MENU_STYLE_DEFAULT);
             p.end();
-            if (v >= MENU_STYLE__COUNT) v = MENU_STYLE_TERMINAL;
+            if (v >= MENU_STYLE__COUNT) v = MENU_STYLE_DEFAULT;
             s_style = (menu_style_t)v;
         }
         s_style_loaded = true;
@@ -38,7 +44,7 @@ menu_style_t menu_style_get(void)
 
 void menu_style_set(menu_style_t s)
 {
-    if (s >= MENU_STYLE__COUNT) s = MENU_STYLE_TERMINAL;
+    if (s >= MENU_STYLE__COUNT) s = MENU_STYLE_DEFAULT;
     s_style        = s;
     s_style_loaded = true;
     Preferences p;
@@ -1083,8 +1089,8 @@ static void draw_menu_anim(const menu_node_t *parent, int cursor)
     int n = count_children(parent);
     if (n <= 0) return;
 
-    const int rows    = 7;
-    const int row_h   = 13;
+    const int rows    = MENU_ROWS;
+    const int row_h   = MENU_ROW_H;
     const int first_y = BODY_Y + 18;
     const int visible = (n < rows) ? n : rows;
     const int last_row_bottom = first_y + visible * row_h;
@@ -1142,8 +1148,8 @@ static void draw_menu(const menu_node_t *parent, int cursor)
 
     int n = count_children(parent);
 
-    const int rows       = 7;
-    const int row_h      = 13;
+    const int rows       = MENU_ROWS;
+    const int row_h      = MENU_ROW_H;
     const int first_y    = BODY_Y + 18;
     int first = cursor - rows / 2;
     if (first < 0) first = 0;

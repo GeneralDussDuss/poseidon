@@ -31,6 +31,8 @@
 #define BODY_Y   (STATUS_H)
 #define BODY_H   (SCR_H - STATUS_H - FOOTER_H)
 #define FOOTER_Y (SCR_H - FOOTER_H)
+#define MENU_ROW_H 13
+#define MENU_ROWS  (BODY_H / MENU_ROW_H)
 
 /* ---- build info ---- */
 /* POSEIDON_VERSION comes from -D in platformio.ini; src/version.h
