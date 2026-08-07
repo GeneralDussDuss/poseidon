@@ -27,7 +27,14 @@
 #define SCR_H 135
 #endif
 #define STATUS_H 12
+/* No footer on the T-Embed: its only content was a keyboard key legend,
+ * which is meaningless on an encoder-driven board. Zeroing the height
+ * gives those rows back to the body rather than reserving dead space. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define FOOTER_H 0
+#else
 #define FOOTER_H 10
+#endif
 #define BODY_Y   (STATUS_H)
 #define BODY_H   (SCR_H - STATUS_H - FOOTER_H)
 #define FOOTER_Y (SCR_H - FOOTER_H)

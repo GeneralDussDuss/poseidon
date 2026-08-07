@@ -230,6 +230,13 @@ void ui_status_invalidate(void) { s_st_valid = false; }
 
 void ui_draw_footer(const char *hints)
 {
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* No footer on this board (FOOTER_H is 0). Every caller passes a
+     * keyboard key legend, which is noise without a keyboard, and drawing
+     * into a zero-height strip would corrupt the last body row. */
+    (void)hints;
+    return;
+#else
     auto &d = M5Cardputer.Display;
     vgradient(0, FOOTER_Y + 1, SCR_W, FOOTER_H - 1, COL_FOOTER_BG, 0x0000);
     d.drawFastHLine(0, FOOTER_Y, SCR_W, COL_RULE);
@@ -256,6 +263,7 @@ void ui_draw_footer(const char *hints)
         trunc[n + 1] = '\0';
         d.print(trunc);
     }
+#endif /* !POSEIDON_BOARD_TEMBED */
 }
 
 void ui_toast(const char *msg, uint16_t color, uint32_t ms)

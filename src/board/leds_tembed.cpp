@@ -50,16 +50,27 @@ static void ws2812_rmt_init(void)
     ch_cfg.resolution_hz     = WS_RESOLUTION_HZ;
     ch_cfg.mem_block_symbols = 64;
     ch_cfg.trans_queue_depth = 4;
-    if (rmt_new_tx_channel(&ch_cfg, &s_chan) != ESP_OK) return;
+    esp_err_t e = rmt_new_tx_channel(&ch_cfg, &s_chan);
+    if (e != ESP_OK) {
+        Serial.printf("[leds] rmt_new_tx_channel FAILED: %s\n", esp_err_to_name(e));
+        return;
+    }
 
     rmt_copy_encoder_config_t enc_cfg = {};
-    if (rmt_new_copy_encoder(&enc_cfg, &s_encoder) != ESP_OK) {
+    e = rmt_new_copy_encoder(&enc_cfg, &s_encoder);
+    if (e != ESP_OK) {
+        Serial.printf("[leds] rmt_new_copy_encoder FAILED: %s\n", esp_err_to_name(e));
         rmt_del_channel(s_chan);
         s_chan = nullptr;
         return;
     }
-    if (rmt_enable(s_chan) != ESP_OK) return;
+    e = rmt_enable(s_chan);
+    if (e != ESP_OK) {
+        Serial.printf("[leds] rmt_enable FAILED: %s\n", esp_err_to_name(e));
+        return;
+    }
     s_rmt_ready = true;
+    Serial.printf("[leds] RMT ready on GPIO %d, %d LEDs\n", TE_LED_PIN, TE_LED_COUNT);
 }
 
 static inline void ws2812_bit_item(rmt_symbol_word_t *item, bool one)

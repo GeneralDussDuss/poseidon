@@ -439,14 +439,18 @@ void carousel_run_submenu(const menu_node_t *parent)
             continue;
         }
 
-        if (k == ';' || k == PK_LEFT) {
+        /* Accept UP/DOWN as well as LEFT/RIGHT: a rotary encoder emits
+         * UP/DOWN, and on this carousel both axes mean prev/next item.
+         * Without UP/DOWN here the knob does nothing in the carousel while
+         * working fine in list screens, which is exactly what happened. */
+        if (k == ';' || k == PK_LEFT || k == PK_UP) {
             cursor = (cursor - 1 + n) % n;
             slide_dir   = -1;
             slide_start = now;
             animating   = true;
             continue;
         }
-        if (k == '.' || k == PK_RIGHT) {
+        if (k == '.' || k == PK_RIGHT || k == PK_DOWN) {
             cursor = (cursor + 1) % n;
             slide_dir   = +1;
             slide_start = now;

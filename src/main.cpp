@@ -117,8 +117,10 @@ void setup()
         M5.begin(cfg);
         tembed_display_init();
         tembed_input_begin();
-        leds_begin();
-        tembed_speaker_init();
+        /* leds_begin() and tembed_speaker_init() deliberately run LATER,
+         * just after Serial.begin(). Both emit diagnostics, and anything
+         * printed before the USB CDC host attaches is silently lost — which
+         * is precisely why the LED RMT failure was invisible for two flashes. */
     }
 #else
     auto cfg = M5.config();
@@ -139,6 +141,14 @@ void setup()
     delay(100);
     Serial.printf("\n[POSEIDON] %s (%s) boot\n",
                   poseidon_version(), poseidon_build_date());
+
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Now that serial is live, bring up the ring and the speaker so their
+     * init diagnostics are actually visible. */
+    leds_begin();
+    tembed_speaker_init();
+    leds_event(LED_EVENT_BOOT);
+#endif
     /* bcn_spam_dump_crashtrace removed — only existed in stash's
      * wifi_beacon_spam.cpp which we reverted to HEAD. */
     /* Confirm board detection — Adv uses TCA8418 I2C keyboard (G3-G7 free
