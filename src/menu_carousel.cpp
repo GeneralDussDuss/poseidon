@@ -40,6 +40,9 @@
 #include "theme.h"
 #include "app.h"
 #include "screensaver.h"
+#if defined(POSEIDON_BOARD_TEMBED)
+#include "board/leds_tembed.h"
+#endif
 #include <M5Cardputer.h>
 #include <Arduino.h>
 #include <ctype.h>
@@ -53,7 +56,13 @@
 extern const menu_node_t *g_current_feature_item;
 extern void               ui_show_current_help(void);
 
+/* Second copy of the footer hint strip (menu.cpp has its own). On an
+ * encoder-driven board the Cardputer key names are noise. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define CAROUSEL_FOOTER "turn=browse   press=open   side=back"
+#else
 #define CAROUSEL_FOOTER ";/.=swipe  ENTER=open  =help  letter=jump  `=back"
+#endif
 
 /* Reserved band at the bottom of the body for the position-dot row,
  * below the card frame proper. Shared between layout and dot drawing
@@ -361,6 +370,13 @@ void carousel_run_submenu(const menu_node_t *parent)
     while (true) {
         uint32_t now = millis();
 
+#if defined(POSEIDON_BOARD_TEMBED)
+        /* Drive the encoder-ring animation. Self-rate-limits internally,
+         * so calling it every pass is cheap. Without this the ring sits
+         * at whatever leds_begin() left it at. */
+        leds_tick();
+#endif
+
         /* Animation tick — re-paint the card with a decaying x-offset
          * each frame until the 200 ms window expires. */
         if (animating) {
@@ -396,7 +412,20 @@ void carousel_run_submenu(const menu_node_t *parent)
             continue;
         }
 
-        if (k == PK_ESC || k == '`') return;
+        if (k == PK_ESC || k == '`') {
+#if defined(POSEIDON_BOARD_TEMBED)
+            leds_event(LED_EVENT_BACK);
+#endif
+            return;
+        }
+
+#if defined(POSEIDON_BOARD_TEMBED)
+        /* Ring reacts to navigation: chase in the direction of travel,
+         * flash on open. */
+        if      (k == PK_UP   || k == ';') { leds_event(LED_EVENT_NAV_CCW); }
+        else if (k == PK_DOWN || k == '.') { leds_event(LED_EVENT_NAV_CW); }
+        else if (k == PK_ENTER)            { leds_event(LED_EVENT_SELECT); }
+#endif
 
         /* Help — same key as terminal mode. Delegates to ui_show_current_help. */
         if (k == '=' || k == '?') {

@@ -2,21 +2,21 @@
  * leds_tembed - WS2812B ring driver + theme-driven animations for the
  * T-Embed CC1101's 8-LED rotary-encoder ring (GPIO 14, GRB order).
  *
- * FastLED was not present in .pio/libdeps/tembed (checked before writing
- * this), so the WS2812B bitstream is generated directly on the ESP32-S3's
- * RMT peripheral using the legacy driver/rmt.h API (rmt_config /
- * rmt_write_items). That header is present for esp32s3 in this project's
- * pinned framework-arduinoespressif32-libs build (idf-release_v5.5) —
- * it compiles with a deprecation #warning, not an error.
+ * FastLED was not present in .pio/libdeps/tembed, so the WS2812B bitstream
+ * is generated directly on the ESP32-S3's RMT peripheral.
  *
- * Clock: legacy RMT defaults to the APB clock (80MHz) as its source; we
- * set clk_div=4 for a 50ns tick, giving:
- *   T0H 400ns -> 8 ticks   T0L 850ns -> 17 ticks
- *   T1H 800ns -> 16 ticks  T1L 450ns -> 9 ticks
- * all within WS2812B's documented tolerance. Reset (>50us low) is
- * satisfied by idle_output_en + idle_level LOW after each frame; frames
- * are spaced >=16ms apart by leds_tick()'s own rate limit, far longer
- * than the 50us floor.
+ * MUST use the NEW RMT driver (driver/rmt_tx.h). An earlier version of this
+ * file used the legacy driver/rmt.h API and bricked every boot:
+ *   E rmt(legacy): CONFLICT! driver_ng is not allowed to be used with the
+ *   legacy driver  -> abort() -> reboot loop, black screen.
+ * ESP-IDF permits exactly one of the two APIs per firmware image, and
+ * src/cc1101_rmt.cpp and src/features/ir_learn.cpp already use the new one.
+ *
+ * Resolution 10MHz gives a 100ns tick:
+ *   T0H 400ns -> 4 ticks   T0L 850ns -> 8 ticks
+ *   T1H 800ns -> 8 ticks   T1L 450ns -> 5 ticks
+ * all inside WS2812B tolerance. The >50us reset gap is satisfied by
+ * leds_tick()'s own >=16ms frame spacing.
  */
 #if defined(POSEIDON_BOARD_TEMBED)
 
@@ -25,34 +25,44 @@
 #include <Arduino.h>
 #include <math.h>
 #include <string.h>
-#include <driver/rmt.h>
+#include <driver/rmt_tx.h>
 
 #include "board_tembed.h"
 #include "../theme.h"
 
 /* ================= WS2812B / RMT bitstream driver ================= */
 
-#define WS_RMT_CHANNEL   RMT_CHANNEL_0
-#define WS_TICK_T0H       8   /* 400ns @ 50ns/tick */
-#define WS_TICK_T0L      17   /* 850ns */
-#define WS_TICK_T1H      16   /* 800ns */
-#define WS_TICK_T1L       9   /* 450ns */
+#define WS_RESOLUTION_HZ 10000000  /* 100ns per tick */
+#define WS_TICK_T0H       4        /* 400ns */
+#define WS_TICK_T0L       8        /* 850ns */
+#define WS_TICK_T1H       8        /* 800ns */
+#define WS_TICK_T1L       5        /* 450ns */
 
-static bool s_rmt_ready = false;
+static bool                  s_rmt_ready = false;
+static rmt_channel_handle_t  s_chan      = nullptr;
+static rmt_encoder_handle_t  s_encoder   = nullptr;
 
 static void ws2812_rmt_init(void)
 {
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX((gpio_num_t)TE_LED_PIN, WS_RMT_CHANNEL);
-    config.clk_div = 4;   /* 50ns tick @ APB 80MHz */
-    config.tx_config.idle_output_en = true;
-    config.tx_config.idle_level     = RMT_IDLE_LEVEL_LOW;
-    if (rmt_config(&config) != ESP_OK) return;
-    if (rmt_driver_install(config.channel, 0, 0) != ESP_OK) return;
-    rmt_set_source_clk(WS_RMT_CHANNEL, RMT_BASECLK_APB);
+    rmt_tx_channel_config_t ch_cfg = {};
+    ch_cfg.gpio_num          = (gpio_num_t)TE_LED_PIN;
+    ch_cfg.clk_src           = RMT_CLK_SRC_DEFAULT;
+    ch_cfg.resolution_hz     = WS_RESOLUTION_HZ;
+    ch_cfg.mem_block_symbols = 64;
+    ch_cfg.trans_queue_depth = 4;
+    if (rmt_new_tx_channel(&ch_cfg, &s_chan) != ESP_OK) return;
+
+    rmt_copy_encoder_config_t enc_cfg = {};
+    if (rmt_new_copy_encoder(&enc_cfg, &s_encoder) != ESP_OK) {
+        rmt_del_channel(s_chan);
+        s_chan = nullptr;
+        return;
+    }
+    if (rmt_enable(s_chan) != ESP_OK) return;
     s_rmt_ready = true;
 }
 
-static inline void ws2812_bit_item(rmt_item32_t *item, bool one)
+static inline void ws2812_bit_item(rmt_symbol_word_t *item, bool one)
 {
     item->level0    = 1;
     item->duration0 = one ? WS_TICK_T1H : WS_TICK_T0H;
@@ -64,7 +74,7 @@ static inline void ws2812_bit_item(rmt_item32_t *item, bool one)
 static void ws2812_show(const uint8_t *grb)
 {
     if (!s_rmt_ready) return;
-    static rmt_item32_t items[TE_LED_COUNT * 24];
+    static rmt_symbol_word_t items[TE_LED_COUNT * 24];
     size_t idx = 0;
     for (int led = 0; led < TE_LED_COUNT; led++) {
         for (int by = 0; by < 3; by++) {
@@ -74,8 +84,12 @@ static void ws2812_show(const uint8_t *grb)
             }
         }
     }
-    rmt_write_items(WS_RMT_CHANNEL, items, (int)idx, true);
-    rmt_wait_tx_done(WS_RMT_CHANNEL, portMAX_DELAY);
+    rmt_transmit_config_t tx_cfg = {};
+    tx_cfg.loop_count = 0;
+    if (rmt_transmit(s_chan, s_encoder, items,
+                     idx * sizeof(rmt_symbol_word_t), &tx_cfg) == ESP_OK) {
+        rmt_tx_wait_all_done(s_chan, 100);
+    }
 }
 
 /* ================= colour helpers ================= */
