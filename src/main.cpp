@@ -15,6 +15,7 @@
 #include "serial_test.h"
 #include "heap_budget.h"
 #include "utility/Keyboard/KeyboardReader/TCA8418.h"
+#include "board/panel_tembed.h"
 
 /* Strong override: tell Arduino-ESP32 core that BT is in use. Without
  * this the core calls esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)
@@ -99,6 +100,15 @@ void setup()
     digitalWrite(3, LOW);
     delay(5);
 
+#if defined(POSEIDON_BOARD_TEMBED)
+    {
+        auto cfg = M5.config();
+        cfg.internal_spk = false;
+        cfg.internal_mic = false;
+        M5.begin(cfg);
+        tembed_display_init();
+    }
+#else
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
     /* Safety belt: force the I2C (TCA8418) keyboard reader even if
@@ -110,6 +120,7 @@ void setup()
      * LoRa NSS (pulled high) and won't fight CC1101 GDO0 (input). */
     pinMode(5, INPUT_PULLUP);
     M5Cardputer.Display.setRotation(1);  /* landscape, keyboard at the bottom */
+#endif
     Serial.begin(115200);
     hb_install_esp_query();
     heap_census();
