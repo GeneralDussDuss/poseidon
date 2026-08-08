@@ -380,10 +380,12 @@ static const menu_node_t MENU_BLE[] = {
       "Advertises as a BLE HID keyboard with a random disguise name. Pair from "
       "your target device (settings -> Bluetooth). Once paired: T=type freeform, "
       "R=rickroll, L=lock workstation." },
-    { 't', "Tracker", "Detect AirTag/SmartTag/Tile", nullptr, feat_ble_tracker,
-      "Scans for Apple Find My, Samsung SmartTag, and Tile trackers. Shows "
-      "distance class (CLOSE/NEAR/FAR), signal bar, MAC. New detection "
-      "triggers a red border flash + two-tone chirp." },
+    { 't', "Tracker", "Detect + beep Find My / DULT", nullptr, feat_ble_tracker,
+      "Scans for Apple Find My, DULT/Google, Samsung SmartTag and Tile. Shows "
+      "distance class, signal bar, and whether the tag is SEPARATED from its "
+      "owner. Select one and long-press for actions: play sound, stop sound, "
+      "and a silent DULT read of maker/model/firmware/battery. Sound needs a "
+      "separated tag and does not exist on Tile or SmartTag." },
     { 'f', "Finder", "Hunt a rogue tracker (geiger)", nullptr, feat_ble_finder,
       "Pick a tracker from the list, then HUNT mode turns the screen into a "
       "big proximity meter. Beep rate speeds up as you get closer, like a "
@@ -721,9 +723,11 @@ static const menu_node_t MENU_HUNT[] = {
       "Pick a tracker from the list, then HUNT mode turns the screen into a "
       "big proximity meter. Beep rate speeds up as you get closer, like a "
       "metal detector. Ideal for locating a surveillance tracker on you." },
-    { 't', "Tracker scan", "Detect AirTag/SmartTag/Tile", nullptr, feat_ble_tracker,
-      "Passive scan for Apple Find My, Samsung SmartTag, and Tile. Shows "
-      "distance class + signal bar + MAC. Feeds the BLE tracker hunt." },
+    { 't', "Tracker scan", "Detect + beep Find My / DULT", nullptr, feat_ble_tracker,
+      "Passive scan for Apple Find My, DULT/Google, Samsung SmartTag and Tile. "
+      "Shows distance class, signal bar, and separated-from-owner state. Select "
+      "a tag and long-press to play its anti-stalking sound or silently read "
+      "its DULT identity. Feeds the BLE tracker hunt." },
     { 'g', "Sub-GHz finder", "CC1101 hot/cold locator", nullptr, feat_subghz_finder,
       "Walk around — big thermometer bar goes from blue (cold/far) to red "
       "(hot/close). Beep rate increases near the source. Find sub-GHz key "

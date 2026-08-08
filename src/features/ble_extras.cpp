@@ -9,80 +9,59 @@
 #include <NimBLEDevice.h>
 #include <SD.h>
 #include "../sd_helper.h"
+#include "ble_dult.h"
 #include <esp_random.h>
 
-/* ========== Tracker detector ========== */
+/* ========== Tracker detector ==========
+ *
+ * Detect, select, then act. The advertisement alone gives type, separated
+ * state and battery for free; selecting a tracker opens the DULT target
+ * screen where the non-owner sound trigger and the silent DULT info reads
+ * live (see ble_dult.cpp). */
 
 struct tracker_t {
-    uint8_t  addr[6];
-    char     type[12];
-    int8_t   rssi;
+    dult_target_t t;
     uint32_t first_seen;
     uint32_t last_seen;
 };
 #define TRACKER_MAX 16
+#define TRACKER_ROWS ((BODY_H - 24) / 13 > 8 ? 8 : (BODY_H - 24) / 13)
 
 static tracker_t s_trackers[TRACKER_MAX];
 static volatile int s_tracker_count = 0;
-
-static bool is_tracker(const NimBLEAdvertisedDevice *d, char *type_out)
-{
-    if (d->haveManufacturerData()) {
-        std::string md = d->getManufacturerData();
-        if (md.size() >= 3) {
-            uint16_t cid = (uint8_t)md[0] | ((uint8_t)md[1] << 8);
-            if (cid == 0x004C && (uint8_t)md[2] == 0x12) { strcpy(type_out, "AirTag");   return true; }
-            if (cid == 0x0075)                           { strcpy(type_out, "SmartTag"); return true; }
-        }
-    }
-    if (d->haveServiceUUID()) {
-        for (int i = 0; i < d->getServiceUUIDCount(); ++i) {
-            NimBLEUUID u = d->getServiceUUID(i);
-            if (u.equals(NimBLEUUID((uint16_t)0xFEED)) ||
-                u.equals(NimBLEUUID((uint16_t)0xFD84))) {
-                strcpy(type_out, "Tile");
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 /* NimBLE 2.x: callback base class renamed to NimBLEScanCallbacks and
  * onResult now takes a const pointer. Address bytes via getBase()->val. */
 class tracker_cb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice *d) override {
-        char type[12] = {0};
-        if (!is_tracker(d, type)) return;
-        NimBLEAddress _addr = d->getAddress();   /* bind: getAddress() returns by value */
-        const uint8_t *a = _addr.getBase()->val;
+        dult_target_t nt;
+        if (!dult_classify(d, &nt)) return;
         for (int i = 0; i < s_tracker_count; ++i) {
-            if (memcmp(s_trackers[i].addr, a, 6) == 0) {
+            if (memcmp(s_trackers[i].t.addr, nt.addr, 6) == 0) {
                 s_trackers[i].last_seen = millis();
-                if (d->getRSSI() > s_trackers[i].rssi) s_trackers[i].rssi = d->getRSSI();
+                /* Refresh the volatile fields: separation state can flip
+                 * mid-session, which is exactly the transition we care
+                 * about, and it must not be masked by first-seen data. */
+                s_trackers[i].t.state   = nt.state;
+                s_trackers[i].t.battery = nt.battery;
+                if (nt.hint != DULT_PROTO_NONE) s_trackers[i].t.hint = nt.hint;
+                if (nt.rssi > s_trackers[i].t.rssi) s_trackers[i].t.rssi = nt.rssi;
                 return;
             }
         }
         int n = s_tracker_count;
         if (n >= TRACKER_MAX) return;
-        tracker_t &t = s_trackers[n];
-        memcpy(t.addr, a, 6);
-        strncpy(t.type, type, sizeof(t.type) - 1);
-        t.rssi = d->getRSSI();
-        t.first_seen = millis();
-        t.last_seen = millis();
-        s_tracker_count = n + 1;   /* publish LAST — slot fully filled above */
+        s_trackers[n].t = nt;
+        s_trackers[n].first_seen = millis();
+        s_trackers[n].last_seen  = millis();
+        s_tracker_count = n + 1;   /* publish LAST - slot fully filled above */
     }
 };
 static tracker_cb s_tracker_cb_obj;
 static tracker_cb *s_tracker_cb = &s_tracker_cb_obj;
 
-void feat_ble_tracker(void)
+static void tracker_scan_start(void)
 {
-    radio_switch(RADIO_BLE);
-    s_tracker_count = 0;
-    /* s_tracker_cb is static-allocated. */
-
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(s_tracker_cb, true);
     scan->setMaxResults(0);   /* POS-AUDIT-011 */
@@ -90,18 +69,28 @@ void feat_ble_tracker(void)
     scan->setInterval(45);
     scan->setWindow(30);
     scan->start(0, false);  /* duration=0 (indefinite), is_continue=false */
+}
+
+void feat_ble_tracker(void)
+{
+    radio_switch(RADIO_BLE);
+    s_tracker_count = 0;
+    /* s_tracker_cb is static-allocated. */
+    tracker_scan_start();
 
     ui_clear_body();
-    ui_draw_footer("`=back");
+    ui_draw_footer("turn=pick  hold=actions  back=exit");
 
     size_t last_alert_count = 0;
     int last_count = -1;
+    int cursor = 0, top = 0;
+    bool force_redraw = false;
     uint32_t last = 0;
     while (true) {
-        if (millis() - last > 400) {
+        if (millis() - last > 400 || force_redraw) {
             last = millis();
             auto &d = M5Cardputer.Display;
-            if (s_tracker_count != last_count) {
+            if (s_tracker_count != last_count || force_redraw) {
                 ui_clear_body();
                 d.setTextColor(T_ACCENT, T_BG);
                 d.setCursor(4, BODY_Y + 2);
@@ -110,38 +99,65 @@ void feat_ble_tracker(void)
                 if (s_tracker_count == 0) {
                     d.setTextColor(T_DIM, T_BG);
                     d.setCursor(4, BODY_Y + 24);
-                    d.print("scanning for AirTag/SmartTag/Tile");
+                    d.print("scanning for Find My / DULT / Tile / SmartTag");
                 }
                 last_count = s_tracker_count;
+                force_redraw = false;
             }
 
             if (s_tracker_count > 0) {
+                if (cursor >= s_tracker_count) cursor = s_tracker_count - 1;
+                if (cursor < top) top = cursor;
+                if (cursor >= top + TRACKER_ROWS) top = cursor - TRACKER_ROWS + 1;
+
                 /* Distance estimate from RSSI: empirical free-space
-                 *   d ≈ 10 ^ ((tx_power - rssi) / (10 * N))
-                 * with tx_power ≈ -59 dBm @ 1m and path-loss N=2.
+                 *   d ~ 10 ^ ((tx_power - rssi) / (10 * N))
+                 * with tx_power ~ -59 dBm @ 1m and path-loss N=2.
                  * Render as a proximity ring (CLOSE / NEAR / FAR). */
-                for (int i = 0; i < s_tracker_count && i < 6; ++i) {
-                    const tracker_t &t = s_trackers[i];
-                    int y = BODY_Y + 18 + i * 13;
+                for (int r = 0; r < TRACKER_ROWS; ++r) {
+                    int i = top + r;
+                    int y = BODY_Y + 18 + r * 13;
+                    if (i >= s_tracker_count) {
+                        d.fillRect(0, y, SCR_W, 12, T_BG);
+                        continue;
+                    }
+                    const dult_target_t &t = s_trackers[i].t;
+                    const bool sel = (i == cursor);
+                    uint16_t bg = sel ? T_SEL_BG : T_BG;
+                    d.fillRect(0, y - 1, SCR_W, 13, bg);
 
                     const char *prox;
                     uint16_t prox_col;
                     if (t.rssi > -55)      { prox = "CLOSE"; prox_col = T_BAD; }
-                    else if (t.rssi > -72) { prox = "NEAR ";  prox_col = T_WARN; }
-                    else                   { prox = "FAR  ";  prox_col = T_DIM; }
+                    else if (t.rssi > -72) { prox = "NEAR "; prox_col = T_WARN; }
+                    else                   { prox = "FAR  "; prox_col = T_DIM; }
 
-                    ui_text_w(4, y, 32, prox_col, "%-5s", prox);
-                    ui_text_w(36, y, 104, T_BAD, "%-9s %ddB", t.type, t.rssi);
-                    ui_text_w(140, y, 60, T_DIM, "%02X:%02X %lus",
-                              t.addr[4], t.addr[5],
-                              (unsigned long)((millis() - t.first_seen) / 1000));
+                    d.setTextColor(prox_col, bg);
+                    d.setCursor(4, y); d.print(prox);
+                    d.setTextColor(sel ? T_ACCENT : T_BAD, bg);
+                    d.setCursor(38, y); d.printf("%-8s", dult_kind_name(t.kind));
+                    /* Separated state is the single most useful thing on
+                     * this screen: sound only works when separated. */
+                    uint16_t st_col = (t.state == DULT_STATE_SEPARATED) ? T_GOOD
+                                    : (t.state == DULT_STATE_NEAR_OWNER) ? T_WARN : T_DIM;
+                    d.setTextColor(st_col, bg);
+                    d.setCursor(94, y);
+                    d.print(t.state == DULT_STATE_SEPARATED  ? "SEP "
+                          : t.state == DULT_STATE_NEAR_OWNER ? "ownr"
+                                                             : "  ? ");
+                    d.setTextColor(T_DIM, bg);
+                    d.setCursor(126, y);
+                    d.printf("%ddB %02X:%02X %lus", t.rssi, t.addr[1], t.addr[0],
+                             (unsigned long)((millis() - s_trackers[i].first_seen) / 1000));
 
                     /* Signal bar (small). */
                     int pct = (t.rssi + 100) * 100 / 70;
-                    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-                    d.drawRect(200, y + 1, 36, 6, T_DIM);
-                    d.fillRect(201, y + 2, 34, 4, T_BG);
-                    d.fillRect(201, y + 2, 34 * pct / 100, 4, prox_col);
+                    if (pct < 0)   pct = 0;
+                    if (pct > 100) pct = 100;
+                    int bx = SCR_W - 42;
+                    d.drawRect(bx, y + 1, 36, 6, T_DIM);
+                    d.fillRect(bx + 1, y + 2, 34, 4, bg);
+                    d.fillRect(bx + 1, y + 2, 34 * pct / 100, 4, prox_col);
                 }
                 /* Alert on new detection: flash screen border + chirp. */
                 if ((size_t)s_tracker_count > last_alert_count) {
@@ -169,8 +185,22 @@ void feat_ble_tracker(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        if (k == PK_UP   || k == ';') { if (cursor > 0) cursor--; force_redraw = true; }
+        if (k == PK_DOWN || k == '.') { if (cursor + 1 < s_tracker_count) cursor++; force_redraw = true; }
+        if ((k == PK_ACTIONS || k == PK_ENTER) && s_tracker_count > 0) {
+            /* NimBLE cannot open a connection while a discovery is
+             * running, and the sound path needs one. Stop, act, resume. */
+            dult_target_t sel = s_trackers[cursor].t;
+            NimBLEDevice::getScan()->stop();
+            dult_target_screen(&sel);
+            tracker_scan_start();
+            ui_screen_enter();
+            ui_draw_footer("turn=pick  hold=actions  back=exit");
+            last_count = -1;
+            force_redraw = true;
+        }
     }
-    scan->stop();
+    NimBLEDevice::getScan()->stop();
 }
 
 /* ========== BLE sniffer → CSV ========== */
