@@ -3,6 +3,8 @@
  * with gradient bars, pulse indicator, and accent underlines.
  */
 #include "ui.h"
+#include "ui/plist.h"
+#include "input.h"
 #include "theme.h"
 #include "input.h"
 #include "c5_cmd.h"
@@ -1056,5 +1058,55 @@ void ui_matrix_rain(int x, int y, int w, int h, uint16_t color)
                 d.fillRect(x + c * col_w, y, col_w, h, T_BG);
             }
         }
+    }
+}
+
+/* ---- encoder-driven action picker (see ui.h) ---- */
+
+int ui_action_menu(const char *title, const char *const *labels, int n)
+{
+    if (n <= 0) return -1;
+
+    auto &d = M5Cardputer.Display;
+    plist_t m;
+    const int row_h = MENU_ROW_H;
+    const int rows  = (BODY_H - 20) / row_h;
+    plist_init(&m, n, rows > 0 ? rows : 1);
+
+    bool full = true;
+    for (;;) {
+        if (full) {
+            ui_screen_enter();
+            ui_draw_status("", "");
+            d.setTextSize(1);
+            d.setTextColor(T_ACCENT, T_BG);
+            d.setCursor(6, BODY_Y + 4);
+            d.print(title ? title : "ACTIONS");
+            d.drawFastHLine(0, BODY_Y + 14, SCR_W, COL_RULE);
+            full = false;
+        }
+
+        /* Rows are painted opaquely every pass: no cached region can drift
+         * out of sync with what is actually on the panel. */
+        const int top_y = BODY_Y + 18;
+        const int vis   = plist_visible_count(&m);
+        for (int r = 0; r < vis; r++) {
+            const int idx = m.top + r;
+            const int y   = top_y + r * row_h;
+            const bool on = (idx == m.sel);
+            d.fillRect(4, y, SCR_W - 8, row_h, on ? T_SEL_BG : T_BG);
+            if (on) d.drawRoundRect(4, y, SCR_W - 8, row_h, 2, T_SEL_BD);
+            d.setTextSize(1);
+            d.setTextColor(on ? T_ACCENT : T_FG, on ? T_SEL_BG : T_BG);
+            d.setCursor(10, y + 3);
+            d.print(labels[idx]);
+        }
+
+        uint16_t k = input_poll();
+        if (k == PK_NONE) { delay(10); continue; }
+        if (k == PK_ESC)  return -1;
+        if (k == PK_ENTER) return m.sel;
+        if (k == PK_UP   || k == ';') { plist_move(&m, -1); }
+        if (k == PK_DOWN || k == '.') { plist_move(&m,  1); }
     }
 }

@@ -154,3 +154,12 @@ void ui_dashboard_chrome(const char *title, bool flash_now);
 /* Cyan frequency bars. Anchor them anywhere in the body. Bar values
  * random-walk internally so consecutive calls produce smooth motion. */
 void ui_freq_bars(int x, int y, int bar_w, int bar_h_max);
+
+/* Encoder-driven action picker.
+ *
+ * On a board with no keyboard the only way to reach a feature's secondary
+ * actions is a menu. Call this from a feature when PK_ACTIONS arrives:
+ * it draws a modal list, lets the encoder scroll it, and returns the chosen
+ * index, or -1 if the user backed out. Restores nothing — the caller should
+ * repaint its own screen afterwards, since this paints over the body. */
+int ui_action_menu(const char *title, const char *const *labels, int n);

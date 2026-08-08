@@ -178,8 +178,11 @@ extern void feat_wifi_clients(void);
  * screen — same hotkeys, same C5/local dispatch, no duplicate code. */
 void wifi_show_ap_details(const ap_t &a)
 {
-    ui_clear_body();
     auto &d = M5Cardputer.Display;
+    /* Repeatable so the actions menu (which paints over the body) can
+     * restore this screen when the user backs out of it. */
+    auto paint = [&]() {
+    ui_clear_body();
     d.setTextColor(T_ACCENT, T_BG);
     d.setCursor(4, BODY_Y + 2);  d.print("AP DETAILS");
     if (a.is_5g) {
@@ -203,11 +206,33 @@ void wifi_show_ap_details(const ap_t &a)
         ui_draw_footer("D=deauth X=bcast (via C5)  `=back");
     else
         ui_draw_footer("D=dth X=bcast L=clnt C=clone P=portal `=back");
+    };
+    paint();
 
     while (true) {
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder long-press opens the same actions as the letter hotkeys.
+         * On a keyboard-less board these were unreachable entirely, so the
+         * AP details screen was browse-only. Selecting an entry rewrites k
+         * and falls through to the existing dispatch below — one source of
+         * truth for what each action does. */
+        if (k == PK_ACTIONS) {
+            static const char *const acts[] = {
+                "Deauth this AP",
+                "Broadcast deauth",
+                "List clients",
+                "Clone AP",
+                "Evil portal",
+            };
+            static const char kmap[] = { 'd', 'x', 'l', 'c', 'p' };
+            int pick = ui_action_menu("AP ACTIONS", acts,
+                                      (int)(sizeof(kmap) / sizeof(kmap[0])));
+            if (pick < 0) { paint(); continue; }
+            k = (uint16_t)kmap[pick];
+        }
 
         switch ((char)tolower((int)k)) {
         case 'd':

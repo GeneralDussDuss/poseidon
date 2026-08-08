@@ -518,7 +518,11 @@ static void run_karma(void)
         switch (k) {
         case ';': case PK_UP:   if (cursor > 0) cursor--; break;
         case '.': case PK_DOWN: if (cursor + 1 < count) cursor++; break;
-        case PK_TAB:
+        /* PK_ACTIONS is the encoder long-press: on a keyboard-less board
+         * it is the ONLY way to reach a secondary action, and channel hop
+         * is what makes Karma work at all — clients probing on ch 6 never
+         * see a responder stuck on ch 1. */
+        case PK_TAB: case PK_ACTIONS:
             /* Manual channel hop. Karma is channel-bound — clients
              * probing on ch 6 won't see our response if we're sniffing
              * on ch 1. Operator picks the channel based on target. */
@@ -598,7 +602,11 @@ static void run_probe_sniff(void)
         switch (k) {
         case ';': case PK_UP:   if (cursor > 0) cursor--; break;
         case '.': case PK_DOWN: if (cursor + 1 < count) cursor++; break;
-        case PK_TAB:
+        /* PK_ACTIONS is the encoder long-press: on a keyboard-less board
+         * it is the ONLY way to reach a secondary action, and channel hop
+         * is what makes Karma work at all — clients probing on ch 6 never
+         * see a responder stuck on ch 1. */
+        case PK_TAB: case PK_ACTIONS:
             s_cur_channel = (uint8_t)((s_cur_channel % 11) + 1);
             esp_wifi_set_channel(s_cur_channel, WIFI_SECOND_CHAN_NONE);
             break;
