@@ -17,6 +17,7 @@
 #include "wifi_deauth_frame.h"
 #include "ble_db.h"
 #include "dhcp_cache.h"
+#include "../wifi_ie_fp.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 
@@ -32,6 +33,11 @@ struct cli_t {
      * preferred-network list. Reveals what networks it auto-joins. */
     char     ssids[CLI_SSID_MAX][33];
     uint8_t  ssid_n;
+    /* IE fingerprint from this client's probe requests — survives MAC
+     * randomization since it reads vendor IEs / capability bits, not the
+     * source address. Populated opportunistically in client_cb(); see
+     * wifi_ie_fp.h. 24 bytes. */
+    wifi_ie_fp_t fp;
 };
 
 static cli_t    s_clients[MAX_CLIENTS];
@@ -55,6 +61,14 @@ static int cli_find_or_add(const uint8_t *mac)
     memcpy(s_clients[idx].mac, mac, 6);
     s_count = idx + 1;
     return idx;
+}
+
+/* Find a tracked client by MAC without adding it. Returns index or -1. */
+static int cli_find(const uint8_t *mac)
+{
+    for (int i = 0; i < s_count; ++i)
+        if (memcmp(s_clients[i].mac, mac, 6) == 0) return i;
+    return -1;
 }
 
 /* #B1b: record an SSID this client probed for, if not already stored. */
@@ -84,6 +98,7 @@ static void client_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         const uint8_t *src = p + 10;
         uint8_t tag_id  = p[24];
         uint8_t tag_len = p[25];
+        int idx = -1;
         if (tag_id == 0 && tag_len > 0 && tag_len <= 32 &&
             pkt->rx_ctrl.sig_len >= 26U + tag_len) {
             char ssid[33];
@@ -93,13 +108,30 @@ static void client_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             for (uint8_t i = 0; i < tag_len; ++i)
                 if (ssid[i] < 0x20 || ssid[i] == 0x7F) { ok = false; break; }
             if (ok) {
-                int idx = cli_find_or_add(src);
+                idx = cli_find_or_add(src);
                 if (idx >= 0) {
                     s_clients[idx].rssi      = pkt->rx_ctrl.rssi;
                     s_clients[idx].last_seen = millis();
                     cli_add_probed_ssid(idx, ssid);
                 }
             }
+        }
+        /* IE fingerprint: walk the FULL tagged-parameter chain (not just
+         * the SSID tag) so a client with a randomized MAC can still be
+         * identified — a vendor-specific IE (tag 221) carries a real
+         * OUI regardless of what the header source address is. Only
+         * enrich a client ALREADY in the table (added above, or via
+         * data-frame traffic to the target AP below) — a fingerprint
+         * alone shouldn't create a row for an unrelated device that's
+         * just broadcast-probing on this channel. Refresh only if this
+         * frame's chain is richer than what's stored, so a short probe
+         * never overwrites a fuller one already captured. */
+        if (idx < 0) idx = cli_find(src);
+        if (idx >= 0) {
+            wifi_ie_fp_t fp;
+            wifi_ie_fp_parse(p, pkt->rx_ctrl.sig_len, &fp);
+            if (fp.ie_count > s_clients[idx].fp.ie_count)
+                s_clients[idx].fp = fp;
         }
         return;
     }
@@ -165,7 +197,17 @@ static const char *client_device_type(const cli_t &c, const char *vendor)
         if (strcasestr(s, "Chromecast")) return "Chromecast";
         if (strcasestr(s, "Roku")) return "Roku TV";
     }
-    if (!vendor) return "unknown";
+    if (!vendor) {
+        /* No OUI hit and no IE-derived vendor either (caller passes the
+         * IE vendor in as `vendor` when the real OUI lookup came up
+         * empty — see client_detail()). Fall back to the coarse WiFi-
+         * generation class from capability IEs; still more useful than
+         * a flat "unknown" for a randomized-MAC device. Only trust it
+         * once a probe was actually parsed (ie_count > 0) — an all-zero
+         * fingerprint would otherwise misreport as "legacy/minimal". */
+        if (c.fp.ie_count > 0) return wifi_ie_fp_class(&c.fp);
+        return "unknown";
+    }
     if (strcasestr(vendor, "Apple"))     return "Apple (iPhone/Mac)";
     if (strcasestr(vendor, "Samsung"))   return "Samsung phone/TV";
     if (strcasestr(vendor, "Google"))    return "Google/Android";
@@ -179,6 +221,9 @@ static const char *client_device_type(const cli_t &c, const char *vendor)
         strcasestr(vendor, "Brother")) return "Printer";
     if (strcasestr(vendor, "Sony"))      return "Sony device";
     if (strcasestr(vendor, "Microsoft")) return "Microsoft device";
+    if (strcasestr(vendor, "Broadcom"))  return "Broadcom device";
+    if (strcasestr(vendor, "Atheros") || strcasestr(vendor, "Qualcomm"))
+        return "Atheros/Qualcomm device";
     return vendor;   /* fall back to raw vendor name */
 }
 
@@ -208,6 +253,16 @@ static void client_detail(int idx)
             uint32_t oui = ((uint32_t)c.mac[0] << 16) |
                            ((uint32_t)c.mac[1] << 8)  | c.mac[2];
             const char *vendor = (c.mac[0] & 0x02) ? nullptr : ble_db_oui(oui);
+            /* Real OUI evidence always wins. Only fall back to the IE-
+             * inferred vendor (from a vendor-specific IE's real 3-byte
+             * OUI) when the header MAC is randomized or the direct OUI
+             * lookup came up empty — that's the whole point of the
+             * fingerprint: it survives MAC randomization. */
+            bool via_ie = false;
+            if (!vendor) {
+                vendor = wifi_ie_fp_vendor(&c.fp);
+                via_ie = (vendor != nullptr);
+            }
             const char *dtype  = client_device_type(c, vendor);
 
             d.setTextColor(T_FG, T_BG);
@@ -223,19 +278,34 @@ static void client_detail(int idx)
             d.setCursor(4, BODY_Y + 25);
             d.printf("TYPE %.33s", dtype);
 
-            /* Raw vendor (or hostname if DHCP caught one). */
+            /* Raw vendor (or hostname if DHCP caught one). "*" marks a
+             * vendor resolved from the IE fingerprint rather than the
+             * header OUI — the signal that survives MAC randomization. */
             const char *host = dhcp_hostname(c.mac);
-            d.setTextColor(host && host[0] ? T_GOOD : T_DIM, T_BG);
+            d.setTextColor(host && host[0] ? T_GOOD : (via_ie ? T_WARN : T_DIM), T_BG);
             d.setCursor(4, BODY_Y + 36);
-            if (host && host[0]) d.printf("HOST %.33s", host);
-            else                 d.printf("VEN  %.33s", vendor ? vendor : "unknown");
+            if (host && host[0])
+                d.printf("HOST %.33s", host);
+            else
+                d.printf("VEN  %.31s%s", vendor ? vendor : "unknown", via_ie ? "*" : "");
 
             d.setTextColor(T_DIM, T_BG);
             d.setCursor(4, BODY_Y + 47);
             uint32_t age = (now - c.last_seen) / 1000;
-            d.printf("RSSI %d  frm %lu  %lus  ch%u",
-                     c.rssi, (unsigned long)c.frames,
-                     (unsigned long)age, s_target_ch);
+            /* Fingerprint hash — lets an operator recognize the same
+             * physical device after it rotates its MAC (same hash =
+             * same probe-request IE chain = same device model, most
+             * likely the same unit if seen on the same channel/AP). */
+            if (c.fp.ie_count > 0) {
+                d.printf("RSSI %d  frm %lu  %lus ch%u fp%04lX",
+                         c.rssi, (unsigned long)c.frames,
+                         (unsigned long)age, s_target_ch,
+                         (unsigned long)(wifi_ie_fp_hash(&c.fp) & 0xFFFFu));
+            } else {
+                d.printf("RSSI %d  frm %lu  %lus  ch%u",
+                         c.rssi, (unsigned long)c.frames,
+                         (unsigned long)age, s_target_ch);
+            }
 
             /* Probed SSIDs — the broadcast names this client looks for. */
             d.setTextColor(T_ACCENT, T_BG);

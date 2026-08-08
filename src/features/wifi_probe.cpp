@@ -41,6 +41,7 @@
 #include <esp_bt.h>
 #include <esp_heap_caps.h>
 #include "wifi_deauth_frame.h"
+#include "../wifi_ie_fp.h"
 
 #define PROBE_MAX 32
 
@@ -51,6 +52,11 @@ struct probe_t {
     uint32_t hits;          /* total directed probes for this SSID */
     uint32_t responses;     /* probe-response frames we TX'd back */
     int8_t   rssi;
+    /* IE fingerprint from this client's probe requests — see
+     * wifi_ie_fp.h. Survives MAC randomization via vendor-IE OUIs, so a
+     * karma target is still identifiable even when its probing MAC
+     * rotates. 24 bytes. */
+    wifi_ie_fp_t fp;
 };
 
 static probe_t s_probes[PROBE_MAX];
@@ -293,6 +299,14 @@ static void probe_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     s_probe_total++;
 
+    /* IE fingerprint: parse the full tagged-parameter chain (not just the
+     * SSID tag already extracted above) so a karma target is still
+     * identifiable by manufacturer even when its probing MAC is
+     * randomized. Read-only over `p` — safe to do outside the critical
+     * section, kept short like the rest of this callback. */
+    wifi_ie_fp_t fp;
+    wifi_ie_fp_parse(p, pkt->rx_ctrl.sig_len, &fp);
+
     portENTER_CRITICAL(&s_probe_mux);
     int idx = find_probe(client, ssid);
     if (idx < 0) {
@@ -316,6 +330,10 @@ static void probe_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     s_probes[idx].last_seen = millis();
     s_probes[idx].rssi = pkt->rx_ctrl.rssi;
     s_probes[idx].hits++;
+    /* Refresh only if this frame's IE chain is richer than what's
+     * already stored, so a short probe never overwrites a fuller one. */
+    if (fp.ie_count > s_probes[idx].fp.ie_count)
+        s_probes[idx].fp = fp;
     bool do_respond = s_karma_mode;
     uint16_t seq = s_resp_seq;
     s_resp_seq = (s_resp_seq + 1) & 0x0FFF;
@@ -434,7 +452,18 @@ static void draw_probe_list(int cursor)
         d.printf("%2lu", (unsigned long)pp.hits);
         d.setTextColor(sel ? T_ACCENT : T_FG, bg);
         d.setCursor(72, y);
-        d.printf("%.21s", pp.ssid);
+        /* Prefix with the IE-derived vendor (survives MAC randomization)
+         * when we have one — that's what makes a karma target
+         * identifiable by manufacturer even off a rotating MAC. Field
+         * width stays the same (21 chars); the tag just eats into it. */
+        const char *ie_vendor = pp.fp.vendor_n ? wifi_ie_fp_vendor(&pp.fp) : nullptr;
+        if (ie_vendor) {
+            char row[48];  /* sized for worst case; final field still clips to 21 */
+            snprintf(row, sizeof(row), "[%.6s]%.32s", ie_vendor, pp.ssid);
+            d.printf("%.21s", row);
+        } else {
+            d.printf("%.21s", pp.ssid);
+        }
     }
 }
 
