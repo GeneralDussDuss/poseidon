@@ -73,10 +73,22 @@ void ui_splash(void)
         uint8_t bright = (uint8_t)(f * 255 / 25);
         d.fillScreen(0x0000);
         draw_wave(bright);
-        /* Scanline — full width, moves top→bottom. */
+        /* Scanline — full width, moves top→bottom, with a dimmer trailing
+         * pair so it reads as a swept beam rather than a bare line. */
         int sy = f * SCR_H / 25;
         d.drawFastHLine(0, sy,     SCR_W, C_MAG_HI);
         d.drawFastHLine(0, sy + 1, SCR_W, C_MAG_LO);
+        if (sy >= 2) d.drawFastHLine(0, sy - 2, SCR_W, C_MAG_LO);
+
+#if defined(POSEIDON_BOARD_TEMBED)
+        /* Blips tracking the beam: pitch climbs as it sweeps down, so the
+         * scan reads as a machine working rather than a random beep. Every
+         * third frame keeps it rhythmic instead of a solid tone. */
+        if ((f % 3) == 0) {
+            sfx_nav(true, (uint8_t)f, 26);
+        }
+#endif
+
         if (input_poll() != PK_NONE) goto idle;
         uint32_t e = millis() - frame_start;
         if (e < 30) delay(30 - e);
@@ -126,10 +138,34 @@ idle:
     while (true) {
         int left_margin  = (SCR_W - splash_w) / 2;
         int right_start  = left_margin + splash_w;
+#if defined(POSEIDON_BOARD_TEMBED)
+        /* The artwork is 201px wide on a 320px panel, so the old matrix rain
+         * filled a 59px column down each side. At this size it stopped
+         * reading as an effect and just looked like screen static. A slow
+         * vertical scan beam in each gutter keeps the motion without the
+         * noise. */
+        {
+            static uint32_t beam_ms = 0;
+            static int      beam_y  = 0;
+            if (millis() - beam_ms > 24) {
+                beam_ms = millis();
+                if (left_margin > 0) {
+                    d.drawFastHLine(0, beam_y, left_margin, 0x0000);
+                    d.drawFastHLine(right_start, beam_y, SCR_W - right_start, 0x0000);
+                }
+                beam_y = (beam_y + 3) % SCR_H;
+                if (left_margin > 0) {
+                    d.drawFastHLine(0, beam_y, left_margin, C_MAG_LO);
+                    d.drawFastHLine(right_start, beam_y, SCR_W - right_start, C_MAG_LO);
+                }
+            }
+        }
+#else
         if (left_margin > 0)
             ui_matrix_rain(0, 0, left_margin, SCR_H, C_MAG_HI);
         if (right_start < SCR_W)
             ui_matrix_rain(right_start, 0, SCR_W - right_start, SCR_H, C_MAG_LO);
+#endif
 
         /* Occasional magenta twinkle at the title underline. */
         if ((esp_random() & 0xFF) < 20) {
