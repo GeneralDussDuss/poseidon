@@ -425,6 +425,12 @@ void feat_wifi_spectrum(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
         if (k == PK_ESC) break;
+        if (k == PK_ACTIONS) {
+            static const char *const acts[] = { "Reset peaks", "Toggle view" };
+            int pick = ui_action_menu("SPECTRUM", acts, 2);
+            if (pick == 0) k = 'r';
+            else if (pick == 1) k = 'v';
+        }
         if (k == 'r' || k == 'R') {
             for (int c = 0; c <= CH_N; ++c) { s_peak[c] = -100; s_pkts[c] = 0; }
         }

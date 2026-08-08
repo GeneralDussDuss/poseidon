@@ -306,7 +306,7 @@ static void cat_select_menu(void)
         if ((k == PK_DOWN || k == '.') && cursor < CIW_CAT_COUNT-1) { cursor++; redraw = true; }
         if (k == PK_ENTER) { s_cat_mask ^= (1 << cursor); redraw = true; }
         /* #B5: V drills into the highlighted category's payload list. */
-        if (k == 'v' || k == 'V') { view_category_payloads(cursor); redraw = true; }
+        if (k == 'v' || k == 'V' || k == PK_ACTIONS) { view_category_payloads(cursor); redraw = true; }
     }
 }
 

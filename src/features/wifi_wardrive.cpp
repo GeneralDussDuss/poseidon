@@ -565,6 +565,12 @@ void feat_wifi_wardrive(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (k == '?') { ui_show_current_help(); dirty = true; }
+        if (k == PK_ACTIONS) {
+            static const char *const acts[] = { "Toggle filter", "Cycle view" };
+            int pick = ui_action_menu("WARDRIVE", acts, 2);
+            if (pick == 0) k = 'f';
+            else if (pick == 1) k = 'a';
+        }
         if (k == 'f' || k == 'F') {
             flush_dirty_rows();
             ui_toast("flushed", T_GOOD, 400);

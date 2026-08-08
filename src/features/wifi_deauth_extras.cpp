@@ -491,7 +491,7 @@ void feat_wifi_deauth_detect(void)
         if (k == PK_ESC) break;
         if (k == ';' || k == PK_UP)   { auto_hop = false; if (ch < 13) { ch++; esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE); } }
         if (k == '.' || k == PK_DOWN) { auto_hop = false; if (ch > 1)  { ch--; esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE); } }
-        if (k == 'h' || k == 'H')     { auto_hop = !auto_hop; last_hop = millis(); }
+        if (k == 'h' || k == 'H' || k == PK_ACTIONS) { auto_hop = !auto_hop; last_hop = millis(); }
     }
     esp_wifi_set_promiscuous(false);
 }

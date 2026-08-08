@@ -543,6 +543,31 @@ void feat_ble_scan(void)
                 uint16_t k2 = input_poll();
                 if (k2 == PK_NONE) { delay(20); continue; }
                 if (k2 == PK_ESC) break;
+
+                /* Encoder long-press opens the same seven actions as a popup.
+                 * On a keyboard-less board every one of these was unreachable,
+                 * which made the target-first workflow (scan -> pick -> act)
+                 * impossible: this screen is the pivot the whole BLE suite
+                 * routes through. Selecting rewrites k2 and falls through to
+                 * the existing dispatch, so there is one definition of what
+                 * each action does. */
+                if (k2 == PK_ACTIONS) {
+                    static const char *const acts[] = {
+                        "GATT explorer",
+                        "Clone device",
+                        "HID / Bad-KB",
+                        "Flood",
+                        "Spam",
+                        "WhisperPair",
+                        "Track (hot/cold)",
+                    };
+                    static const char kmap[] = { 'g', 'c', 'h', 'x', 'p', 'w', 't' };
+                    int pick = ui_action_menu("BLE ACTIONS", acts,
+                                              (int)(sizeof(kmap) / sizeof(kmap[0])));
+                    if (pick < 0) continue;
+                    k2 = (uint16_t)kmap[pick];
+                }
+
                 char ch = (char)tolower((int)k2);
                 if (ch == 'g') { feat_ble_gatt();  break; }
                 if (ch == 'c') { feat_ble_clone(); break; }

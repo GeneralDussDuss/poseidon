@@ -675,7 +675,9 @@ void feat_wifi_pmkid(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (k == '?') { ui_show_current_help(); }
-        if (k == 'h' || k == 'H') s_hunt = !s_hunt;
+        /* Encoder long-press: only route to a secondary action on a
+         * keyboard-less board, where 'h' is unreachable. */
+        if (k == 'h' || k == 'H' || k == PK_ACTIONS) s_hunt = !s_hunt;
     }
 
     s_running = false;
