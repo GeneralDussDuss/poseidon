@@ -44,8 +44,14 @@ enum sfx_evt_t : uint8_t {
     SFX_E_BOOT,
     SFX_E_ALERT,
     SFX_E_GLITCH,
+    SFX_E_NAV_UP,
+    SFX_E_NAV_DOWN,
 };
 static QueueHandle_t s_sfx_q = nullptr;
+/* Set by sfx_nav() just before enqueueing; read by the player task. A
+ * dropped/raced value only changes a chirp's pitch, never correctness. */
+static volatile uint8_t s_nav_index = 0;
+static volatile uint8_t s_nav_total = 1;
 static void sfx_player_task(void *);  /* fwd: defined after play_X */
 
 /* POS-AUDIT-017 part 1: NVS handle scoped per call rather than held
@@ -188,6 +194,23 @@ static void sweep(int f0, int f1, int dur_ms)
 }
 
 /* ========== UI cues — digital / Tron (player-task impls) ========== */
+
+/* Two-tone chirp whose centre pitch rises with position in the list.
+ * Short (~26ms) so fast scrolling stays crisp instead of turning into a
+ * drone, and bent up or down so direction is audible without looking. */
+static void play_nav(bool up)
+{
+    if (!audio_on()) return;
+    uint8_t idx = s_nav_index, tot = s_nav_total ? s_nav_total : 1;
+    if (idx >= tot) idx = tot - 1;
+    /* Map position onto a bit over an octave, centred around 1.6kHz. */
+    float t    = (tot > 1) ? ((float)idx / (float)(tot - 1)) : 0.5f;
+    float base = 1200.0f + t * 1500.0f;
+    float bend = up ? 1.28f : 0.78f;
+    speak(base, 9);
+    delay(7);
+    speak(base * bend, 12);
+}
 
 static void play_click(void)
 {
@@ -362,6 +385,8 @@ static void sfx_player_task(void *_)
         case SFX_E_CRACKED:      play_cracked();      break;
         case SFX_E_BOOT:         play_boot();         break;
         case SFX_E_ALERT:        play_alert();        break;
+        case SFX_E_NAV_UP:   play_nav(true);  break;
+        case SFX_E_NAV_DOWN: play_nav(false); break;
         case SFX_E_GLITCH:       play_glitch();       break;
         default: break;
         }
@@ -373,6 +398,13 @@ static inline void enqueue(uint8_t evt)
     /* Drop if queue full or not yet initialised — SFX is decoration. */
     if (!s_sfx_q) return;
     (void)xQueueSend(s_sfx_q, &evt, 0);
+}
+
+void sfx_nav(bool up, uint8_t index, uint8_t total)
+{
+    s_nav_index = index;
+    s_nav_total = total ? total : 1;
+    enqueue(up ? SFX_E_NAV_UP : SFX_E_NAV_DOWN);
 }
 
 void sfx_click(void)        { enqueue(SFX_E_CLICK); }

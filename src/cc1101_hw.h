@@ -8,8 +8,20 @@
 
 #include <Arduino.h>
 
+#if defined(POSEIDON_BOARD_TEMBED)
+/* LilyGO T-Embed CC1101 / CC1101 Plus. Values from LilyGO's own
+ * utilities.h + docs/pinmap_cn.md, not inferred. SW0/SW1 select the
+ * antenna band network and MUST be driven when retuning across bands,
+ * or high-band scans get measured through the low-band path. */
+#define CC1101_CS   12
+#define CC1101_GDO0  3
+#define CC1101_GDO2 38
+#define CC1101_SW1  47
+#define CC1101_SW0  48
+#else
 #define CC1101_CS   15
 #define CC1101_GDO0 13
+#endif
 
 bool cc1101_begin(float freq_mhz = 433.92f);
 void cc1101_end(void);

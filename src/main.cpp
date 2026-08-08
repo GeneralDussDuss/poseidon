@@ -143,11 +143,11 @@ void setup()
                   poseidon_version(), poseidon_build_date());
 
 #if defined(POSEIDON_BOARD_TEMBED)
-    /* Now that serial is live, bring up the ring and the speaker so their
-     * init diagnostics are actually visible. */
-    leds_begin();
+    /* Speaker only. The LED ring is brought up AFTER theme_init() below:
+     * every animation colour comes from the T_* theme macros, and starting
+     * it here meant it read an uninitialised theme and rendered uniform
+     * white no matter what the RMT layer did. */
     tembed_speaker_init();
-    leds_event(LED_EVENT_BOOT);
 #endif
     /* bcn_spam_dump_crashtrace removed — only existed in stash's
      * wifi_beacon_spam.cpp which we reverted to HEAD. */
@@ -169,6 +169,13 @@ void setup()
      * splash + first menu render in POSEIDON's default instead of the
      * user's last pick. */
     theme_init();
+
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Ring comes up here, strictly after theme_init(), because every
+     * animation pulls its colours from the T_* macros. */
+    leds_begin();
+    leds_event(LED_EVENT_BOOT);
+#endif
 
     Serial.printf("[POSEIDON] boot heap free=%u KB\n",
                   (unsigned)(ESP.getFreeHeap() / 1024));

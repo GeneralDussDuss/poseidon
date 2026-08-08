@@ -14,6 +14,7 @@ enum : uint16_t {
     RAW_ESC   = 0x1B,
     RAW_UP    = 0x100,
     RAW_DOWN  = 0x101,
+    RAW_ACTIONS = 0x105,   /* mirrors PK_ACTIONS in src/input.h */
 };
 
 /* Quarter-steps per physical detent. Most encoders emit 4 quadrature
@@ -24,6 +25,20 @@ static const int8_t ENC_STEPS_PER_DETENT = 4;
 static volatile int8_t  s_delta   = 0;
 static volatile uint8_t s_prev    = 0;
 static uint32_t         s_btn_ms  = 0;
+
+/* Gesture timings. DOUBLE is the click-pairing window and is also the
+ * latency a single press pays before it registers as SELECT, so keep it
+ * short enough to feel instant. HOLD must comfortably exceed DOUBLE or a
+ * slow double-click would trip the hold. */
+#define BTN_DEBOUNCE_MS  180
+#define BTN_DOUBLE_MS    280
+#define BTN_HOLD_MS      550
+
+static bool     s_sel_was_down   = false;
+static uint32_t s_sel_press_ms   = 0;
+static bool     s_hold_fired     = false;
+static bool     s_pending_click  = false;
+static uint32_t s_last_click_ms  = 0;
 
 /* Standard quadrature transition table: index = (prev << 2) | curr. */
 static const int8_t QTAB[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
@@ -66,11 +81,66 @@ uint16_t tembed_input_poll(void) {
     }
 #endif
 
-    /* Buttons first, debounced at 200 ms. Active LOW. */
+    /* ---- encoder-button gesture layer ----
+     *
+     * One button has to carry three meanings on this board:
+     *   single press        -> SELECT   (RAW_ENTER)
+     *   double press        -> BACK     (RAW_ESC)
+     *   press and hold      -> ACTIONS  (RAW_ACTIONS, secondary menu)
+     *
+     * Because a single press cannot be distinguished from the first half
+     * of a double press until the double-click window expires, SELECT is
+     * emitted on release plus a short wait, not on the initial edge. Hold
+     * fires while the button is still down, so it feels immediate, and
+     * sets a flag so the subsequent release is swallowed rather than also
+     * counting as a press.
+     *
+     * The dedicated side button stays a plain BACK, so there is always a
+     * one-action escape for anyone who does not want to double-click. */
     const uint32_t now = millis();
-    if (now - s_btn_ms > 200) {
-        if (digitalRead(TE_BTN_SELECT) == LOW) { s_btn_ms = now; return RAW_ENTER; }
-        if (digitalRead(TE_BTN_BACK)   == LOW) { s_btn_ms = now; return RAW_ESC; }
+
+    const bool sel_down  = (digitalRead(TE_BTN_SELECT) == LOW);
+    const bool back_down = (digitalRead(TE_BTN_BACK)   == LOW);
+
+    /* Side button: unchanged, simple debounced BACK. */
+    if (back_down && (now - s_btn_ms > BTN_DEBOUNCE_MS)) {
+        s_btn_ms = now;
+        return RAW_ESC;
+    }
+
+    if (sel_down && !s_sel_was_down) {
+        /* Fresh press edge. */
+        s_sel_was_down  = true;
+        s_sel_press_ms  = now;
+        s_hold_fired    = false;
+    } else if (sel_down && s_sel_was_down) {
+        /* Still held: fire ACTIONS once we cross the hold threshold. */
+        if (!s_hold_fired && (now - s_sel_press_ms) >= BTN_HOLD_MS) {
+            s_hold_fired   = true;
+            s_pending_click = false;   /* a hold is not a click */
+            return RAW_ACTIONS;
+        }
+    } else if (!sel_down && s_sel_was_down) {
+        /* Release edge. */
+        s_sel_was_down = false;
+        if (s_hold_fired) {
+            /* Hold already delivered; swallow this release. */
+        } else if (s_pending_click &&
+                   (now - s_last_click_ms) <= BTN_DOUBLE_MS) {
+            /* Second click inside the window -> BACK. */
+            s_pending_click = false;
+            return RAW_ESC;
+        } else {
+            /* First click: arm the double-click window. */
+            s_pending_click  = true;
+            s_last_click_ms  = now;
+        }
+    }
+
+    /* Double-click window expired with only one click -> SELECT. */
+    if (s_pending_click && (now - s_last_click_ms) > BTN_DOUBLE_MS) {
+        s_pending_click = false;
+        return RAW_ENTER;
     }
 
     noInterrupts();

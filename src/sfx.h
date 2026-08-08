@@ -30,6 +30,12 @@ bool sfx_is_muted(void);
 
 /* UI / navigation cues — very short, low pitch, unobtrusive */
 void sfx_click(void);    /* any key press — global hook */
+
+/* Encoder detent. Pitch tracks position in the list, so scrolling reads as
+ * a melodic run rather than the same blip repeated — the R2D2 trick. `up`
+ * bends the chirp upward, down bends it down. Non-blocking: enqueued to the
+ * sfx player task like every other cue. */
+void sfx_nav(bool up, uint8_t index, uint8_t total);
 void sfx_select(void);   /* ENTER on a menu item */
 void sfx_back(void);     /* ESC / back out */
 void sfx_error(void);    /* bad input, action failed */

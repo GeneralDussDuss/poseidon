@@ -23,6 +23,8 @@
 #include "leds_tembed.h"
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <math.h>
 #include <string.h>
 #include <driver/rmt_tx.h>
@@ -298,6 +300,20 @@ static uint32_t     s_event_start    = 0;
 static uint32_t     s_last_update    = 0;
 static uint8_t      s_brightness_cap = 40;   /* out of 255 */
 
+/* The ring must animate no matter which screen is up. Driving leds_tick()
+ * from a UI loop only works while that particular loop is running: enter any
+ * feature, or the terminal menu, and the ring freezes on its last frame,
+ * which is exactly what "stuck on cyan" was. A tiny dedicated task keeps it
+ * alive everywhere, costs ~1% of a core at 60Hz, and means no future screen
+ * has to remember to pump it. */
+static void leds_task(void *)
+{
+    for (;;) {
+        leds_tick();
+        vTaskDelay(pdMS_TO_TICKS(16));
+    }
+}
+
 void leds_begin(void)
 {
     ws2812_rmt_init();
@@ -308,6 +324,11 @@ void leds_begin(void)
      * whatever garbage was left in the WS2812B's own latch. */
     uint8_t grb[TE_LED_COUNT * 3] = {0};
     ws2812_show(grb);
+
+    static TaskHandle_t s_task = nullptr;
+    if (s_rmt_ready && s_task == nullptr) {
+        xTaskCreatePinnedToCore(leds_task, "leds", 2048, nullptr, 1, &s_task, 1);
+    }
 }
 
 void leds_set_mode(led_mode_t m) { s_mode = m; }

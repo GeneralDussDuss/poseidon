@@ -375,7 +375,7 @@ void carousel_run_submenu(const menu_node_t *parent)
         /* Drive the encoder-ring animation. Self-rate-limits internally,
          * so calling it every pass is cheap. Without this the ring sits
          * at whatever leds_begin() left it at. */
-        leds_tick();
+        /* ring is driven by its own task in leds_tembed.cpp */
 #endif
 
         /* Animation tick — re-paint the card with a decaying x-offset
@@ -430,7 +430,11 @@ void carousel_run_submenu(const menu_node_t *parent)
 #endif
 
         /* Help — same key as terminal mode. Delegates to ui_show_current_help. */
-        if (k == '=' || k == '?') {
+        /* Press-and-hold on the encoder button opens the focused item's
+         * secondary panel. Today that is the long-form info page, which is
+         * the only per-item secondary surface POSEIDON has; a real action
+         * list (run / pin / configure) is the next step and slots in here. */
+        if (k == '=' || k == '?' || k == PK_ACTIONS) {
             const menu_node_t *sel = &parent->children[cursor];
             g_current_feature_item = sel;
             ui_show_current_help();

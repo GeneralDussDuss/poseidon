@@ -23,6 +23,10 @@ enum : uint16_t {
     PK_LEFT   = 0x102,
     PK_RIGHT  = 0x103,
     PK_FN     = 0x104,
+    /* Encoder-button hold gesture (T-Embed). Boards with a keyboard never
+     * emit this; boards without one need a third meaning for their single
+     * button, so hold opens a secondary actions panel for the focused item. */
+    PK_ACTIONS = 0x105,
 };
 
 /* One event per key press (not repeat). Returns PK_NONE if no event. */
