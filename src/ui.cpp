@@ -1068,43 +1068,65 @@ int ui_action_menu(const char *title, const char *const *labels, int n)
     if (n <= 0) return -1;
 
     auto &d = M5Cardputer.Display;
-    plist_t m;
-    const int row_h = MENU_ROW_H;
-    const int rows  = (BODY_H - 20) / row_h;
-    plist_init(&m, n, rows > 0 ? rows : 1);
 
-    bool full = true;
+    /* Compact popup drawn OVER the current screen rather than replacing it:
+     * the operator keeps sight of what they were looking at, which matters
+     * when the actions apply to a specific target on the screen behind. */
+    const int row_h   = 12;
+    const int pad     = 4;
+    const int hdr_h   = 12;
+    const int max_vis = 5;                       /* scrolls beyond this */
+    const int vis     = (n < max_vis) ? n : max_vis;
+
+    int w = SCR_W * 3 / 5;
+    if (w < 120) w = 120;
+    if (w > SCR_W - 16) w = SCR_W - 16;
+    const int h  = hdr_h + vis * row_h + pad * 2;
+    const int x  = (SCR_W - w) / 2;
+    const int y  = (SCR_H - h) / 2;
+
+    plist_t m;
+    plist_init(&m, n, vis);
+
+    bool frame = true;
     for (;;) {
-        if (full) {
-            ui_screen_enter();
-            ui_draw_status("", "");
+        if (frame) {
+            /* Drop shadow then panel, so it reads as floating above. */
+            d.fillRoundRect(x + 2, y + 2, w, h, 4, T_BG);
+            d.fillRoundRect(x, y, w, h, 4, T_BG);
+            d.drawRoundRect(x, y, w, h, 4, T_ACCENT);
+            d.fillRect(x + 1, y + 1, w - 2, hdr_h - 2, T_ACCENT);
             d.setTextSize(1);
-            d.setTextColor(T_ACCENT, T_BG);
-            d.setCursor(6, BODY_Y + 4);
+            d.setTextColor(T_BG, T_ACCENT);
+            d.setCursor(x + 5, y + 2);
             d.print(title ? title : "ACTIONS");
-            d.drawFastHLine(0, BODY_Y + 14, SCR_W, COL_RULE);
-            full = false;
+            frame = false;
         }
 
-        /* Rows are painted opaquely every pass: no cached region can drift
-         * out of sync with what is actually on the panel. */
-        const int top_y = BODY_Y + 18;
-        const int vis   = plist_visible_count(&m);
+        /* Rows repaint opaquely every pass — nothing cached, nothing stale. */
         for (int r = 0; r < vis; r++) {
             const int idx = m.top + r;
-            const int y   = top_y + r * row_h;
+            if (idx >= n) break;
+            const int ry  = y + hdr_h + pad + r * row_h;
             const bool on = (idx == m.sel);
-            d.fillRect(4, y, SCR_W - 8, row_h, on ? T_SEL_BG : T_BG);
-            if (on) d.drawRoundRect(4, y, SCR_W - 8, row_h, 2, T_SEL_BD);
+            d.fillRect(x + 3, ry, w - 6, row_h, on ? T_SEL_BG : T_BG);
             d.setTextSize(1);
             d.setTextColor(on ? T_ACCENT : T_FG, on ? T_SEL_BG : T_BG);
-            d.setCursor(10, y + 3);
+            d.setCursor(x + 7, ry + 2);
             d.print(labels[idx]);
+        }
+        /* Scroll ticks on the right edge when the list overflows. */
+        if (n > vis) {
+            const int bar_h = (h - hdr_h - pad * 2) * vis / n;
+            const int bar_y = y + hdr_h + pad +
+                              (h - hdr_h - pad * 2) * m.top / n;
+            d.fillRect(x + w - 3, y + hdr_h + pad, 2, h - hdr_h - pad * 2, T_BG);
+            d.fillRect(x + w - 3, bar_y, 2, bar_h > 3 ? bar_h : 3, T_ACCENT2);
         }
 
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(10); continue; }
-        if (k == PK_ESC)  return -1;
+        if (k == PK_ESC)   return -1;
         if (k == PK_ENTER) return m.sel;
         if (k == PK_UP   || k == ';') { plist_move(&m, -1); }
         if (k == PK_DOWN || k == '.') { plist_move(&m,  1); }

