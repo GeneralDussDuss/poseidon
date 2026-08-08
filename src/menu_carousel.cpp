@@ -361,6 +361,7 @@ void carousel_run_submenu(const menu_node_t *parent)
     bool     animating    = false;
 
     ui_status_invalidate();
+    ui_screen_enter();
     ui_draw_status(radio_name(), "");
     ui_draw_footer(CAROUSEL_FOOTER);
 
@@ -404,6 +405,7 @@ void carousel_run_submenu(const menu_node_t *parent)
              * full card repaint (menu state was clobbered). */
             if (screensaver_check_idle()) {
                 ui_status_invalidate();
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(CAROUSEL_FOOTER);
                 draw_card_full(parent, cursor, 0);
@@ -433,6 +435,7 @@ void carousel_run_submenu(const menu_node_t *parent)
             g_current_feature_item = sel;
             ui_show_current_help();
             g_current_feature_item = nullptr;
+            ui_screen_enter();
             ui_draw_status(radio_name(), "");
             ui_draw_footer(CAROUSEL_FOOTER);
             draw_card_full(parent, cursor, 0);
@@ -468,11 +471,13 @@ void carousel_run_submenu(const menu_node_t *parent)
                 /* Defensive IR park — see menu.cpp comment. */
                 pinMode(44, OUTPUT); digitalWrite(44, HIGH);
                 Serial.printf("[FEAT_EXIT] %s\n", sel->label);
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(CAROUSEL_FOOTER);
                 draw_card_full(parent, cursor, 0);
             } else if (sel->children) {
                 carousel_run_submenu(sel);
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(CAROUSEL_FOOTER);
                 draw_card_full(parent, cursor, 0);
@@ -496,11 +501,13 @@ void carousel_run_submenu(const menu_node_t *parent)
                     /* Defensive IR park — same as regular path. */
                     pinMode(44, OUTPUT); digitalWrite(44, HIGH);
                     Serial.printf("[FEAT_EXIT] %s\n", sel->label);
+                    ui_screen_enter();
                     ui_draw_status(radio_name(), "");
                     ui_draw_footer(CAROUSEL_FOOTER);
                     draw_card_full(parent, cursor, 0);
                 } else if (sel->children) {
                     carousel_run_submenu(sel);
+                    ui_screen_enter();
                     ui_draw_status(radio_name(), "");
                     ui_draw_footer(CAROUSEL_FOOTER);
                     draw_card_full(parent, cursor, 0);

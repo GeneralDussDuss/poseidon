@@ -44,13 +44,28 @@ static rmt_encoder_handle_t  s_encoder   = nullptr;
 
 static void ws2812_rmt_init(void)
 {
+    /* An ESP32-S3 RMT channel owns only 48 symbol words of hardware memory,
+     * but one WS2812B frame here is 8 LEDs x 24 bits = 192 symbols. Without
+     * DMA the driver has to refill the block mid-transmission from an ISR,
+     * and any late refill stretches a bit period past WS2812B tolerance, so
+     * the strip latches garbage (typically full white). Ask for DMA with a
+     * buffer big enough for the whole frame, and fall back to the non-DMA
+     * path if this chip refuses. */
     rmt_tx_channel_config_t ch_cfg = {};
     ch_cfg.gpio_num          = (gpio_num_t)TE_LED_PIN;
     ch_cfg.clk_src           = RMT_CLK_SRC_DEFAULT;
     ch_cfg.resolution_hz     = WS_RESOLUTION_HZ;
-    ch_cfg.mem_block_symbols = 64;
+    ch_cfg.mem_block_symbols = TE_LED_COUNT * 24;   /* 192, whole frame */
     ch_cfg.trans_queue_depth = 4;
+    ch_cfg.flags.with_dma    = 1;
     esp_err_t e = rmt_new_tx_channel(&ch_cfg, &s_chan);
+    if (e != ESP_OK) {
+        Serial.printf("[leds] DMA channel FAILED (%s), retrying without DMA\n",
+                      esp_err_to_name(e));
+        ch_cfg.flags.with_dma    = 0;
+        ch_cfg.mem_block_symbols = 48;   /* hardware max per S3 channel */
+        e = rmt_new_tx_channel(&ch_cfg, &s_chan);
+    }
     if (e != ESP_OK) {
         Serial.printf("[leds] rmt_new_tx_channel FAILED: %s\n", esp_err_to_name(e));
         return;
@@ -70,7 +85,8 @@ static void ws2812_rmt_init(void)
         return;
     }
     s_rmt_ready = true;
-    Serial.printf("[leds] RMT ready on GPIO %d, %d LEDs\n", TE_LED_PIN, TE_LED_COUNT);
+    Serial.printf("[leds] RMT ready on GPIO %d, %d LEDs, dma=%d\n",
+                  TE_LED_PIN, TE_LED_COUNT, (int)ch_cfg.flags.with_dma);
 }
 
 static inline void ws2812_bit_item(rmt_symbol_word_t *item, bool one)

@@ -88,6 +88,30 @@ void ui_force_clear_body(void)
     ui_status_invalidate();
 }
 
+/* Screen entry: the ONLY correct way to begin a new screen.
+ *
+ * Adopted from Bruce, which drives this panel without any of the artefacts
+ * POSEIDON hit. The rule is: exactly one atomic full-screen clear when a
+ * screen is entered, and every later repaint paints its own background
+ * opaquely. Nothing caches across regions and nothing skips a paint on the
+ * belief that the screen already looks right.
+ *
+ * POSEIDON's previous model failed three separate ways because it violated
+ * that rule: ui_clear_body() silently stops clearing after 4 calls in 500ms
+ * (so scrolling the carousel smeared), ui_draw_status() skipped repaints
+ * after full-screen overlays had wiped the bar (stale top rows), and region
+ * arithmetic left bands nobody owned (stale bottom rows). A whole-screen
+ * fill costs a few ms once per transition and makes all three impossible. */
+void ui_screen_enter(void)
+{
+    M5Cardputer.Display.fillScreen(T_BG);
+    /* Reset the strobe suppressor so the next legitimate body clear is not
+     * counted against a burst that happened on the previous screen. */
+    s_last_clear  = millis();
+    s_clear_count = 0;
+    ui_status_invalidate();
+}
+
 void ui_text(int x, int y, uint16_t fg, const char *fmt, ...)
 {
     auto &d = M5Cardputer.Display;

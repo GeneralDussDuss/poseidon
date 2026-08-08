@@ -19,6 +19,14 @@
 void ui_init(void);
 void ui_clear_body(void);
 void ui_force_clear_body(void);
+
+/* Begin a new screen: one atomic full-screen clear plus a status-cache
+ * invalidate. Use this for EVERY screen transition (menu entry, carousel
+ * entry, and the return path from any feature or overlay) instead of
+ * clearing the body. ui_clear_body() throttles itself and will silently
+ * skip clears during rapid repaints, which is correct inside a live
+ * feature loop and wrong for a transition. */
+void ui_screen_enter(void);
 void ui_draw_status(const char *radio, const char *extra);
 /* Invalidate the ui_draw_status cache (e.g. after ui_clear_body or a
  * full-screen rebuild). Next ui_draw_status call repaints unconditionally. */

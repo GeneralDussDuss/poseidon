@@ -1353,6 +1353,7 @@ static void run_submenu(const menu_node_t *parent)
     int cursor = 0;
     int n = count_children(parent);
 
+    ui_screen_enter();
     ui_draw_status(radio_name(), "");
     ui_draw_footer(FOOTER_HINTS);
     draw_menu(parent, cursor);
@@ -1365,6 +1366,7 @@ static void run_submenu(const menu_node_t *parent)
              * cursor position again. */
             if (screensaver_check_idle()) {
                 ui_status_invalidate();
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
                 s_menu_force = true;
@@ -1418,6 +1420,7 @@ static void run_submenu(const menu_node_t *parent)
                   long hb_d = (long)hb_now - (long)hb_base;
                   Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
                       sel->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
                 s_menu_force = true;
@@ -1427,6 +1430,7 @@ static void run_submenu(const menu_node_t *parent)
                 slide_to(sel, 0, +1);
                 run_submenu(sel);
                 /* Slide back to parent after child returns. */
+                ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
                 slide_to(parent, cursor, -1);
@@ -1460,6 +1464,7 @@ static void run_submenu(const menu_node_t *parent)
                           long hb_d = (long)hb_now - (long)hb_base;
                           Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
                               ch->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
+                        ui_screen_enter();
                         ui_draw_status(radio_name(), "");
                         ui_draw_footer(FOOTER_HINTS);
                         s_menu_force = true;
@@ -1467,6 +1472,7 @@ static void run_submenu(const menu_node_t *parent)
                     } else if (ch->children) {
                         slide_to(ch, 0, +1);
                         run_submenu(ch);
+                        ui_screen_enter();
                         ui_draw_status(radio_name(), "");
                         ui_draw_footer(FOOTER_HINTS);
                         slide_to(parent, cursor, -1);

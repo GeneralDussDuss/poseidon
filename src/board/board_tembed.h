@@ -28,7 +28,14 @@
  * (see TE_I2S_WS below) — it was wrongly reused here as a "reset" pin,
  * which fights the speaker for the same pin the moment audio runs and
  * corrupts the display. -1 tells LovyanGFX there is no reset pin. */
-#define TE_TFT_RST        -1
+/* 40, not -1. An earlier change set this to -1 on the theory that GPIO 40
+ * is the I2S word clock and so could not also be a panel reset. Bruce
+ * drives this exact board with TFT_RST 40 and pulses it at init
+ * (boards/lilygo-t-embed-cc1101/pins_arduino.h:41), so the pin is genuinely
+ * shared and the reset is genuinely needed. With -1 the ST7789 is never
+ * reset at boot, which leaves it in whatever state the previous firmware
+ * left behind. */
+#define TE_TFT_RST        40
 #define TE_TFT_BL         21
 #define TE_PANEL_W       170
 #define TE_PANEL_H       320

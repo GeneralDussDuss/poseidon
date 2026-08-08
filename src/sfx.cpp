@@ -9,6 +9,9 @@
  *     a no-op, never panics
  */
 #include "sfx.h"
+#if defined(POSEIDON_BOARD_TEMBED)
+#include "board/audio_tembed.h"   /* TEMBED_SINE32 waveform */
+#endif
 #include <M5Cardputer.h>
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
@@ -135,10 +138,25 @@ static inline bool audio_on(void)
     return !s_mute && s_volume > 0;
 }
 
+/* Every tone in this file routes through here so the waveform is chosen in
+ * exactly one place. tone()'s default is a square wave, which is all odd
+ * harmonics and reads as harsh and gritty through a small class-D amp. On
+ * boards where we supply a sine wavetable, notes come out clean instead. */
+static inline void speak(float freq, uint32_t dur_ms, bool restart = true)
+{
+#if defined(POSEIDON_BOARD_TEMBED)
+    M5Cardputer.Speaker.tone(freq, dur_ms, 0, restart,
+                             TEMBED_SINE32, sizeof(TEMBED_SINE32));
+#else
+    (void)restart;
+    M5Cardputer.Speaker.tone(freq, dur_ms);
+#endif
+}
+
 static void note(int freq, int dur_ms)
 {
     if (!audio_on()) return;
-    M5Cardputer.Speaker.tone(freq, dur_ms);
+    speak((float)freq, (uint32_t)dur_ms);
 }
 
 static void chord(const int *freqs, int n, int dur_ms)
@@ -149,7 +167,7 @@ static void chord(const int *freqs, int n, int dur_ms)
     int each = dur_ms / n;
     if (each < 8) each = 8;
     for (int i = 0; i < n; i++) {
-        M5Cardputer.Speaker.tone(freqs[i], each);
+        speak((float)freqs[i], (uint32_t)each);
         delay(each);
     }
 }
@@ -159,12 +177,12 @@ static void chord(const int *freqs, int n, int dur_ms)
 static void sweep(int f0, int f1, int dur_ms)
 {
     if (!audio_on()) return;
-    int steps = dur_ms / 3;
-    if (steps < 4) steps = 4;
+    int steps = dur_ms / 2;   /* finer steps: glide, not staircase */
+    if (steps < 6) steps = 6;
     int step_ms = dur_ms / steps;
     for (int i = 0; i <= steps; i++) {
         int f = f0 + ((f1 - f0) * i) / steps;
-        M5Cardputer.Speaker.tone(f, step_ms + 2);
+        speak((float)f, (uint32_t)(step_ms + 2), (i == 0));
         delay(step_ms);
     }
 }
