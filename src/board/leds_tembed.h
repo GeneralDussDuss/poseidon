@@ -15,10 +15,15 @@
 #if defined(POSEIDON_BOARD_TEMBED)
 
 typedef enum {
-    LED_MODE_IDLE = 0,   /* slow breathing in T_ACCENT, ~3s cycle */
+    LED_MODE_IDLE = 0,   /* dual-tone wave: T_ACCENT + T_ACCENT2 drift at different
+                          * rates, low peak brightness, never syncs/repeats visibly */
     LED_MODE_ACTIVE,     /* comet: bright head + fading tail, ~2s/rev, T_ACCENT */
     LED_MODE_SCAN,        /* radar sweep: fast orbit + dim persistence trail, T_ACCENT2 */
     LED_MODE_ALERT,       /* strobe T_BAD / off @ ~4Hz */
+    LED_MODE_RSSI,         /* signal-strength meter: leds_set_rssi() drives fill + heat + pulse */
+    LED_MODE_CHANNEL,      /* position around ring encodes WiFi channel, leds_set_channel() */
+    LED_MODE_TRAFFIC,      /* live packet monitor: leds_packet_hit() injects decaying energy */
+    LED_MODE_ATTACK,       /* two counter-rotating comets, T_WARN/T_BAD, aggressive */
 } led_mode_t;
 
 typedef enum {
@@ -27,6 +32,9 @@ typedef enum {
     LED_EVENT_SELECT,      /* all 8 flash T_GOOD, decay over ~300ms */
     LED_EVENT_BACK,        /* dim reverse sweep, T_DIM */
     LED_EVENT_BOOT,        /* rainbow spin-up, one full revolution, for splash */
+    LED_EVENT_HIT,          /* capture/handshake landed: flash expands from last traffic
+                             * hit outward both directions, resolves to a full-ring T_GOOD pulse */
+    LED_EVENT_ALERT_SPIN,   /* fast full-ring spin in T_BAD, for detection/alert screens */
 } led_event_t;
 
 /* Inits the RMT peripheral on TE_LED_PIN and clears the ring. Safe to
@@ -48,5 +56,21 @@ void leds_event(led_event_t e);
 /* Global brightness cap, 0..255. Starts at 40 so the ring is present
  * but never blinding. All animations are scaled through this. */
 void leds_set_brightness(uint8_t cap);
+
+/* -------- radio-driven inputs (safe no-op defaults, call from anywhere) -------- */
+
+/* Drives LED_MODE_RSSI. dbm is expected in roughly -90 (weak) .. -30
+ * (strong); values outside that range are clamped internally. Defaults
+ * to the weak end so an un-driven ring never looks falsely "hot". */
+void leds_set_rssi(int8_t dbm);
+
+/* Drives LED_MODE_CHANNEL. ch is a WiFi channel 1..14; out-of-range
+ * values are clamped internally. Defaults to channel 1. */
+void leds_set_channel(uint8_t ch);
+
+/* Drives LED_MODE_TRAFFIC and seeds LED_EVENT_HIT's flash origin. Call
+ * once per received frame (promiscuous RX, etc.) -- cheap (a handful of
+ * byte stores), fine to call often from a WiFi/BLE task. */
+void leds_packet_hit(void);
 
 #endif /* POSEIDON_BOARD_TEMBED */

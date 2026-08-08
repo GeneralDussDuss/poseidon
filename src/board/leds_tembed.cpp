@@ -175,16 +175,107 @@ static inline float wrapped_delta(float pos, int led)
     return d;
 }
 
+/* Additive blend into buf[i] (accumulate + clamp), for effects that layer
+ * more than one moving light over the same pixel (e.g. two comets meeting). */
+static inline void add(uint8_t buf[TE_LED_COUNT][3], int i, uint8_t r, uint8_t g, uint8_t b, float frac)
+{
+    if (frac < 0.0f) frac = 0.0f;
+    if (frac > 1.0f) frac = 1.0f;
+    uint8_t s = (uint8_t)(frac * 255.0f + 0.5f);
+    uint16_t nr = (uint16_t)buf[i][0] + scale8(r, s);
+    uint16_t ng = (uint16_t)buf[i][1] + scale8(g, s);
+    uint16_t nb = (uint16_t)buf[i][2] + scale8(b, s);
+    buf[i][0] = (nr > 255) ? 255 : (uint8_t)nr;
+    buf[i][1] = (ng > 255) ? 255 : (uint8_t)ng;
+    buf[i][2] = (nb > 255) ? 255 : (uint8_t)nb;
+}
+
+/* Linear interpolate one colour byte a->b by t in [0,1]. */
+static inline uint8_t lerp8(uint8_t a, uint8_t b, float t)
+{
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    return (uint8_t)((float)a + ((float)b - (float)a) * t + 0.5f);
+}
+
+/* ================= gamma + sine lookup tables =================
+ * Both are built once at boot (leds_begin), never touched again from the
+ * hot path. leds_tick() only ever indexes into them -- no per-frame
+ * powf()/sinf() calls. */
+
+static uint8_t s_gamma[256];
+
+static void build_gamma_table(void)
+{
+    /* WS2812 output is linear in PWM duty but the eye is not: without
+     * this, fades look harsh and top-heavy (most of the visible change
+     * crammed into the last 20% of the range). gamma ~2.6 spreads the
+     * low end out so a breath/decay reads as smooth. */
+    const float GAMMA = 2.6f;
+    for (int i = 0; i < 256; i++) {
+        float v = powf((float)i / 255.0f, GAMMA);
+        s_gamma[i] = (uint8_t)(v * 255.0f + 0.5f);
+    }
+}
+
+#define SIN_LUT_SIZE 32   /* power of two -> index via mask, no modulo */
+static uint8_t s_sine_lut[SIN_LUT_SIZE];
+
+static void build_sine_lut(void)
+{
+    for (int i = 0; i < SIN_LUT_SIZE; i++) {
+        float v = 0.5f + 0.5f * sinf(2.0f * (float)M_PI * i / SIN_LUT_SIZE);
+        s_sine_lut[i] = (uint8_t)(v * 255.0f + 0.5f);
+    }
+}
+
+/* phase01 wraps to [0,1) -> 0..1 sine-shaped value, LUT + one lerp-free
+ * index, no trig in the per-frame path. */
+static inline float lut_sin01(float phase01)
+{
+    phase01 = phase01 - floorf(phase01);
+    int idx = (int)(phase01 * SIN_LUT_SIZE) & (SIN_LUT_SIZE - 1);
+    return s_sine_lut[idx] / 255.0f;
+}
+
+/* ================= radio-driven state ================= */
+/* Set via leds_set_rssi()/leds_set_channel()/leds_packet_hit(). All start
+ * at safe, inert defaults so a ring nobody wires up never glitches. */
+
+#define LED_RSSI_FLOOR (-90)
+#define LED_RSSI_CEIL  (-30)
+
+static int8_t   s_rssi_dbm       = LED_RSSI_FLOOR;   /* weak by default */
+static uint8_t  s_wifi_channel   = 1;
+static uint8_t  s_traffic_energy[TE_LED_COUNT] = {0};
+static uint8_t  s_traffic_pos    = 0;   /* last position a packet hit landed on */
+static uint32_t s_traffic_last_ms = 0;
+
 /* ================= persistent-mode renderers ================= */
 
 static void render_idle(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
 {
-    /* ~3s breathing cycle, subtle: local intensity roughly 12%..65%. */
-    uint8_t r, g, b;
-    rgb565_to_888(T_ACCENT, r, g, b);
-    float phase = fmodf(now, 3000.0f) / 3000.0f;
-    float frac = 0.12f + 0.53f * (0.5f + 0.5f * sinf(2.0f * (float)M_PI * phase));
-    for (int i = 0; i < TE_LED_COUNT; i++) put(buf, i, r, g, b, frac);
+    /* Dual-tone wave: two colour stops drifting around the ring at
+     * different, non-multiple periods so the two never resync into a
+     * repeating pattern -- the ring reads as quietly alive, not static,
+     * without ever demanding attention (peak stays low). */
+    uint8_t ar, ag, ab;
+    rgb565_to_888(T_ACCENT, ar, ag, ab);
+    uint8_t br, bg, bb;
+    rgb565_to_888(T_ACCENT2, br, bg, bb);
+
+    const float period_a = 5200.0f;
+    const float period_b = 7300.0f;
+    float phase_a = fmodf((float)now, period_a) / period_a;
+    float phase_b = fmodf((float)now, period_b) / period_b;
+
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        float posf = (float)i / (float)TE_LED_COUNT;
+        float la = lut_sin01(posf + phase_a);
+        float lb = lut_sin01(posf + phase_b + 0.5f);
+        add(buf, i, ar, ag, ab, 0.05f + 0.15f * la);
+        add(buf, i, br, bg, bb, 0.04f + 0.12f * lb);
+    }
 }
 
 static void render_active(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
@@ -222,6 +313,114 @@ static void render_alert(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
     rgb565_to_888(T_BAD, r, g, b);
     bool on = (now % 250) < 125;
     for (int i = 0; i < TE_LED_COUNT; i++) put(buf, i, r, g, b, on ? 1.0f : 0.0f);
+}
+
+static void render_rssi(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Signal-strength meter: leds_set_rssi(). Fill length AND colour heat
+     * both track proximity (T_DIM -> T_ACCENT -> T_GOOD), plus a pulse
+     * that quickens the closer the target gets -- a heartbeat you feel
+     * without reading a dBm number off the screen. */
+    float n = (float)(s_rssi_dbm - LED_RSSI_FLOOR) / (float)(LED_RSSI_CEIL - LED_RSSI_FLOOR);
+    if (n < 0.0f) n = 0.0f;
+    if (n > 1.0f) n = 1.0f;
+
+    uint8_t dr, dg, db; rgb565_to_888(T_DIM, dr, dg, db);
+    uint8_t ar, ag, ab; rgb565_to_888(T_ACCENT, ar, ag, ab);
+    uint8_t gr, gg, gb; rgb565_to_888(T_GOOD, gr, gg, gb);
+    uint8_t r, g, b;
+    if (n < 0.5f) {
+        float t = n * 2.0f;
+        r = lerp8(dr, ar, t); g = lerp8(dg, ag, t); b = lerp8(db, ab, t);
+    } else {
+        float t = (n - 0.5f) * 2.0f;
+        r = lerp8(ar, gr, t); g = lerp8(ag, gg, t); b = lerp8(ab, gb, t);
+    }
+
+    float period = 1400.0f - 900.0f * n;   /* far = slow pulse, close = fast */
+    float pulse = 0.72f + 0.28f * lut_sin01(fmodf((float)now, period) / period);
+
+    float fill = n * (float)TE_LED_COUNT;
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        float frac = fill - (float)i;
+        if (frac < 0.0f) frac = 0.0f;
+        if (frac > 1.0f) frac = 1.0f;
+        put(buf, i, r, g, b, frac * pulse);
+    }
+}
+
+static void render_channel(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Ring position encodes WiFi channel via leds_set_channel(). Everything
+     * but the indicated arc stays dim; the arc itself blends colour AND
+     * brightness across neighbouring LEDs so adjacent channels are visibly
+     * distinct even though there are only 8 pixels for 14 channels. */
+    (void)now;
+    uint8_t ch = s_wifi_channel;
+    if (ch < 1) ch = 1;
+    if (ch > 14) ch = 14;
+    float pos = (float)(ch - 1) * (float)(TE_LED_COUNT - 1) / 13.0f;
+
+    uint8_t dr, dg, db; rgb565_to_888(T_DIM, dr, dg, db);
+    uint8_t ar, ag, ab; rgb565_to_888(T_ACCENT2, ar, ag, ab);
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        float d = fabsf((float)i - pos);
+        float frac = (d < 1.3f) ? (1.0f - d / 1.3f) : 0.0f;
+        uint8_t r = lerp8(dr, ar, frac);
+        uint8_t g = lerp8(dg, ag, frac);
+        uint8_t b = lerp8(db, ab, frac);
+        put(buf, i, r, g, b, 0.15f + 0.85f * frac);
+    }
+}
+
+static void render_traffic(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Live packet monitor: leds_packet_hit() injects energy at a rotating
+     * position (step of 3, coprime with 8, so eight hits scatter across
+     * all eight LEDs instead of clustering); each frame decays every
+     * pixel by elapsed wall-clock time, not a fixed per-tick amount, so
+     * the fade rate doesn't drift with frame rate. Idle == near-dark;
+     * a busy channel == a storm, hot pixels shifting toward T_WARN. */
+    uint32_t dt = (s_traffic_last_ms == 0) ? 0 : (now - s_traffic_last_ms);
+    s_traffic_last_ms = now;
+    if (dt > 200) dt = 200;   /* clamp huge gaps (mode just switched in) */
+    uint16_t decay = (uint16_t)((dt * 60) / 100);   /* ~600/s -> ~425ms full fade */
+
+    uint8_t r, g, b;   rgb565_to_888(T_ACCENT2, r, g, b);
+    uint8_t wr, wg, wb; rgb565_to_888(T_WARN, wr, wg, wb);
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        uint8_t e = s_traffic_energy[i];
+        e = (e > decay) ? (uint8_t)(e - decay) : 0;
+        s_traffic_energy[i] = e;
+        float level = e / 255.0f;
+        uint8_t rr = lerp8(r, wr, level);
+        uint8_t gg = lerp8(g, wg, level);
+        uint8_t bb = lerp8(b, wb, level);
+        put(buf, i, rr, gg, bb, 0.05f + level * 0.95f);
+    }
+}
+
+static void render_attack(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Two counter-rotating comets, deliberately fast and aggressive, for
+     * deauth/flood screens. They cross twice a revolution and add (not
+     * overwrite) where they overlap, so the crossing points flare hot. */
+    const float period = 450.0f;
+    const float tail = 2.2f;
+    float pos_a = fmodf((float)now, period) / period * (float)TE_LED_COUNT;
+    float pos_b = (float)TE_LED_COUNT - pos_a;
+    if (pos_b >= (float)TE_LED_COUNT) pos_b -= (float)TE_LED_COUNT;
+
+    uint8_t wr, wg, wb; rgb565_to_888(T_WARN, wr, wg, wb);
+    uint8_t br, bg, bb; rgb565_to_888(T_BAD, br, bg, bb);
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        float da = wrapped_delta(pos_a, i);
+        float fa = (da < tail) ? (1.0f - da / tail) : 0.0f;
+        float dbp = wrapped_delta(pos_b, i);
+        float fb = (dbp < tail) ? (1.0f - dbp / tail) : 0.0f;
+        add(buf, i, wr, wg, wb, fa);
+        add(buf, i, br, bg, bb, fb);
+    }
 }
 
 /* ================= one-shot event renderers ================= */
@@ -291,6 +490,57 @@ static bool render_event_boot(uint32_t elapsed, uint8_t buf[TE_LED_COUNT][3])
     return true;
 }
 
+static bool render_event_hit(uint32_t elapsed, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Capture/handshake landed -- should feel like a reward. A bright
+     * flash expands from the last traffic-hit position outward in both
+     * directions around the ring, then resolves into a full-ring T_GOOD
+     * pulse that eases out. */
+    const uint32_t dur1 = 180, dur2 = 250, dur = dur1 + dur2;
+    if (elapsed >= dur) return false;
+    uint8_t r, g, b;
+    rgb565_to_888(T_GOOD, r, g, b);
+
+    if (elapsed < dur1) {
+        float p = (float)elapsed / (float)dur1;
+        float reach = p * ((float)TE_LED_COUNT / 2.0f + 1.0f);
+        int seed = s_traffic_pos;
+        for (int i = 0; i < TE_LED_COUNT; i++) {
+            int d = i - seed;
+            if (d > TE_LED_COUNT / 2) d -= TE_LED_COUNT;
+            if (d < -TE_LED_COUNT / 2) d += TE_LED_COUNT;
+            int ad = (d < 0) ? -d : d;
+            float frac = ((float)ad <= reach) ? 1.0f : 0.0f;
+            put(buf, i, r, g, b, frac);
+        }
+    } else {
+        float p = (float)(elapsed - dur1) / (float)dur2;
+        float frac = 1.0f - p;
+        frac = frac * frac;   /* ease-out decay, same shape as SELECT */
+        for (int i = 0; i < TE_LED_COUNT; i++) put(buf, i, r, g, b, frac);
+    }
+    return true;
+}
+
+static bool render_event_alert_spin(uint32_t elapsed, uint8_t buf[TE_LED_COUNT][3])
+{
+    /* Fast full-ring spin in T_BAD for detection/alert screens -- ~4 rev/s,
+     * overall envelope fades across the event so it doesn't cut off hard. */
+    const uint32_t dur = 600;
+    if (elapsed >= dur) return false;
+    uint8_t r, g, b;
+    rgb565_to_888(T_BAD, r, g, b);
+    const float rev_period = 150.0f;
+    float pos = fmodf((float)elapsed, rev_period) / rev_period * (float)TE_LED_COUNT;
+    float envelope = 1.0f - (float)elapsed / (float)dur;
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        float delta = wrapped_delta(pos, i);
+        float frac = (delta < 1.5f) ? (1.0f - delta / 1.5f) : 0.0f;
+        put(buf, i, r, g, b, frac * envelope);
+    }
+    return true;
+}
+
 /* ================= public API / state machine ================= */
 
 static led_mode_t   s_mode           = LED_MODE_IDLE;
@@ -299,6 +549,12 @@ static bool         s_event_pending  = false;
 static uint32_t     s_event_start    = 0;
 static uint32_t     s_last_update    = 0;
 static uint8_t      s_brightness_cap = 40;   /* out of 255 */
+
+/* Previous rendered frame (pre-brightness-cap, pre-gamma), used for the
+ * motion-smear blend below. Static storage -> zero-initialized, so the
+ * ring simply fades in from black across the first couple of frames at
+ * boot rather than reading uninitialized memory. */
+static uint8_t s_prev[TE_LED_COUNT][3];
 
 /* The ring must animate no matter which screen is up. Driving leds_tick()
  * from a UI loop only works while that particular loop is running: enter any
@@ -316,10 +572,16 @@ static void leds_task(void *)
 
 void leds_begin(void)
 {
+    build_gamma_table();
+    build_sine_lut();
     ws2812_rmt_init();
     s_mode = LED_MODE_IDLE;
     s_event_pending = false;
     s_last_update = 0;
+    memset(s_prev, 0, sizeof(s_prev));
+    memset(s_traffic_energy, 0, sizeof(s_traffic_energy));
+    s_traffic_pos = 0;
+    s_traffic_last_ms = 0;
     /* Push one all-off frame so the ring doesn't power up with
      * whatever garbage was left in the WS2812B's own latch. */
     uint8_t grb[TE_LED_COUNT * 3] = {0};
@@ -342,6 +604,24 @@ void leds_event(led_event_t e)
 
 void leds_set_brightness(uint8_t cap) { s_brightness_cap = cap; }
 
+void leds_set_rssi(int8_t dbm) { s_rssi_dbm = dbm; }
+
+void leds_set_channel(uint8_t ch)
+{
+    if (ch < 1) ch = 1;
+    if (ch > 14) ch = 14;
+    s_wifi_channel = ch;
+}
+
+void leds_packet_hit(void)
+{
+    /* +3 is coprime with TE_LED_COUNT(8), so 8 consecutive hits visit
+     * every LED exactly once in a scattered, non-adjacent order instead
+     * of just marching around the ring. */
+    s_traffic_pos = (uint8_t)((s_traffic_pos + 3) % TE_LED_COUNT);
+    s_traffic_energy[s_traffic_pos] = 255;
+}
+
 void leds_tick(void)
 {
     uint32_t now = millis();
@@ -355,29 +635,57 @@ void leds_tick(void)
     if (s_event_pending) {
         uint32_t elapsed = now - s_event_start;
         switch (s_active_event) {
-        case LED_EVENT_NAV_CW:  event_active = render_event_nav(elapsed, +1, buf); break;
-        case LED_EVENT_NAV_CCW: event_active = render_event_nav(elapsed, -1, buf); break;
-        case LED_EVENT_SELECT:  event_active = render_event_select(elapsed, buf);  break;
-        case LED_EVENT_BACK:    event_active = render_event_back(elapsed, buf);    break;
-        case LED_EVENT_BOOT:    event_active = render_event_boot(elapsed, buf);    break;
+        case LED_EVENT_NAV_CW:     event_active = render_event_nav(elapsed, +1, buf); break;
+        case LED_EVENT_NAV_CCW:    event_active = render_event_nav(elapsed, -1, buf); break;
+        case LED_EVENT_SELECT:     event_active = render_event_select(elapsed, buf);  break;
+        case LED_EVENT_BACK:       event_active = render_event_back(elapsed, buf);    break;
+        case LED_EVENT_BOOT:       event_active = render_event_boot(elapsed, buf);    break;
+        case LED_EVENT_HIT:        event_active = render_event_hit(elapsed, buf);     break;
+        case LED_EVENT_ALERT_SPIN: event_active = render_event_alert_spin(elapsed, buf); break;
         }
         if (!event_active) s_event_pending = false;
     }
 
+    /* Sweeps and breathing get motion smear (phosphor-style persistence);
+     * strobes, hits, and every one-shot event stay snappy so they still
+     * read as sharp reactions instead of getting blurred into the mush. */
+    bool smear = false;
+
     if (!event_active) {
         switch (s_mode) {
-        case LED_MODE_IDLE:   render_idle(now, buf);   break;
-        case LED_MODE_ACTIVE: render_active(now, buf); break;
-        case LED_MODE_SCAN:   render_scan(now, buf);   break;
-        case LED_MODE_ALERT:  render_alert(now, buf);  break;
+        case LED_MODE_IDLE:    render_idle(now, buf);    smear = true;  break;
+        case LED_MODE_ACTIVE:  render_active(now, buf);  smear = true;  break;
+        case LED_MODE_SCAN:    render_scan(now, buf);    smear = true;  break;
+        case LED_MODE_ALERT:   render_alert(now, buf);   smear = false; break;
+        case LED_MODE_RSSI:    render_rssi(now, buf);    smear = true;  break;
+        case LED_MODE_CHANNEL: render_channel(now, buf); smear = true;  break;
+        case LED_MODE_TRAFFIC: render_traffic(now, buf); smear = false; break;
+        case LED_MODE_ATTACK:  render_attack(now, buf);  smear = false; break;
         }
     }
 
+    if (smear) {
+        /* Recursive low-pass (roughly 40% new / 60% old each frame) against
+         * the previous frame -- because s_prev itself already carries the
+         * prior blend, this decays like phosphor across many frames, not
+         * just a single-frame cross-fade. */
+        for (int i = 0; i < TE_LED_COUNT; i++) {
+            for (int c = 0; c < 3; c++) {
+                uint16_t blended = (uint16_t)buf[i][c] * 102 + (uint16_t)s_prev[i][c] * 153;
+                buf[i][c] = (uint8_t)(blended / 255);
+            }
+        }
+    }
+    memcpy(s_prev, buf, sizeof(s_prev));
+
     uint8_t grb[TE_LED_COUNT * 3];
     for (int i = 0; i < TE_LED_COUNT; i++) {
-        grb[i * 3 + 0] = scale8(buf[i][1], s_brightness_cap);   /* G */
-        grb[i * 3 + 1] = scale8(buf[i][0], s_brightness_cap);   /* R */
-        grb[i * 3 + 2] = scale8(buf[i][2], s_brightness_cap);   /* B */
+        uint8_t g = scale8(buf[i][1], s_brightness_cap);
+        uint8_t r = scale8(buf[i][0], s_brightness_cap);
+        uint8_t b = scale8(buf[i][2], s_brightness_cap);
+        grb[i * 3 + 0] = s_gamma[g];
+        grb[i * 3 + 1] = s_gamma[r];
+        grb[i * 3 + 2] = s_gamma[b];
     }
     ws2812_show(grb);
 }
