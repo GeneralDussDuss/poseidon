@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>T-Embed — POSEIDON</title>
+<meta name="description" content="POSEIDON on the LilyGO T-Embed CC1101 (Plus). Every radio on one board, no hats: onboard CC1101 sub-GHz, nRF24 2.4 GHz, PN532 NFC, IR TX/RX, WiFi and BLE. A 320x170 screen and a rotary encoder. Active bring-up.">
+<meta property="og:title" content="POSEIDON on T-Embed">
+<meta property="og:description" content="A second board target. Every radio on one board, no hats: sub-GHz, 2.4 GHz, NFC, IR, WiFi, BLE. NFC is the T-Embed exclusive. Active bring-up.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://generaldussduss.github.io/poseidon/tembed.html">
+<meta property="og:image" content="https://generaldussduss.github.io/poseidon/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="theme-color" content="#06121f">
+<link rel="icon" href="assets/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+/* T-Embed page uses a cyan/teal board accent so it reads as fresh hardware
+   against the magenta site skin. Scoped to this page only. */
+.te-accent{color:#22d3ee}
+.te-wip{display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:#fbbf24;border:1px solid rgba(251,191,36,.5);background:rgba(251,191,36,.08);border-radius:999px;padding:.34rem .9rem}
+.te-hero-stats{display:flex;gap:2.5rem;flex-wrap:wrap;margin-top:2.2rem}
+.te-hero-stat{min-width:96px}
+.te-hero-stat .num{font-family:var(--font-display);font-size:2.4rem;font-weight:900;color:#7dd3fc;text-shadow:0 0 20px rgba(34,211,238,.35);line-height:1}
+.te-hero-stat .label{font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.14em;margin-top:.3rem}
+.te-panel{border:1px solid rgba(34,211,238,.32);border-radius:18px;background:linear-gradient(135deg,rgba(34,211,238,.08) 0%,rgba(14,165,233,.04) 100%);backdrop-filter:blur(6px);position:relative;overflow:hidden;padding:clamp(1.5rem,3vw,2.2rem)}
+.te-panel .glow{position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(34,211,238,.22) 0%,transparent 70%);pointer-events:none}
+.te-mono{font-family:var(--font-mono);font-size:.82rem;line-height:1.75;background:rgba(6,10,22,.6);border:1px solid rgba(34,211,238,.25);border-radius:12px;padding:1rem 1.2rem;color:#94a3b8;overflow-x:auto}
+.te-mono .g{color:#6ee7b7;font-weight:700}.te-mono .w{color:#fbbf24;font-weight:700}.te-mono .c{color:#22d3ee}
+.te-compare{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:1.5rem}
+.te-compare th,.te-compare td{text-align:left;padding:.7rem .9rem;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top}
+.te-compare thead th{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:#64748b}
+.te-compare tbody td:first-child{color:#cbd5e1;font-weight:500;width:26%}
+.te-compare .te-col{color:#7dd3fc}
+.te-compare .cp-col{color:#a3b4cf}
+.te-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.5rem}
+.te-status{background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));border:1px solid rgba(34,211,238,.12);border-radius:14px;padding:1.4rem 1.5rem;position:relative;overflow:hidden}
+.te-status::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%}
+.te-status.ready::before{background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.4)}
+.te-status.bring::before{background:#fbbf24;box-shadow:0 0 12px rgba(251,191,36,.4)}
+.te-status .st{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.te-status.ready .st{color:#22c55e}.te-status.bring .st{color:#fbbf24}
+.te-status h4{font-family:var(--font-display);font-size:1rem;color:#e2e8f0;margin-bottom:.5rem;letter-spacing:.03em}
+.te-status p{font-size:.9rem;color:#a3b4cf;line-height:1.55}
+</style>
+</head>
+<body data-matrix>
+
+<div id="bootOverlay">
+  <div class="boot-trident">🔱</div>
+  <div class="boot-logo">T-EMBED</div>
+  <div class="boot-lines"><div class="boot-line"><span class="dim">[LOAD]</span> tembed.html <span class="ok">OK</span></div></div>
+</div>
+<div id="scrollProgress"></div>
+<div id="hud"><div class="hud-row"><span class="hud-dot"></span>T-EMBED CC1101 PLUS · one board, every radio</div></div>
+
+<nav id="mainNav">
+  <a href="index.html" class="nav-logo"><span class="icon">P</span><span>POSEIDON</span></a>
+  <ul class="nav-links">
+    <li><a href="demo/">Demo</a></li>
+    <li><a href="arsenal.html">Arsenal</a></li>
+    <li><a href="codex.html">Codex</a></li>
+    <li><a href="hardware.html">Hardware</a></li>
+    <li><a href="tembed.html" class="active">T-Embed</a></li>
+    <li><a href="roadmap.html">Roadmap</a></li>
+    <li><a href="install.html">Install</a></li>
+    <li><a href="testers.html">Testers</a></li>
+    <li><a href="credits.html">Credits</a></li>
+    <li><a href="legal.html">Legal</a></li>
+    <li><a href="https://github.com/GeneralDussDuss/poseidon" target="_blank">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="page-head">
+  <div class="kicker">◆ SECOND BOARD // T-EMBED CC1101 PLUS</div>
+  <h1>Every radio on one board. No hats.</h1>
+  <p class="lede">POSEIDON now targets the LilyGO T-Embed CC1101 (Plus) alongside the Cardputer. On the Cardputer you swap a hat for each band. On the T-Embed the radios are already soldered on: CC1101 sub-GHz, an nRF24 at 2.4 GHz, a PN532 NFC reader, IR transmit and receive, plus the ESP32-S3's own WiFi and BLE. One build flag, a bigger screen, a rotary encoder, and a battery.</p>
+  <div class="te-wip"><span>◐</span> Active bring-up. Hardware is real and verified. The port is landing feature by feature, and every status below is honest about what runs today.</div>
+</header>
+
+<div class="console-strip">
+  <div class="console-bar">
+    <span class="ck">[HW]</span>
+    <span>board=<span class="nm">t-embed-cc1101-plus</span></span>
+    <span>mcu=<span class="nm">esp32-s3</span></span>
+    <span>lcd=<span class="nm">st7789 320x170</span></span>
+    <span>radios=<span class="nm">cc1101+nrf24+pn532+wifi+ble</span></span>
+    <span>ir=<span class="nm">tx+rx</span></span>
+    <span>input=<span class="nm">encoder</span></span>
+    <span class="blink">▸</span>
+  </div>
+</div>
+
+<section style="padding-top:2rem;">
+  <div class="te-hero-stats reveal">
+    <div class="te-hero-stat"><div class="num" data-count="5">5</div><div class="label">Radios onboard</div></div>
+    <div class="te-hero-stat"><div class="num" data-count="0">0</div><div class="label">Hats needed</div></div>
+    <div class="te-hero-stat"><div class="num" data-count="320" data-suffix="px">320px</div><div class="label">Display width</div></div>
+    <div class="te-hero-stat"><div class="num" data-count="8">8</div><div class="label">RGB LED ring</div></div>
+  </div>
+</section>
+
+<!-- THE PITCH -->
+<section>
+  <div class="section-label reveal" style="color:#22d3ee;">01 // WHY THE T-EMBED</div>
+  <h2 class="section-title reveal" style="background:linear-gradient(135deg,#22d3ee 0%,#7dd3fc 45%,#d946ef 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">A self-contained deck</h2>
+  <p class="section-desc reveal">The Cardputer is a keyboard-first pocket computer that borrows radios from swappable hats, one at a time. The T-Embed CC1101 Plus is the opposite trade: no keyboard, but every radio POSEIDON cares about is already on the board and powered from an internal cell. Same firmware, same menus, same arsenal. A different body.</p>
+
+  <div class="feature-grid reveal" style="margin-top:1rem;">
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M4 12h4l2-7 4 14 2-7h4"/></svg></span><h3 class="te-accent">Sub-GHz, built in</h3></div><p>The onboard CC1101 covers roughly 300 to 928 MHz with a switched antenna band-select network. Capture, analyze, and replay OOK remotes with no Hydra hat to seat.</p><div class="count" style="color:#22d3ee;">CC1101</div></div>
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 0-16 M12 20a8 8 0 0 1 0-16 M12 12h.01"/></svg></span><h3 class="te-accent">2.4 GHz nRF24</h3></div><p>The Plus SKU populates an nRF24L01+ for promiscuous ESB and HID work, the MouseJack surface, and nRF-side BLE spam. Same driver POSEIDON already ships.</p><div class="count" style="color:#22d3ee;">nRF24 · PLUS</div></div>
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M5 12h14 M5 12a7 7 0 0 1 14 0 M9 12a3 3 0 0 1 6 0 M12 12v6"/></svg></span><h3 class="te-accent">PN532 NFC</h3></div><p>The T-Embed exclusive. A full 13.56 MHz NFC reader on I2C that the Cardputer simply does not have. Read tags, identify the family, dump Mifare Classic sectors.</p><div class="count" style="color:#22d3ee;">EXCLUSIVE</div></div>
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M12 3v3 M12 18v3 M5 12H2 M22 12h-3 M7 7l-2-2 M17 7l2-2 M12 9a3 3 0 0 0 0 6 3 3 0 0 0 0-6z"/></svg></span><h3 class="te-accent">IR transmit and receive</h3></div><p>An IR LED on GPIO2 and a receiver on GPIO1, both onboard. Learn a remote, then replay it. No cap swap, no external emitter.</p><div class="count" style="color:#22d3ee;">IR TX + RX</div></div>
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M4 8h12v8H4z M16 10h3l1 2-1 2h-3 M6 20v-2 M12 20v-2"/></svg></span><h3 class="te-accent">Runs on battery</h3></div><p>A BQ25896 charger and a BQ27220 fuel gauge over I2C mean real runtime and a real percentage on screen. Unplug and keep working.</p><div class="count" style="color:#22d3ee;">POWER</div></div>
+    <div class="feature-card"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8v4l3 2 M12 3v2 M21 12h-2"/></svg></span><h3 class="te-accent">Encoder and LED ring</h3></div><p>A rotary encoder with SELECT and BACK, wrapped in an eight pixel WS2812B ring. A dial instead of a keyboard, and light that reacts to what the radios are doing.</p><div class="count" style="color:#22d3ee;">INPUT</div></div>
+  </div>
+</section>
+
+<!-- NFC HEADLINE -->
+<section id="nfc" style="padding:clamp(4rem,8vw,7rem) 1.5rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at top,rgba(34,211,238,.1) 0%,rgba(6,10,22,0) 55%),linear-gradient(180deg,rgba(6,182,212,.04) 0%,rgba(6,10,22,1) 85%);border-top:1px solid rgba(34,211,238,.2);border-bottom:1px solid rgba(34,211,238,.2);">
+  <div style="max-width:1150px;margin:0 auto;">
+    <div class="section-label reveal" style="color:#22d3ee;letter-spacing:.18em;">★ THE T-EMBED EXCLUSIVE · NFC</div>
+    <h2 class="section-title reveal" style="font-size:clamp(2.2rem,5vw,3.8rem);background:linear-gradient(135deg,#22d3ee 0%,#7dd3fc 40%,#6ee7b7 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">A card reader the Cardputer can never have</h2>
+    <p class="section-desc reveal" style="max-width:880px;font-size:clamp(1rem,1.4vw,1.2rem);">The board carries a PN532 on its own I2C bus. POSEIDON drives it with a self-contained reader, no external NFC library, on a separate Wire bus so it never fights anything else the chip is doing. Tap a tag and you get the UID, the ATQA and SAK bytes, and the tag family named on screen. On a Mifare Classic card, one press walks the sectors with the common default keys and writes the dump to the SD card.</p>
+
+    <div class="reveal te-panel frame" style="margin-top:2.5rem;">
+      <div class="glow"></div>
+      <div style="font-family:var(--font-mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:#22d3ee;margin-bottom:.5rem;">◐ WRITTEN FROM THE PN532 SPEC · PENDING ON-HARDWARE VALIDATION</div>
+      <h3 style="font-family:var(--font-display);font-size:clamp(1.3rem,2.2vw,1.8rem);margin:0 0 .6rem;color:#7dd3fc;letter-spacing:.02em;">What the reader does, and where it stands</h3>
+      <p style="font-size:1rem;line-height:1.6;color:#e2e8f0;margin:0 0 1rem;">The driver is complete and reads cleanly on paper: framing, checksums, InListPassiveTarget, MIFARE auth and read all follow the PN532 manual. It has not yet been proven against a live tag on the metal. Until it is, it wears a work in progress badge, the same rule the rest of the site follows.</p>
+      <div class="te-mono">
+        <div><span class="c">$</span> nfc read · iso14443a passive target</div>
+        <div>tag family from SAK ........ <span class="g">NAMED</span>&nbsp;&nbsp;UID + ATQA + SAK ... <span class="g">SHOWN</span></div>
+        <div>mifare classic sector dump ...... <span class="g">CODED</span>&nbsp;&nbsp;8 default keys, re-select on auth fail</div>
+        <div>dump target ....... <span class="c">/poseidon/nfc/&lt;uid&gt;.mfd</span> on SD</div>
+        <div>on-card validation ............. <span class="w">PENDING</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-top:2.5rem;">
+      <div class="feature-card reveal" style="border-color:rgba(34,211,238,.32);"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z M4 9h16 M8 13h4"/></svg></span><h3 class="te-accent">Identify any 14443A tag</h3></div><p>UID of any length, ATQA and SAK on screen, and the family resolved from SAK: NTAG or Ultralight, Mifare Classic 1K or 4K, Plus, DESFire, JCOP, or plain ISO14443-4.</p><div class="count" style="color:#22d3ee;">READ</div></div>
+      <div class="feature-card reveal" style="border-color:rgba(34,211,238,.32);"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M6 4h9l3 3v13H6z M9 12h6 M9 15h6"/></svg></span><h3 class="te-accent">Dump Mifare Classic</h3></div><p>Press once on a Classic card and it authenticates each sector with eight common keys, re-selecting the tag after any failed auth, then saves every block it recovered as a raw .mfd file.</p><div class="count" style="color:#22d3ee;">DUMP</div></div>
+      <div class="feature-card reveal" style="border-color:rgba(34,211,238,.32);"><div class="fc-head"><span class="fc-glyph" style="color:#22d3ee;border-color:rgba(34,211,238,.4);"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M8 10h8 M8 14h5"/></svg></span><h3 class="te-accent">Own bus, no collisions</h3></div><p>The PN532 sits on Wire1 at address 0x24 with its own reset line, kept off the main I2C bus so it never interferes with the fuel gauge, the charger, or anything else the board brings up.</p><div class="count" style="color:#22d3ee;">I2C</div></div>
+    </div>
+
+    <p class="reveal" style="max-width:820px;margin:2.5rem 0 0;font-style:italic;opacity:.85;text-align:center;color:#cbd5e1;">Lives in <code style="background:rgba(34,211,238,.12);padding:.12rem .4rem;border-radius:4px;color:#7dd3fc;font-family:var(--font-mono);font-size:.9rem;">src/nfc_hw.*</code> and <code style="background:rgba(34,211,238,.12);padding:.12rem .4rem;border-radius:4px;color:#7dd3fc;font-family:var(--font-mono);font-size:.9rem;">src/features/nfc_read.cpp</code>, board-gated so it compiles to inert stubs on the Cardputer. Read your own cards only.</p>
+  </div>
+</section>
+
+<!-- HARDWARE SPEC -->
+<section id="spec">
+  <div class="section-label reveal" style="color:#22d3ee;">02 // THE BOARD</div>
+  <h2 class="section-title reveal">Verified hardware</h2>
+  <p class="section-desc reveal">Every value below is taken from POSEIDON's own pin map for this board, cross-checked against LilyGO's sources for the T-Embed CC1101. Nothing here is aspirational. It is what the silicon is.</p>
+
+  <div class="hw-grid">
+    <div class="hw-card reveal">
+      <h3>Core <span class="chip" style="color:#22d3ee;border-color:rgba(34,211,238,.4);">ESP32-S3</span></h3>
+      <table>
+        <tr><td>MCU</td><td>ESP32-S3 with PSRAM</td></tr>
+        <tr><td>Display</td><td>ST7789, 170x320 panel, run landscape 320x170</td></tr>
+        <tr><td>Backlight</td><td>GPIO21, no panel reset line (tied to power rail)</td></tr>
+        <tr><td>Radio</td><td>WiFi 4 + BLE 5.0</td></tr>
+        <tr><td>Input</td><td>Rotary encoder + SELECT + BACK</td></tr>
+        <tr><td>Storage</td><td>microSD on the shared SPI bus</td></tr>
+        <tr><td>Power gate</td><td>GPIO15 must be HIGH before panel, CC1101 or LEDs respond</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>Radios <span class="chip" style="color:#22d3ee;border-color:rgba(34,211,238,.4);">ONBOARD</span></h3>
+      <table>
+        <tr><td>Sub-GHz</td><td>CC1101, ~300 to 928 MHz, SW0/SW1 band-select</td></tr>
+        <tr><td>2.4 GHz</td><td>nRF24L01+ (Plus SKU only)</td></tr>
+        <tr><td>NFC</td><td>PN532 on I2C, address 0x24, 13.56 MHz</td></tr>
+        <tr><td>IR</td><td>TX on GPIO2, RX on GPIO1</td></tr>
+        <tr><td>Bus</td><td>CC1101, nRF24 and SD share SPI (MOSI 9 / MISO 10 / SCK 11)</td></tr>
+      </table>
+    </div>
+    <div class="hw-card reveal">
+      <h3>Everything else <span class="chip" style="color:#22d3ee;border-color:rgba(34,211,238,.4);">EXTRAS</span></h3>
+      <table>
+        <tr><td>LED</td><td>WS2812B ring, 8 pixels around the encoder</td></tr>
+        <tr><td>Audio</td><td>NS4168 class-D I2S mono speaker</td></tr>
+        <tr><td>Mic</td><td>PDM microphone</td></tr>
+        <tr><td>Battery</td><td>BQ25896 charger + BQ27220 fuel gauge over I2C</td></tr>
+        <tr><td>SPI clock</td><td>40 MHz write, the vendor's shipped value</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="te-panel reveal" style="margin-top:1.5rem;max-width:820px;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.05);">
+    <div style="font-family:var(--font-mono);font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:#fbbf24;margin-bottom:.5rem;">▲ TWO REAL CAVEATS, STATED UP FRONT</div>
+    <p style="font-size:.95rem;line-height:1.6;color:#cbd5e1;margin:0;">The nRF24's chip-select pins are triple-booked with UART0 and the external header, so serial logging and 2.4 GHz traffic can interfere, and LilyGO's own issue tracker notes some Plus units lose nRF range over time. And because the SD card, the CC1101 and the nRF24 all live on one SPI bus, the SD mount has to cooperate with the display's use of that same bus. That coordination is exactly what the bring-up work below is closing out.</p>
+  </div>
+</section>
+
+<!-- CARDPUTER VS T-EMBED -->
+<section id="compare">
+  <div class="section-label reveal" style="color:#22d3ee;">03 // SAME FIRMWARE, TWO BODIES</div>
+  <h2 class="section-title reveal">Cardputer-Adv vs T-Embed CC1101 Plus</h2>
+  <p class="section-desc reveal">One codebase, selected at build time with a board flag. What actually changes is the shell around it.</p>
+
+  <div class="hw-card reveal" style="max-width:920px;">
+    <table class="te-compare">
+      <thead><tr><th></th><th>Cardputer-Adv</th><th>T-Embed CC1101 Plus</th></tr></thead>
+      <tbody>
+        <tr><td>Display</td><td class="cp-col">1.14 inch, 240x135</td><td class="te-col">1.9 inch, 320x170</td></tr>
+        <tr><td>Input</td><td class="cp-col">Full QWERTY keyboard</td><td class="te-col">Rotary encoder + SELECT + BACK</td></tr>
+        <tr><td>Sub-GHz</td><td class="cp-col">Hydra hat (CC1101)</td><td class="te-col">Onboard CC1101</td></tr>
+        <tr><td>2.4 GHz nRF24</td><td class="cp-col">Hydra hat</td><td class="te-col">Onboard (Plus SKU)</td></tr>
+        <tr><td>NFC</td><td class="cp-col">None</td><td class="te-col">Onboard PN532</td></tr>
+        <tr><td>IR</td><td class="cp-col">Onboard</td><td class="te-col">Onboard TX + RX</td></tr>
+        <tr><td>LoRa + GNSS</td><td class="te-col">LoRa hat (SX1262 + GPS)</td><td class="cp-col">Not onboard</td></tr>
+        <tr><td>Wired Ethernet</td><td class="te-col">W5500 hat (RJ45)</td><td class="cp-col">Not onboard</td></tr>
+        <tr><td>Power</td><td class="cp-col">Internal cell</td><td class="te-col">Internal cell + fuel gauge</td></tr>
+        <tr><td>Extras</td><td class="cp-col">Speaker, mic</td><td class="te-col">RGB ring, speaker, mic</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="reveal" style="max-width:820px;margin:1.5rem 0 0;color:#94a3b8;font-size:.95rem;">Neither board wins outright. The Cardputer keeps the keyboard and reaches LoRa, GNSS and wired Ethernet through hats. The T-Embed folds sub-GHz, 2.4 GHz, NFC and IR onto one board and adds a battery gauge. Pick the body the mission wants.</p>
+</section>
+
+<!-- PORT STATUS -->
+<section id="status">
+  <div class="section-label reveal" style="color:#22d3ee;">04 // PORT STATUS</div>
+  <h2 class="section-title reveal">What runs today</h2>
+  <p class="section-desc reveal">The honest ledger. Green is proven on the board or shares a code path that is. Amber is in active bring-up, written but not yet signed off on this hardware. No feature is claimed as done before it is.</p>
+
+  <div class="te-status-grid">
+    <div class="te-status ready reveal">
+      <div class="st"><span>●</span> READY</div>
+      <h4>Core firmware and display</h4>
+      <p>The POSEIDON build compiles for this board behind its own flag. The ST7789 panel comes up landscape through the LovyanGFX path, with the panel reset and power gate handled per LilyGO's own sources.</p>
+    </div>
+    <div class="te-status ready reveal">
+      <div class="st"><span>●</span> READY</div>
+      <h4>Menu and encoder</h4>
+      <p>The full menu tree renders on the wider screen, driven by the rotary encoder and the two buttons in place of the keyboard. The NFC entry is wired into the root menu on this board only.</p>
+    </div>
+    <div class="te-status ready reveal">
+      <div class="st"><span>●</span> READY</div>
+      <h4>Sub-GHz CC1101 driver</h4>
+      <p>The CC1101 init, strict chip detection and stable RSSI reads are board-gated to the T-Embed's own SPI pins. The chip is verified by PARTNUM and VERSION before any capture is trusted.</p>
+    </div>
+    <div class="te-status bring reveal">
+      <div class="st"><span>◐</span> BRING-UP</div>
+      <h4>NFC reader</h4>
+      <p>The PN532 driver and the read plus Mifare dump feature are written to spec and compile, but have not yet been proven against a live tag on the metal. Labelled work in progress until they are.</p>
+    </div>
+    <div class="te-status bring reveal">
+      <div class="st"><span>◐</span> BRING-UP</div>
+      <h4>Sub-GHz spectrum view</h4>
+      <p>The waterfall and spectrum buffers were sized to the Cardputer's narrower screen and overran on the T-Embed's 320 pixel width. The fix is in the tree, sizing every buffer to the board's real width, pending a compile and an on-device pass.</p>
+    </div>
+    <div class="te-status bring reveal">
+      <div class="st"><span>◐</span> BRING-UP</div>
+      <h4>SD card mount</h4>
+      <p>The SD card, the CC1101 and the nRF24 all share one SPI bus with the display. The pins are corrected for this board, and the remaining work is making the SD mount cooperate with the display's lock on that bus rather than seizing it.</p>
+    </div>
+  </div>
+
+  <p class="reveal" style="max-width:820px;margin:2rem 0 0;font-style:italic;opacity:.8;text-align:center;color:#cbd5e1;">This ledger moves as the board is exercised. When a card turns green here it has run on real hardware, not just compiled.</p>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="build">
+  <div class="section-label reveal" style="justify-content:center;color:#22d3ee;">★ · BUILD IT</div>
+  <h2 class="section-title reveal" style="text-align:center">Flash the T-Embed target</h2>
+  <p class="section-desc reveal" style="text-align:center;margin:0 auto 2rem">The T-Embed is a build-from-source target today. Select the board environment and POSEIDON compiles with the T-Embed pin map, the onboard radios, and the NFC reader gated in. Full toolchain notes are on the <a href="install.html" style="color:#22d3ee;">install page</a>.</p>
+  <div class="hero-btns reveal" style="justify-content:center;margin-bottom:1.5rem;">
+    <a href="install.html" class="btn btn-primary">⬇ Install Guide</a>
+    <a href="https://github.com/GeneralDussDuss/poseidon" target="_blank" rel="noopener" class="btn btn-secondary">Source on GitHub ↗</a>
+    <a href="hardware.html" class="btn btn-secondary">⎇ Cardputer Hardware</a>
+  </div>
+  <div class="cta-version reveal">LilyGO T-Embed CC1101 Plus &bull; ESP32-S3 &bull; build target: POSEIDON_BOARD_TEMBED</div>
+  <div class="cta-install reveal">
+    <span class="comment"># build + flash the T-Embed board target from source</span><br>
+    <span class="prompt-dollar">▸</span>git clone github.com/GeneralDussDuss/poseidon<br>
+    <span class="prompt-dollar">▸</span>cd poseidon<br>
+    <span class="prompt-dollar">▸</span>pio run -e tembed -t upload
+  </div>
+</section>
+
+<footer>
+  <div class="foot-glyph">⟠</div>
+  <div class="suite-label">PART OF THE SUITE</div>
+  <div class="suite-links">
+    <a href="https://generaldussduss.github.io/suite/">THE SUITE</a>
+    <a href="https://generaldussduss.github.io/faceless/">FACELESS</a>
+  </div>
+  <div class="copy">&copy; 2026 POSEIDON &mdash; commander of the deep &mdash; MIT</div>
+</footer>
+
+<canvas id="particles" style="position:fixed;inset:0;z-index:-1;pointer-events:none"></canvas>
+<script src="assets/site.js"></script>
+</body>
+</html>
