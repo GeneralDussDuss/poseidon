@@ -39,6 +39,7 @@
 #include "radio.h"
 #include "theme.h"
 #include "app.h"
+#include "ir_hw.h"
 #include "screensaver.h"
 #if defined(POSEIDON_BOARD_TEMBED)
 #include "board/leds_tembed.h"
@@ -519,7 +520,7 @@ void carousel_run_submenu(const menu_node_t *parent)
                 sel->action();
                 g_current_feature_item = nullptr;
                 /* Defensive IR park — see menu.cpp comment. */
-                pinMode(44, OUTPUT); digitalWrite(44, HIGH);
+                IR_PARK_BUILTIN_LED();
                 Serial.printf("[FEAT_EXIT] %s\n", sel->label);
                 /* Feature returned: drop the ring back to ambient so a SCAN/ATTACK
                  * animation does not persist into the menu. */
@@ -552,7 +553,7 @@ void carousel_run_submenu(const menu_node_t *parent)
                     sel->action();
                     g_current_feature_item = nullptr;
                     /* Defensive IR park — same as regular path. */
-                    pinMode(44, OUTPUT); digitalWrite(44, HIGH);
+                    IR_PARK_BUILTIN_LED();
                     Serial.printf("[FEAT_EXIT] %s\n", sel->label);
                     /* Feature returned: drop the ring back to ambient so a SCAN/ATTACK
                      * animation does not persist into the menu. */

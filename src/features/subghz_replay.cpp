@@ -101,7 +101,7 @@ static bool pick_sub_file(char *out_path, int max_len)
 {
     auto &d = M5Cardputer.Display;
 
-    char names[20][48];
+    char names[20][96];   /* recorder emits paths up to 96 chars */
     int count = 0;
 
     /* Scan a directory for .sub files, appending into names[]. */
@@ -113,8 +113,7 @@ static bool pick_sub_file(char *out_path, int max_len)
             if (!f.isDirectory()) {
                 String nm = f.name();
                 if (nm.endsWith(".sub")) {
-                    strncpy(names[count], f.path(), 47);
-                    names[count][47] = '\0';
+                    snprintf(names[count], sizeof(names[count]), "%s", f.path());
                     count++;
                 }
             }
@@ -179,7 +178,7 @@ static bool pick_sub_file(char *out_path, int max_len)
         if (k == ';' || k == PK_UP)   sel = (sel - 1 + count) % count;
         if (k == '.' || k == PK_DOWN) sel = (sel + 1) % count;
         if (k == PK_ENTER) {
-            strncpy(out_path, names[sel], max_len - 1);
+            snprintf(out_path, (size_t)max_len, "%s", names[sel]);
             return true;
         }
     }
@@ -189,7 +188,7 @@ void feat_subghz_replay(void)
 {
     if (!sd_mount()) { ui_toast("SD needed", T_BAD, 1500); return; }
 
-    char path[64];
+    char path[96];        /* must match the picker width */
     if (!pick_sub_file(path, sizeof(path))) return;
 
     int16_t *raw = (int16_t *)malloc(MAX_REPLAY_PULSES * sizeof(int16_t));

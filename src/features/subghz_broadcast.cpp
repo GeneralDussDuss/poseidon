@@ -43,7 +43,7 @@ static const sig_category_t CATS[] = {
 };
 #define CAT_COUNT (sizeof(CATS)/sizeof(CATS[0]))
 
-static char s_files[MAX_FILES][48];
+static char s_files[MAX_FILES][96];   /* recorder emits paths up to 96 chars */
 static int  s_file_count = 0;
 /* Per-entry "is this a baked signal?" tag. Index into SUBGHZ_BAKED[]
  * when true; otherwise s_files[i] is an SD path. Baked entries are
@@ -87,8 +87,7 @@ static bool scan_dir(const char *subdir)
     while ((f = dir.openNextFile()) && s_file_count < MAX_FILES) {
         String nm = f.name();
         if (nm.endsWith(".sub")) {
-            strncpy(s_files[s_file_count], f.path(), 47);
-            s_files[s_file_count][47] = '\0';
+            snprintf(s_files[s_file_count], sizeof(s_files[s_file_count]), "%s", f.path());
             s_is_baked[s_file_count] = false;
             s_file_count++;
         } else if (f.isDirectory() && subdir[0] == '\0') {
@@ -97,8 +96,7 @@ static bool scan_dir(const char *subdir)
             while ((sf = f.openNextFile()) && s_file_count < MAX_FILES) {
                 String sn = sf.name();
                 if (sn.endsWith(".sub")) {
-                    strncpy(s_files[s_file_count], sf.path(), 47);
-                    s_files[s_file_count][47] = '\0';
+                    snprintf(s_files[s_file_count], sizeof(s_files[s_file_count]), "%s", sf.path());
                     s_file_count++;
                 }
                 sf.close();

@@ -40,3 +40,16 @@
  * spread across four files. */
 #define IR_TX_ON_LEVEL   (IR_TX_ACTIVE_LOW ? LOW  : HIGH)
 #define IR_TX_OFF_LEVEL  (IR_TX_ACTIVE_LOW ? HIGH : LOW)
+
+/* Park the Cardputer's BUILT-IN IR LED (GPIO 44) dark.
+ *
+ * This idiom was open-coded as pinMode(44,OUTPUT)+digitalWrite(44,HIGH) in
+ * seven places, including a watchdog task that re-ran it every 50 ms. On the
+ * T-Embed GPIO 44 is not an LED at all -- it is the nRF24 CHIP SELECT on the
+ * bus shared with the display, SD and CC1101. Driving it there asserts a
+ * foreign chip select underneath live SPI traffic. No-op on that board. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define IR_PARK_BUILTIN_LED()  ((void)0)
+#else
+#define IR_PARK_BUILTIN_LED()  do { pinMode(44, OUTPUT); digitalWrite(44, HIGH); } while (0)
+#endif

@@ -6,6 +6,7 @@
  * that the menu invokes.
  */
 #include "menu.h"
+#include "ir_hw.h"
 #include "ui.h"
 #include "ui_ambient.h"
 #include "input.h"
@@ -1456,7 +1457,7 @@ static void run_submenu(const menu_node_t *parent)
                 /* Defensive IR park — IR features should self-park HIGH
                  * but if any path skips that, the LED stays glowing.
                  * Hard-set OFF here after every feature returns. */
-                pinMode(44, OUTPUT); digitalWrite(44, HIGH);
+                IR_PARK_BUILTIN_LED();
                 { size_t hb_now = heap_free_internal();
                   long hb_d = (long)hb_now - (long)hb_base;
                   Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
@@ -1503,7 +1504,7 @@ static void run_submenu(const menu_node_t *parent)
                         ch->action();
                         g_current_feature_item = nullptr;
                         /* Defensive IR park — same as above. */
-                        pinMode(44, OUTPUT); digitalWrite(44, HIGH);
+                        IR_PARK_BUILTIN_LED();
                         { size_t hb_now = heap_free_internal();
                           long hb_d = (long)hb_now - (long)hb_base;
                           Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",

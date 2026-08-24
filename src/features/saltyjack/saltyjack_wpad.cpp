@@ -32,6 +32,7 @@
 #include <esp_random.h>
 #include "mbedtls/base64.h"
 #include <sys/time.h>
+#include "../../sd_helper.h"
 
 #define WPAD_HTTP_PORT   80
 #define HASH_LOG_PATH    "/poseidon/saltyjack/ntlm_hashes.txt"
@@ -193,7 +194,7 @@ static void save_hash(const uint8_t *buf, size_t n, const char *client_ip_str)
     Serial.println("---------------------------------------");
 
     SD.mkdir("/poseidon");
-    SD.mkdir("/poseidon/saltyjack");
+    sd_mkpath("/poseidon/saltyjack");
     File f = SD.open(HASH_LOG_PATH, FILE_APPEND);
     if (f) {
         f.print("# wpad from ");

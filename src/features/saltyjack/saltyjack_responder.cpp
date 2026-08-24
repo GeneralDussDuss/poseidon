@@ -32,6 +32,7 @@
 #include <SD.h>
 #include <esp_random.h>
 #include <sys/time.h>
+#include "../../sd_helper.h"
 
 /* ===== config ===== */
 
@@ -246,7 +247,7 @@ static void extract_hash(const uint8_t *pkt, uint32_t pkt_len, const uint8_t *nt
 
     /* Write to SD */
     SD.mkdir("/poseidon");
-    SD.mkdir("/poseidon/saltyjack");
+    sd_mkpath("/poseidon/saltyjack");
     File f = SD.open(HASH_LOG_PATH, FILE_APPEND);
     if (f) {
         f.print("# ");

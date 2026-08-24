@@ -101,7 +101,7 @@ static bool save_sub(float freq, const int16_t *p, int count)
     /* Force fresh SD remount on HSPI. */
     bool ok = false;
     if (sd_remount()) {
-        SD.mkdir("/poseidon/signals/custom");
+        sd_mkpath("/poseidon/signals/custom");
         char path[64];
         snprintf(path, sizeof(path), "/poseidon/signals/custom/cap-%lu.sub",
                  (unsigned long)(millis() / 1000));

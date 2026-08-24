@@ -52,7 +52,10 @@ void feat_wifi_connect(void)
            network at all, which also blocks every LAN feature downstream. */
         {
             static const char *const ACTS[] = { "New network", "Connect saved", "Forget" };
-            const int r = ui_encoder_actions(k, "WIFI", ACTS, "nxf", 3);
+            /* keys MUST be in label order. This read "nxf", so picking "Connect saved"
+             * emitted 'x' and wiped the saved SSID/password instead of connecting,
+             * and "Forget" emitted 'f' which no branch handles. */
+            const int r = ui_encoder_actions(k, "WIFI", ACTS, "ncx", 3);
             if (r < 0) continue;
         }
 

@@ -74,8 +74,7 @@ static void dump_mifare(const NfcTag &tag)
 
     bool saved = false;
     if (got > 0 && sd_mount()) {
-        SD.mkdir("/poseidon");
-        SD.mkdir("/poseidon/nfc");
+        sd_mkpath("/poseidon/nfc");
         File f = SD.open(path, FILE_WRITE);
         if (f) { f.write(dump, (size_t)BLOCKS * 16); f.close(); saved = true; }
     }

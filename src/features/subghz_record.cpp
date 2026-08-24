@@ -250,7 +250,7 @@ void feat_subghz_record(void)
             delay(10);
             if (sd_remount()) {
                 char path[96];
-                SD.mkdir("/poseidon/signals/custom");
+                sd_mkpath("/poseidon/signals/custom");
                 if (s_decoded.valid) {
                     snprintf(path, sizeof(path),
                              "/poseidon/signals/custom/%s-%lX-%lu.sub",

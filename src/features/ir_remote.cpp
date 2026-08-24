@@ -104,7 +104,7 @@ static void carrier_on(void)
      * pin sits LOW = LED stuck ON the moment we enter Samsung Remote.
      * Stopping ALL three potentially-used channels covers every path. */
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 1);  /* idle HIGH */
-    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, 1);
+    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, IR_TX_OFF_LEVEL);
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, 1);  /* tvbgone */
     gpio_reset_pin((gpio_num_t)IR_PIN);
     pinMode(IR_PIN, OUTPUT);
@@ -245,19 +245,33 @@ static void diag_drive(int pin, int freq_hz, bool invert, int dur_ms)
      * digitalWrite(LOW), which on an active-LOW LED leaves it stuck
      * ON. That stale-on state then contaminated Samsung Remote on
      * entry — fixed by stopping at idle HIGH and parking the pin HIGH. */
-    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, 1);
+    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, IR_TX_OFF_LEVEL);
     gpio_reset_pin((gpio_num_t)pin);
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, HIGH);  /* active-LOW: HIGH = LED OFF */
+    digitalWrite(pin, IR_TX_OFF_LEVEL);  /* active-LOW: HIGH = LED OFF */
 }
 
 struct diag_step_t { int pin; bool invert; const char *label; };
+#if defined(POSEIDON_BOARD_TEMBED)
+/* The Cardputer table below probes GPIO 44 / 9 / 41 looking for the emitter.
+ * On the T-Embed those are the nRF24 chip select, the shared SPI MOSI and the
+ * TFT chip select: driving them with a 38 kHz LEDC output and then
+ * gpio_reset_pin()-ing them DETACHES MOSI and TFT_CS from SPI2_HOST, killing
+ * the display, SD, CC1101 and nRF24 until reboot -- from a menu item that
+ * claims to be a harmless LED check. This board's emitter is GPIO 2, and that
+ * is the only pin the diagnostic may touch. */
+static const diag_step_t DIAG_STEPS[] = {
+    { IR_TX_PIN, false, "GPIO  2  normal"   },
+    { IR_TX_PIN, true,  "GPIO  2  inverted" },
+};
+#else
 static const diag_step_t DIAG_STEPS[] = {
     { 44, false, "GPIO 44  normal" },
     { 44, true,  "GPIO 44  inverted" },
     {  9, false, "GPIO  9  normal" },
     { 41, false, "GPIO 41  normal" },
 };
+#endif
 #define DIAG_N (sizeof(DIAG_STEPS) / sizeof(DIAG_STEPS[0]))
 
 void feat_ir_test(void)

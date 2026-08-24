@@ -114,7 +114,7 @@ static void ir_replay(void) {
 /* ---- SD save (/poseidon/ir/slot<N>.ir : CSV of µs values) ---- */
 static void ir_save(int slot) {
     if (!sd_mount()) { ui_toast("no SD", T_BAD, 1000); return; }
-    SD.mkdir("/poseidon"); SD.mkdir("/poseidon/ir");
+    sd_mkpath("/poseidon/ir");
     char path[40]; snprintf(path, sizeof(path), "/poseidon/ir/slot%d.ir", slot);
     File f = SD.open(path, FILE_WRITE);
     if (!f) { ui_toast("save failed", T_BAD, 1000); return; }

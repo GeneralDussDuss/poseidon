@@ -2,6 +2,7 @@
  * POSEIDON main — boot + splash + menu.
  */
 #include "app.h"
+#include "ir_hw.h"
 #include "ui.h"
 #include "input.h"
 #include "menu.h"
@@ -60,11 +61,10 @@ static bool ir_feature_active(void)
 }
 static void ir_watchdog_task(void *_)
 {
-    pinMode(44, OUTPUT);
-    digitalWrite(44, HIGH);
+    IR_PARK_BUILTIN_LED();
     while (1) {
         if (!ir_feature_active()) {
-            digitalWrite(44, HIGH);
+            IR_PARK_BUILTIN_LED();
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -81,8 +81,7 @@ void setup()
      * pulldown and the LED visible-glows on phone camera. Hard-park
      * HIGH before anything else (M5GFX board autodetect, libraries,
      * etc.) so the pin is firmly OFF from the very first instruction. */
-    pinMode(44, OUTPUT);
-    digitalWrite(44, HIGH);
+    IR_PARK_BUILTIN_LED();
 
     /* Re-assert KERBEROS key mode from NVS after a cold boot (the OS FIDO reset
      * flow makes the user unplug + reinsert, which wipes the RTC personality
@@ -182,8 +181,7 @@ void setup()
 
     /* Re-park IR LED HIGH after all the library inits in case any of
      * them poked GPIO 44. */
-    pinMode(44, OUTPUT);
-    digitalWrite(44, HIGH);
+    IR_PARK_BUILTIN_LED();
 
     /* sys-015 / OPSEC: GPS is OFF by default. The user must opt in via
      * the menu before WiFi captures / wardrive logs carry observer

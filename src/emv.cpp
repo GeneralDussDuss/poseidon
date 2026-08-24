@@ -279,8 +279,11 @@ bool emv_read_card(emv_apdu_fn send, emv_card_t *out)
         const uint8_t sfi   = (uint8_t)(afl_buf[i] >> 3);
         const uint8_t first = afl_buf[i + 1];
         const uint8_t last  = afl_buf[i + 2];
-        if (!sfi || first == 0 || last < first) continue;
-        for (uint8_t rec = first; rec <= last; ++rec) {
+        /* first/last come FROM THE CARD. A last of 0xFF makes a uint8_t counter
+         * wrap at 255 and loop forever; implausible SFIs waste a round trip each.
+         * Bound both the values and the iteration count. */
+        if (!sfi || sfi > 30 || first == 0 || last < first || last > 16) continue;
+        for (uint16_t rec = first; rec <= last && rec < (uint16_t)first + 16; ++rec) {
             const uint8_t cmd[5] = { 0x00, 0xB2, rec, (uint8_t)((sfi << 3) | 0x04), 0x00 };
             n = send(cmd, sizeof(cmd), r, sizeof(r));
             if (n >= 2 && SW_OK(r, n)) harvest(r, (uint16_t)(n - 2), out);

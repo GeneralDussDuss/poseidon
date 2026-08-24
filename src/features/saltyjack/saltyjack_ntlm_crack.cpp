@@ -31,6 +31,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "mbedtls/md.h"
+#include "../../sd_helper.h"
 
 #define NTLM_HASH_PATH     "/poseidon/saltyjack/ntlm_hashes.txt"
 #define NTLM_WORDLIST_PATH "/poseidon/saltyjack/ntlm_wordlist.txt"
@@ -192,7 +193,7 @@ static bool hex_to_bytes(const String &hex, uint8_t *out, size_t out_len)
 static void ensure_paths(void)
 {
     if (!SD.exists("/poseidon")) SD.mkdir("/poseidon");
-    if (!SD.exists("/poseidon/saltyjack")) SD.mkdir("/poseidon/saltyjack");
+    sd_mkpath("/poseidon/saltyjack");
 
     if (!SD.exists(NTLM_WORDLIST_PATH)) {
         File wf = SD.open(NTLM_WORDLIST_PATH, FILE_WRITE);

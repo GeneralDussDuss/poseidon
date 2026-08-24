@@ -19,6 +19,10 @@
  * feature entry; returns immediately if already mounted.
  */
 bool sd_mount(void);
+
+/* Create every missing directory along an absolute path (SD.mkdir is not
+ * recursive). Returns true if the full path exists afterwards. */
+bool sd_mkpath(const char *path);
 bool sd_is_mounted(void);
 
 /* Content wipe: recursive delete of every file/dir. Only does a real
