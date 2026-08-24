@@ -133,6 +133,16 @@ static void show_characteristic(int idx)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
 
+        /* Encoder path: R/W are unreachable on the T-Embed, which reduced the
+         * GATT explorer to a read-only tree viewer -- no characteristic could
+         * ever actually be read or written there. */
+        if (k == PK_ACTIONS || k == PK_ENTER) {
+            static const char *const ACTS[] = { "Read", "Write" };
+            const int pick = ui_action_menu("CHARACTERISTIC", ACTS, 2);
+            if (pick < 0) continue;
+            k = (pick == 0) ? 'r' : 'w';
+        }
+
         char ch = (char)tolower((int)k);
         if (ch == 'r' && n.chr->canRead()) {
             last_val = n.chr->readValue();

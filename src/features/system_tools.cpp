@@ -47,6 +47,15 @@ void feat_wifi_connect(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) { s_prefs.end(); return; }
+
+        /* Encoder path: without this a T-Embed could never join a WiFi
+           network at all, which also blocks every LAN feature downstream. */
+        {
+            static const char *const ACTS[] = { "New network", "Connect saved", "Forget" };
+            const int r = ui_encoder_actions(k, "WIFI", ACTS, "nxf", 3);
+            if (r < 0) continue;
+        }
+
         if ((k == 'n' || k == 'N')) {
             char s[33], p[65];
             if (!input_line("ssid:", s, sizeof(s))) continue;

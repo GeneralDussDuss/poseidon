@@ -139,6 +139,21 @@ static void pick_list(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder path. The letter bindings below cannot be produced on the
+         * T-Embed (encoder emits only ENTER/ESC/UP/DOWN/ACTIONS), so this
+         * picker spun forever and the whole feature was unreachable there.
+         * Custom entry now works too, since input_line() has a character
+         * wheel on that board. */
+        if (k == PK_ENTER || k == PK_ACTIONS) {
+            static const char *const ACTS[] = { "Meme SSIDs", "Rickroll", "Custom" };
+            const int pick = ui_action_menu("BEACON SPAM", ACTS, 3);
+            if (pick == 0) { s_list = s_meme_ssids; s_list_n = MEME_COUNT; return; }
+            if (pick == 1) { s_list = s_rick_ssids; s_list_n = RICK_COUNT; return; }
+            if (pick == 2) { k = 'c'; }      /* fall into the custom branch */
+            else           { continue; }     /* backed out -> repaint & wait */
+        }
+
         if (k == 'm' || k == 'M') { s_list = s_meme_ssids; s_list_n = MEME_COUNT; return; }
         if (k == 'r' || k == 'R') { s_list = s_rick_ssids; s_list_n = RICK_COUNT; return; }
         if (k == 'c' || k == 'C') {

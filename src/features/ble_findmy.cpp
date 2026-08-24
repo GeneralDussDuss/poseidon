@@ -133,6 +133,18 @@ void feat_ble_findmy(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder path: the digits below are unreachable on the T-Embed, so
+         * this mandatory gate looped forever and Find My could never start on
+         * that board. */
+        if (k == PK_ENTER || k == PK_ACTIONS || k == PK_UP || k == PK_DOWN) {
+            static const char *const MODES[] = { "1 tag", "8 tags", "32 tags" };
+            const int pick = ui_action_menu("FIND MY", MODES, 3);
+            if (pick < 0) return;
+            mode = pick + 1;
+            break;
+        }
+
         if (k == '1') mode = 1;
         if (k == '2') mode = 2;
         if (k == '3') mode = 3;

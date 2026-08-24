@@ -328,7 +328,9 @@ static void client_detail(int idx)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
-        if (k == 'd' || k == 'D') {
+        /* PK_ACTIONS (encoder hold) = deauth: 'D' is unreachable on the
+         * T-Embed, which made this detail screen read-only there. */
+        if (k == 'd' || k == 'D' || k == PK_ACTIONS) {
             deauth_client(s_clients[idx].mac);
             /* deauth_client tears promisc down — re-arm. */
             esp_wifi_set_promiscuous(true);
@@ -538,7 +540,7 @@ void feat_wifi_clients(void)
             draw_client_chrome();
             last_count = last_cursor = last_first = -1;
         }
-        if ((k == 'd' || k == 'D') && s_count > 0 && cursor < s_count) {
+        if ((k == 'd' || k == 'D' || k == PK_ACTIONS) && s_count > 0 && cursor < s_count) {
             deauth_client(s_clients[cursor].mac);
             /* wifi_silent_ap_end() inside deauth_client tears WiFi down
              * to STA + promisc=false. Re-arm so the client sniffer

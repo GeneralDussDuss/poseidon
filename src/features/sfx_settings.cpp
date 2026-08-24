@@ -48,6 +48,16 @@ void feat_sfx_settings(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(30); continue; }
         if (k == PK_ESC) { sfx_back(); return; }
+
+        /* Encoder: turn tunes (the +/- bindings below), hold opens the actions
+         * that were letter-only and therefore dead on the T-Embed. */
+        if (k == PK_UP)   k = '+';
+        if (k == PK_DOWN) k = '-';
+        {
+            static const char *const ACTS[] = { "Toggle mute", "Test sound" };
+            const int r = ui_encoder_actions(k, "SOUND", ACTS, "mt", 2, false);
+            if (r < 0) continue;
+        }
         if (k == '+' || k == '=') {
             if (vol < 10) sfx_set_volume(vol + 1);
             sfx_click();

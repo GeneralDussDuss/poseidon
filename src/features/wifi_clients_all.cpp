@@ -357,6 +357,24 @@ void feat_wifi_clients_all(void)
         portENTER_CRITICAL(&s_all_mux);
         sel = s_all[cursor];
         portEXIT_CRITICAL(&s_all_mux);
+        /* Encoder path: none of the letter bindings below can be produced on
+         * the T-Embed, so every action here (deauth STA, deauth AP, lock,
+         * hop) was dead while the list still scrolled -- the screen looked
+         * fully working. Map the hold gesture onto the same four bodies. */
+        if (k == PK_ENTER || k == PK_ACTIONS) {
+            static const char *const ACTS[] = {
+                "Deauth STA", "Deauth AP (all)", "Lock channel", "Resume hop"
+            };
+            const int pick = ui_action_menu("CLIENT ACTIONS", ACTS, 4);
+            switch (pick) {
+                case 0:  k = 'd'; break;
+                case 1:  k = 'x'; break;
+                case 2:  k = 'l'; break;
+                case 3:  k = 'h'; break;
+                default: last_count = last_cursor = last_first = -1; continue;
+            }
+        }
+
         if (k == 'd' || k == 'D') {
             unicast_deauth(sel.sta, sel.bssid, sel.ch, 30);
             ui_toast("deauth → STA", T_BAD, 500);

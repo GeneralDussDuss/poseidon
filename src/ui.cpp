@@ -429,7 +429,7 @@ void ui_notify_slide(const char *title, const char *sub,
         d.drawRoundRect(bx + 1, y + 1, bw - 2, bh - 2, 3, color);
         d.setTextColor(color, 0x0000);
         d.setTextSize(2);
-        int tw = d.textWidth(title) * 2;
+        int tw = d.textWidth(title);
         d.setCursor(bx + (bw - tw) / 2, y + 3);
         d.print(title);
         d.setTextSize(1);
@@ -842,7 +842,7 @@ void ui_action_overlay_with_tick(const char *headline, const char *subtitle,
          * behavior, will flash but at least renders). */
         d.fillScreen(0x0000);
         d.setTextSize(3);
-        int hw = d.textWidth(headline) * 3;
+        int hw = d.textWidth(headline);
         d.setCursor((SCR_W - hw) / 2, SCR_H / 2 - 16);
         d.setTextColor(color, 0);
         d.print(headline);
@@ -938,7 +938,7 @@ void ui_action_overlay_with_tick(const char *headline, const char *subtitle,
 
             /* Headline: big, centered, magenta-glow outlined. */
             canvas.setTextSize(3);
-            int hw = canvas.textWidth(headline) * 3;
+            int hw = canvas.textWidth(headline);
             int hx = (SCR_W - hw) / 2;
             int hy = SCR_H / 2 - 16;
             uint16_t halo = blend565(0x0000, 0xF81F, alpha);
@@ -1131,4 +1131,24 @@ int ui_action_menu(const char *title, const char *const *labels, int n)
         if (k == PK_UP   || k == ';') { plist_move(&m, -1); }
         if (k == PK_DOWN || k == '.') { plist_move(&m,  1); }
     }
+}
+
+
+/* See ui.h. Board-neutral by design: on a keyboard board the encoder gestures
+ * never arrive, so this is a no-op and the letter bindings work as before. */
+int ui_encoder_actions(uint16_t &k, const char *title,
+                       const char *const *labels, const char *keys, int n,
+                       bool want_enter)
+{
+#if defined(POSEIDON_BOARD_TEMBED)
+    const bool gesture = (k == PK_ACTIONS) || (want_enter && k == PK_ENTER);
+    if (!gesture) return 0;
+    const int pick = ui_action_menu(title, labels, n);
+    if (pick < 0 || pick >= n) return -1;
+    k = (uint16_t)(uint8_t)keys[pick];
+    return 1;
+#else
+    (void)k; (void)title; (void)labels; (void)keys; (void)n; (void)want_enter;
+    return 0;
+#endif
 }

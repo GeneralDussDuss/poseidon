@@ -17,6 +17,7 @@
 #include "../menu.h"
 #include <SD.h>
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
+#include "../board/leds_tembed.h"
 
 #define RAW_MAX_PULSES 4096
 
@@ -66,6 +67,7 @@ static bool save_sub_file(const char *path, float freq, const int16_t *raw, int 
 
 void feat_subghz_record(void)
 {
+    leds_set_mode(LED_MODE_SCAN);   /* ring reflects what this screen is doing */
     radio_switch(RADIO_SUBGHZ);
     if (!cc1101_begin(433.92f)) {
         ui_toast("CC1101 not found", T_BAD, 1500);
@@ -141,6 +143,28 @@ void feat_subghz_record(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (k == '?') { ui_show_current_help(); }
+
+        /* Encoder-only boards (T-Embed) have no letters, no +/- and no ENTER
+         * beyond the single press, so Save / Retry / Autoscan were physically
+         * unreachable: you could capture a signal and then had no way to keep
+         * it. Hold the encoder for PK_ACTIONS to get the same actions as a
+         * modal list, and let the wheel step frequency. */
+        if (k == PK_ACTIONS) {
+            static const char *const ACTIONS[] = { "Save", "Retry", "Autoscan", "Tune +", "Tune -" };
+            const int pick = ui_action_menu("RECORD", ACTIONS, 5);
+            chrome_dirty = true;
+            switch (pick) {
+                case 0: k = 's'; break;
+                case 1: k = 'r'; break;
+                case 2: k = 'a'; break;
+                case 3: k = '+'; break;
+                case 4: k = '-'; break;
+                default: continue;          /* backed out */
+            }
+        }
+        if (k == PK_UP)   { freq += 0.5f; cc1101_set_freq(freq); recorded = false; chrome_dirty = true; }
+        if (k == PK_DOWN) { freq -= 0.5f; cc1101_set_freq(freq); recorded = false; chrome_dirty = true; }
+
         if (k == '+' || k == '=') { freq += 0.5f; cc1101_set_freq(freq); recorded = false; }
         if (k == '-')             { freq -= 0.5f; cc1101_set_freq(freq); recorded = false; }
         if ((k == 'a' || k == 'A') && !recorded) {
@@ -154,7 +178,7 @@ void feat_subghz_record(void)
             int step = 0;
             for (int pass = 0; pass < 2; ++pass) {
                 for (int i = 0; i < (int)SCAN_FREQ_COUNT; ++i) {
-                    ELECHOUSE_cc1101.setMHZ(SCAN_FREQS[i]);
+                    cc1101_set_freq(SCAN_FREQS[i]);
                     ELECHOUSE_cc1101.SetRx();
                     delay(12);
                     int r = cc1101_get_rssi();

@@ -136,16 +136,26 @@ void feat_subghz_finder(void)
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
+
+        /* Encoder: turn tunes (the +/- bindings below), hold opens the actions
+         * that were letter-only and therefore dead on the T-Embed. */
+        if (k == PK_UP)   k = '+';
+        if (k == PK_DOWN) k = '-';
+        {
+            static const char *const ACTS[] = { "Reset peak" };
+            const int r = ui_encoder_actions(k, "SUBGHZ FINDER", ACTS, "r", 1, false);
+            if (r < 0) continue;
+        }
         if (k == '+' || k == '=') {
             freq += 0.5f;
             ELECHOUSE_cc1101.setSidle();
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             ELECHOUSE_cc1101.SetRx();
         }
         if (k == '-') {
             freq -= 0.5f;
             ELECHOUSE_cc1101.setSidle();
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             ELECHOUSE_cc1101.SetRx();
         }
         if (k == 'r' || k == 'R') { peak_rssi = -120; floor_rssi = rssi; ceil_rssi = rssi; }
@@ -217,6 +227,16 @@ void feat_nrf24_finder(void)
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
+
+        /* Encoder: turn tunes (the +/- bindings below), hold opens the actions
+         * that were letter-only and therefore dead on the T-Embed. */
+        if (k == PK_UP)   k = '+';
+        if (k == PK_DOWN) k = '-';
+        {
+            static const char *const ACTS[] = { "Reset peak" };
+            const int r = ui_encoder_actions(k, "2.4G FINDER", ACTS, "r", 1, false);
+            if (r < 0) continue;
+        }
         if (k == '+' || k == '=') { ch = (ch < 125) ? ch + 1 : 125; }
         if (k == '-') { ch = (ch > 0) ? ch - 1 : 0; }
         if (k == 'r' || k == 'R') peak_str = 0;

@@ -238,6 +238,20 @@ static int pick_payload(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return -1;
+
+        /* Encoder path: the digit shortcuts are unreachable on the T-Embed, so
+         * no payload could be selected and BadUSB was unusable there. Build the
+         * label list from s_payloads so the two can never drift apart, with
+         * "Type custom" appended as the last entry (-2 sentinel). */
+        if (k == PK_ACTIONS || k == PK_ENTER || k == PK_UP || k == PK_DOWN) {
+            const char *labels[PAY_N + 1];
+            for (size_t i = 0; i < PAY_N; ++i) labels[i] = s_payloads[i].name;
+            labels[PAY_N] = "Type custom now";
+            const int pick = ui_action_menu("BADUSB", labels, (int)PAY_N + 1);
+            if (pick < 0) continue;
+            return (pick == (int)PAY_N) ? -2 : pick;
+        }
+
         if (k >= '1' && k < '1' + (int)PAY_N) return k - '1';
         if (k == 't' || k == 'T') return -2;
     }

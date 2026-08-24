@@ -46,6 +46,16 @@ void feat_tool_sd_format(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder path: the Q/F mode gate is unreachable on the T-Embed, so
+           the SD tool could never be entered there. The type-YES confirmation
+           below still applies -- input_line() has an encoder wheel now. */
+        {
+            static const char *const ACTS[] = { "Quick wipe", "Full FAT32 reformat" };
+            const int r = ui_encoder_actions(k, "SD FORMAT", ACTS, "qf", 2);
+            if (r < 0) continue;
+        }
+
         if (k == 'q' || k == 'Q') { force = false; break; }
         if (k == 'f' || k == 'F') { force = true;  break; }
     }
@@ -189,7 +199,7 @@ void feat_tool_chance(void)
         d.fillRect(0, BODY_Y + 30, SCR_W, 16, T_BG);
         d.setTextColor(T_WARN, T_BG);
         d.setTextSize(2);
-        int w = d.textWidth(last) * 2;
+        int w = d.textWidth(last);
         d.setCursor((SCR_W - w) / 2, BODY_Y + 30);
         d.print(last);
         d.setTextSize(1);

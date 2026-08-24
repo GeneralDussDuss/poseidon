@@ -163,3 +163,24 @@ void ui_freq_bars(int x, int y, int bar_w, int bar_h_max);
  * index, or -1 if the user backed out. Restores nothing — the caller should
  * repaint its own screen afterwards, since this paints over the body. */
 int ui_action_menu(const char *title, const char *const *labels, int n);
+
+/* Encoder shim for features whose actions are bound to keyboard characters.
+ *
+ * The T-Embed can only ever emit PK_ENTER / PK_ESC / PK_ACTIONS / PK_UP /
+ * PK_DOWN, so any feature dispatching on letters or digits is dead there. This
+ * wraps the fix in one place: on the encoder's hold (or press) gesture it opens
+ * ui_action_menu, then REWRITES k to the legacy key character for the chosen
+ * entry, so the feature's existing letter-handling code runs unmodified and
+ * each action keeps exactly one implementation.
+ *
+ * `keys` is a string of the legacy chars, one per label ("trl" for
+ * Type/Rick/Lock). Pass want_enter=false where a bare press already means
+ * something else in that screen (e.g. "select the highlighted row").
+ *
+ * Returns:  0 = not an action gesture, carry on unchanged
+ *           1 = k rewritten to a legacy key, carry on
+ *          -1 = user backed out; the caller should `continue` its loop
+ * Always returns 0 on the Cardputer, so callers stay board-neutral. */
+int ui_encoder_actions(uint16_t &k, const char *title,
+                       const char *const *labels, const char *keys, int n,
+                       bool want_enter = true);

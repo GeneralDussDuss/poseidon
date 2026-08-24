@@ -390,6 +390,13 @@ void feat_nrf24_mousejack(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
+        {
+            /* ENTER already means "inject" on this screen, so only the hold
+             * gesture may open the editor -- want_enter=false. */
+            static const char *const ACTS[] = { "Edit payload" };
+            const int r = ui_encoder_actions(k, "MOUSEJACK", ACTS, "t", 1, false);
+            if (r < 0) continue;
+        }
         if (k == 't' || k == 'T') {
             char buf[64];
             strncpy(buf, inject_buf, sizeof(buf));
@@ -628,6 +635,11 @@ void feat_nrf24_scanner(void)
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
+        {
+            static const char *const ACTS[] = { "Toggle labels", "Reset peaks" };
+            const int r = ui_encoder_actions(k, "NRF24 SCAN", ACTS, "lr", 2);
+            if (r < 0) continue;
+        }
         if (k == 'l' || k == 'L') mode = 1 - mode;
         if (k == 'r' || k == 'R') { memset(hits, 0, 126); memset(peak, 0, 126); }
     }

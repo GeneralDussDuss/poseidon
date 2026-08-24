@@ -17,7 +17,9 @@
 #include "app.h"
 #include "theme.h"
 #include "sfx.h"
+#include "ui.h"
 #include "board/encoder_tembed.h"
+#include "board/leds_tembed.h"
 
 /* Last-seen debug state — shown by input_debug_draw(). */
 static uint16_t s_last_key = PK_NONE;
@@ -48,6 +50,20 @@ static uint16_t input_poll_raw(void);
 
 uint16_t input_poll(void)
 {
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Drive the LED ring from here.
+     *
+     * leds_tick() has to be called continuously or the ring freezes on
+     * whatever frame it last rendered -- which is exactly what happened: the
+     * boot event fired and then nothing ticked it again, so the whole
+     * animation system sat dead despite being fully implemented.
+     *
+     * input_poll() is the one function EVERY feature's main loop calls, so
+     * ticking here animates the ring across the entire firmware without
+     * touching 90 feature files. It is internally rate-limited to ~60 fps and
+     * never blocks, so the cost is a millis() compare on most calls. */
+    leds_tick();
+#endif
     uint16_t k = input_poll_raw();
     if (k != PK_NONE) s_last_input_ms = millis();
     return k;
@@ -121,6 +137,83 @@ bool input_line(const char *prompt, char *out_buf, size_t out_sz)
         d.print('_');
     };
     redraw();
+
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* ---- encoder character wheel ----
+     *
+     * The T-Embed has no keyboard, and the loop below only accepts printable
+     * ASCII, so on that board input_line() could NEVER return a non-empty
+     * string: every feature that asks the operator to type an SSID, password,
+     * hostname, frequency or filename was dead. This is the single root cause
+     * behind most "feature does nothing on T-Embed" reports.
+     *
+     * Gestures, matching the rest of the encoder UI:
+     *   turn        -> scroll the character wheel
+     *   press       -> commit the highlighted character
+     *   hold        -> action menu (Backspace / Done / Cancel)
+     *   side button -> cancel
+     *
+     * The charset is ordered for real use: lowercase first (most SSIDs and
+     * passwords), then digits, then uppercase, then punctuation. */
+    {
+        static const char WHEEL[] =
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "-_. :/@#!?+*&%$()[]{}<>,;'\"\\|~^`=";
+        const int WHEEL_N = (int)(sizeof(WHEEL) - 1);
+        int wsel = 0;
+
+        auto draw_wheel = [&]() {
+            /* Show a short window around the selection so the operator can see
+             * what is coming without scrolling blind. */
+            d.fillRect(4, y0 + 32, SCR_W - 8, 16, T_BG);
+            d.setCursor(4, y0 + 34);
+            for (int off = -4; off <= 4; ++off) {
+                const int i = ((wsel + off) % WHEEL_N + WHEEL_N) % WHEEL_N;
+                d.setTextColor(off == 0 ? T_ACCENT2 : T_DIM, T_BG);
+                if (off == 0) d.print('[');
+                d.print(WHEEL[i]);
+                if (off == 0) d.print(']');
+            }
+        };
+        draw_wheel();
+
+        while (true) {
+            uint16_t k = input_poll();
+            if (k == PK_NONE) { delay(10); continue; }
+
+            if (k == PK_ESC) return false;
+            if (k == PK_UP)   { wsel = (wsel - 1 + WHEEL_N) % WHEEL_N; draw_wheel(); continue; }
+            if (k == PK_DOWN) { wsel = (wsel + 1) % WHEEL_N;           draw_wheel(); continue; }
+
+            if (k == PK_ENTER) {
+                if (len + 1 < out_sz) {
+                    out_buf[len++] = WHEEL[wsel];
+                    out_buf[len]   = '\0';
+                    redraw();
+                }
+                continue;
+            }
+
+            if (k == PK_ACTIONS) {
+                static const char *const ACTS[] = { "Backspace", "Done", "Cancel" };
+                const int pick = ui_action_menu(prompt, ACTS, 3);
+                /* The menu painted over us; restore the whole editor. */
+                d.fillRect(0, y0, SCR_W, 60, T_BG);
+                d.setTextColor(T_ACCENT, T_BG);
+                d.setCursor(4, y0); d.print(prompt);
+                d.drawFastHLine(4, y0 + 30, SCR_W - 8, T_DIM);
+                redraw();
+                draw_wheel();
+                if (pick == 0) { if (len) { out_buf[--len] = '\0'; redraw(); } }
+                else if (pick == 1) { out_buf[len] = '\0'; return true; }
+                else if (pick == 2) { return false; }
+                continue;
+            }
+        }
+    }
+#endif
 
     while (true) {
         uint16_t k = input_poll();

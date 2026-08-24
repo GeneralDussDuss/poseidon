@@ -16,6 +16,7 @@
 #include "../menu.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
+#include "../board/leds_tembed.h"
 
 #define MAX_PULSES 512
 #define MIN_PULSES 8
@@ -132,6 +133,7 @@ static bool save_sub(float freq, const int16_t *p, int count)
 
 void feat_subghz_scan(void)
 {
+    leds_set_mode(LED_MODE_SCAN);   /* ring reflects what this screen is doing */
     radio_switch(RADIO_SUBGHZ);
     if (!cc1101_begin(433.92f)) {
         ui_toast("CC1101 not found", T_BAD, 1500);
@@ -282,11 +284,21 @@ void feat_subghz_scan(void)
 
         uint16_t k = input_poll();
         if (k == PK_ESC) break;
+
+        /* Encoder: turn tunes (the +/- bindings below), hold opens the actions
+         * that were letter-only and therefore dead on the T-Embed. */
+        if (k == PK_UP)   k = '+';
+        if (k == PK_DOWN) k = '-';
+        {
+            static const char *const ACTS[] = { "Autoscan", "Save capture", "Replay capture" };
+            const int r = ui_encoder_actions(k, "SUBGHZ SCAN", ACTS, "asr", 3, false);
+            if (r < 0) { repaint = true; continue; }
+        }
         if (k == '?') { ui_show_current_help(); repaint = true; }
         if (k == '+' || k == '=') {
             freq += 0.5f;
             ELECHOUSE_cc1101.setSidle();
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             ELECHOUSE_cc1101.SetRx();
             pinMode(CC1101_GDO0, INPUT);
             s_isr_edges = 0; prev_edges = 0;
@@ -294,7 +306,7 @@ void feat_subghz_scan(void)
         if (k == '-') {
             freq -= 0.5f;
             ELECHOUSE_cc1101.setSidle();
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             ELECHOUSE_cc1101.SetRx();
             pinMode(CC1101_GDO0, INPUT);
             s_isr_edges = 0; prev_edges = 0;
@@ -304,7 +316,7 @@ void feat_subghz_scan(void)
             int best_rssi = -200; float best_freq = freq;
             for (int i = 0; i < (int)FREQ_COUNT; ++i) {
                 ELECHOUSE_cc1101.setSidle();
-                ELECHOUSE_cc1101.setMHZ(COMMON_FREQS[i]);
+                cc1101_set_freq(COMMON_FREQS[i]);
                 ELECHOUSE_cc1101.SetRx();
                 delay(15);
                 int r = cc1101_get_rssi();
@@ -315,7 +327,7 @@ void feat_subghz_scan(void)
             }
             freq = best_freq;
             ELECHOUSE_cc1101.setSidle();
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             ELECHOUSE_cc1101.SetRx();
             pinMode(CC1101_GDO0, INPUT);
             s_isr_edges = 0; prev_edges = 0;

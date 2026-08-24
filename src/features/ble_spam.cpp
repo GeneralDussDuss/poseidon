@@ -168,6 +168,18 @@ static spam_kind_t pick_kind(void)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return (spam_kind_t)-1;
+
+        /* Encoder path. The digit shortcuts below cannot be produced on the
+         * T-Embed (the encoder emits only ENTER/ESC/UP/DOWN/ACTIONS), so this
+         * mandatory picker spun forever and BLE Spam could never be started on
+         * that board at all. ui_action_menu already returns -1 on back-out,
+         * which matches this function's contract. */
+        if (k == PK_ENTER || k == PK_ACTIONS || k == PK_UP || k == PK_DOWN) {
+            const int pick = ui_action_menu("BLE SPAM", s_kind_name, SPAM_COUNT);
+            if (pick < 0) return (spam_kind_t)-1;
+            return (spam_kind_t)pick;
+        }
+
         if (k >= '1' && k < '1' + SPAM_COUNT) return (spam_kind_t)(k - '1');
     }
 }
