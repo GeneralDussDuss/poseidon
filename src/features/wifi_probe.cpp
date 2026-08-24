@@ -42,6 +42,7 @@
 #include <esp_heap_caps.h>
 #include "wifi_deauth_frame.h"
 #include "../wifi_ie_fp.h"
+#include "../board/leds_tembed.h"
 
 #define PROBE_MAX 32
 
@@ -811,5 +812,6 @@ static void run_probe_sniff(void)
     esp_wifi_set_promiscuous_rx_cb(nullptr);
 }
 
-void feat_wifi_probe(void) { run_probe_sniff(); }
+void feat_wifi_probe(void) {
+    leds_set_mode(LED_MODE_TRAFFIC);   /* ring reflects what this screen is doing */ run_probe_sniff(); }
 void feat_wifi_karma(void) { run_karma();       }

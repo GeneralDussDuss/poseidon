@@ -27,6 +27,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_bt.h>
+#include "../board/leds_tembed.h"
 
 /* Shared with other BLE features. */
 ble_target_t g_ble_target = {};
@@ -384,6 +385,7 @@ static void start_scan(void)
 
 void feat_ble_scan(void)
 {
+    leds_set_mode(LED_MODE_SCAN);   /* ring reflects what this screen is doing */
     /* POS-AUDIT-006: route through radio_switch so prior WiFi domains
      * tear down via teardown_current() before NimBLE comes up.
      * Previously this called NimBLEDevice::init("") directly to "isolate

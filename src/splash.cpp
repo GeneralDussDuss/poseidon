@@ -17,6 +17,7 @@
 #include "sfx.h"
 #include "version.h"
 #include "sprites/splash_sprite.h"
+#include "splash_anim.h"
 #include <esp_random.h>
 
 #define C_MAG_HI 0xF81F
@@ -67,6 +68,19 @@ void ui_splash(void)
         vTaskDelete(nullptr);
     }, "splash_sfx", 4096, nullptr, 2, nullptr);
 
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* T-Embed plays the animated POSEIDON wordmark reveal instead of the wave
+     * sweep below: the frames are authored at this panel's exact 320x170 and
+     * this board has the flash budget for them. The boot jingle task above
+     * runs in parallel with it. Any input skips straight to the menu. */
+    /* 100 ms/frame matches the source GIF's authored timing, so the wordmark
+     * reveal plays at the speed it was designed at (~3.2 s over 32 frames).
+     * The first cut ran 16 frames at 90 ms and was over in 1.4 s, which read
+     * as a flicker rather than an animation. */
+    splash_anim_play(100);
+    return;
+#endif
+
     /* ---- Phase 1: fade in with magenta scanline sweep ---- */
     for (int f = 0; f <= 25; ++f) {
         uint32_t frame_start = millis();
@@ -98,7 +112,7 @@ void ui_splash(void)
     {
         const char *title = "POSEIDON";
         d.setTextSize(2);
-        int tw = d.textWidth(title) * 2;
+        int tw = d.textWidth(title);
         int tx = (SCR_W - tw) / 2;
         int ty = SCR_H - 18;
 

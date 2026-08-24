@@ -16,6 +16,7 @@
 #include "heap_budget.h"
 #include "screensaver.h"
 #include <Preferences.h>
+#include "board/leds_tembed.h"
 
 /* ---- menu render style: NVS-backed terminal/carousel toggle ---- */
 #if defined(POSEIDON_BOARD_TEMBED)
@@ -151,6 +152,8 @@ extern void feat_subghz_scan(void);
 extern void feat_subghz_record(void);
 extern void feat_subghz_replay(void);
 extern void feat_subghz_spectrum(void);
+extern void feat_nfc_read(void);
+extern void feat_nfc_emv(void);
 extern void feat_subghz_bruteforce(void);
 extern void feat_subghz_jammer(void);
 extern void feat_subghz_broadcast(void);
@@ -328,6 +331,7 @@ static const menu_node_t MENU_MESH[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+#if !defined(POSEIDON_BOARD_TEMBED)   /* C5 = external ESP32-C5 satellite; not onboard the T-Embed */
 static const menu_node_t MENU_C5[] = {
     { 's', "Status", "Show connected C5 nodes", nullptr, feat_c5_status,
       "Live peer table of C5 nodes. Auto-connects via ESP-NOW HELLO. P pings "
@@ -366,6 +370,7 @@ static const menu_node_t MENU_C5[] = {
       "aesthetic — live target + hit counts on-screen." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
+#endif /* !POSEIDON_BOARD_TEMBED — MENU_C5 */
 
 static const menu_node_t MENU_BLE[] = {
     { 's', "Scan", "Discover BLE devices", nullptr, feat_ble_scan,
@@ -770,6 +775,7 @@ static const menu_node_t MENU_TOOLS[] = {
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
+#if !defined(POSEIDON_BOARD_TEMBED)   /* LoRa + Meshtastic + GNSS = external CAP-LoRa1262 hat */
 static const menu_node_t MENU_LORA[] = {
     { 's', "Scan", "Passive RX on selected band", nullptr, feat_lora_scan,
       "Tunes the SX1262 to 433/868/915 MHz or Meshtastic LongFast and "
@@ -801,6 +807,7 @@ static const menu_node_t MENU_LORA[] = {
       "Meshtastic apps within range." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
+#endif /* !POSEIDON_BOARD_TEMBED — MENU_LORA */
 
 static const menu_node_t MENU_SUBGHZ[] = {
     { 'b', "Broadcast", "Categorized .sub file TX library", nullptr, feat_subghz_broadcast,
@@ -867,9 +874,11 @@ static const menu_node_t MENU_NRF24[] = {
 };
 
 static const menu_node_t MENU_RADIO[] = {
+#if !defined(POSEIDON_BOARD_TEMBED)   /* LoRa = external CAP-LoRa1262 hat */
     { 'l', "LoRa", "SX1262 sub-GHz long range (CAP hat)", MENU_LORA, nullptr,
       "LoRa features for the M5Stack CAP-LoRa1262 hat. Passive scan, "
       "beacon TX, and Meshtastic LongFast listener." },
+#endif
     { 's', "Sub-GHz", "CC1101 scan/record/replay/analyze", MENU_SUBGHZ, nullptr,
       "CC1101 sub-GHz radio from the Hydra RF Cap 424. Frequency scanner "
       "with RCSwitch decode, RAW recording, .sub file replay, spectrum "
@@ -877,6 +886,7 @@ static const menu_node_t MENU_RADIO[] = {
     { 'n', "nRF24", "2.4 GHz spectrum/MouseJack/jam", MENU_NRF24, nullptr,
       "nRF24L01+ 2.4 GHz radio from the Hydra RF Cap 424. ISM band "
       "spectrum analyzer, MouseJack HID sniff/inject, band jammer." },
+#if !defined(POSEIDON_BOARD_TEMBED)   /* GPS + SATCOM need the ATGM336H GNSS on the LoRa hat */
     { 'g', "GPS fix", "Live GNSS position page", nullptr, feat_gps_fix,
       "Shows current fix from the ATGM336H: lat, lon, alt, sats, HDOP, "
       "speed, UTC. Background NMEA poller runs from boot." },
@@ -886,6 +896,7 @@ static const menu_node_t MENU_RADIO[] = {
       "polar skyplot + az/el/lat/lon/alt, predict next 24h passes >10°. "
       "Observer from GPS, time from NTP or GPS. Source patterned after "
       "adammelancon/cardputer-satellite-tracker." },
+#endif
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -946,6 +957,7 @@ static const menu_node_t MENU_SYS[] = {
  * dispatches directly to feat_saltyjack_root() instead of using a
  * POSEIDON menu_node_t tree. */
 
+#if !defined(POSEIDON_BOARD_TEMBED)   /* Feather nRF52840 = external UART companion */
 static const menu_node_t MENU_NRF52[] = {
     { 's', "Scan", "BLE 5 full scan (all PHYs)", nullptr, feat_nrf52_scan,
       "Adafruit Bluefruit Feather nRF52840 over UART1 (G3 TX / G4 RX). "
@@ -981,6 +993,7 @@ static const menu_node_t MENU_NRF52[] = {
       "the device falls back to BLE setup mode. Unique to POSEIDON." },
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
+#endif /* !POSEIDON_BOARD_TEMBED — MENU_NRF52 */
 
 const menu_node_t MENU_ROOT_CHILDREN[] = {
     { 'w', "WiFi", "WiFi recon + attacks + wardrive", MENU_WIFI, nullptr,
@@ -1000,12 +1013,14 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "When a C5/TRIDENT satellite is online it also hunts 5 GHz handshakes "
       "via the satellite. Has a personality + Argus mood face, plus a simple "
       "RL layer that learns which channels produce the most captures." },
+#if !defined(POSEIDON_BOARD_TEMBED)   /* Feather nRF52840 = external UART companion */
     { 'f', "Feather", "nRF52840 BLE5 / Zigbee / MITM", MENU_NRF52, nullptr,
       "Adafruit Bluefruit Feather nRF52840 via UART hat (G3 TX / G4 RX). "
       "Unlocks BLE 5 raw PHY sniffing (incl. Coded PHY long-range), "
       "802.15.4 / Zigbee / Thread sniff+inject, and BLE connection MITM — "
       "capabilities the ESP32-S3 NimBLE stack can't reach. Mutually "
       "exclusive with LoRa / Hydra hats." },
+#endif
     { 'u', "BadUSB", "USB-HID payload runner + 165+ payloads", MENU_BADUSB, nullptr,
       "USB HID keyboard emulator. Plug into a target computer and it appears "
       "as a real keyboard — types DuckyScript-lite payloads from the built-in "
@@ -1020,11 +1035,18 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "harvest, on-device NTLMv2 cracker. Direct port of @7h30th3r0n3's "
       "Evil-M5Project Cardputer firmware — credit prominently displayed in "
       "every file. AUTHORIZED TESTING ONLY." },
+#if defined(POSEIDON_BOARD_TEMBED)
+    { 'r', "Radio", "Sub-GHz + 2.4 GHz (onboard)", MENU_RADIO, nullptr,
+      "Onboard CC1101 sub-GHz and nRF24 2.4 GHz radios on the T-Embed CC1101 "
+      "Plus. Sub-GHz scan / record / replay / analyze / brute / jam, plus nRF24 "
+      "spectrum, MouseJack, and jammer. No hat required." },
+#else
     { 'r', "Radio", "LoRa sub-GHz + GNSS (CAP-LoRa1262)", MENU_RADIO, nullptr,
       "Sub-GHz LoRa radio + GPS from the M5Stack CAP-LoRa1262 Cardputer-Adv "
       "hat. Passive scan across 433/868/915, POSEIDON beacon TX, Meshtastic "
       "LongFast listener, and a live GPS fix page. GNSS runs in the background "
       "so Wardrive always has a fresh position." },
+#endif
     { 'o', "Tools", "Flashlight / stopwatch / dice / ...", MENU_TOOLS, nullptr,
       "Miscellaneous utilities in the Flipper tradition. Flashlight, "
       "stopwatch, calculator, dice/coin/8-ball, morse sender, MAC "
@@ -1033,6 +1055,7 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "ESP-NOW presence beacon. Broadcasts our name/heap/GPS to other "
       "POSEIDON or compatible devices in range. Foundation for the "
       "multi-device C2 concept." },
+#if !defined(POSEIDON_BOARD_TEMBED)   /* C5 satellite + MIMIR drop-box = external devices */
     { '5', "C5 nodes", "Remote 5GHz + Zigbee via C5 mesh", MENU_C5, nullptr,
       "Control external ESP32-C5 drop-nodes over ESP-NOW. C5 is the only "
       "ESP chip with 5 GHz WiFi + 802.15.4 radios. When your C5 node boots "
@@ -1042,6 +1065,7 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "Connect to MIMIR pentest drop-box over USB-C cable. Drives scans, "
       "attacks (deauth, handshake, PMKID, evil twin, beacon spam), and "
       "retrieves cracked credentials. Pocket-mode opsec: no wireless link." },
+#endif
     { 'p', "PC Bridge", "TRIDENT screen mirror + remote KB", nullptr, feat_trident,
       "Streams the Cardputer screen to the TRIDENT desktop app over USB-C. "
       "PC can send keystrokes remotely. 10 fps RGB565 framebuffer capture. "
@@ -1061,6 +1085,19 @@ const menu_node_t MENU_ROOT_CHILDREN[] = {
       "screen shows the sign in prompt and ENTER approves. Phase 1 speaks "
       "U2F, so it works as a second factor on Google, GitHub, and any site "
       "that accepts a security key." },
+#if defined(POSEIDON_BOARD_TEMBED)
+    { 'e', "EMV Card", "Read a contactless bank card", nullptr, feat_nfc_emv,
+      "Reads what a contactless payment card broadcasts with NO authentication: "
+      "card number (PAN), expiry, scheme, and the cardholder name IF the issuer "
+      "still includes it (Visa and Mastercard mostly stripped it). A transaction "
+      "log is an optional EMV feature most issuers disable, so expect 'not "
+      "supported' on most cards. The CVV is NOT on the chip and cannot be read, "
+      "so nothing here can clone a card. Read your own cards." },
+    { 'c', "NFC", "PN532 tag reader (T-Embed)", nullptr, feat_nfc_read,
+      "Reads 13.56 MHz ISO14443A tags with the T-Embed CC1101 Plus's onboard "
+      "PN532: UID, tag type (Mifare Classic/Ultralight/NTAG/DESFire), ATQA and "
+      "SAK. Tap a card to the reader. Mifare dump and emulation come next." },
+#endif
     { 0, nullptr, nullptr, nullptr, nullptr, nullptr },
 };
 
@@ -1424,6 +1461,9 @@ static void run_submenu(const menu_node_t *parent)
                   long hb_d = (long)hb_now - (long)hb_base;
                   Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
                       sel->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
+                /* Feature returned: drop the ring back to ambient so a SCAN or
+                 * ATTACK animation does not persist into the menu. */
+                leds_set_mode(LED_MODE_IDLE);
                 ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(FOOTER_HINTS);
@@ -1468,6 +1508,9 @@ static void run_submenu(const menu_node_t *parent)
                           long hb_d = (long)hb_now - (long)hb_base;
                           Serial.printf("[FEAT_EXIT] %s free=%u delta=%ld%s\n",
                               ch->label, (unsigned)hb_now, hb_d, hb_d < -2048 ? " LEAK" : ""); }
+                        /* Feature returned: drop the ring back to ambient so a
+                         * SCAN or ATTACK animation does not persist. */
+                        leds_set_mode(LED_MODE_IDLE);
                         ui_screen_enter();
                         ui_draw_status(radio_name(), "");
                         ui_draw_footer(FOOTER_HINTS);

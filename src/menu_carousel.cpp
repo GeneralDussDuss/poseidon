@@ -119,8 +119,9 @@ struct carousel_layout_t {
     int card_x, card_y, card_w, card_h, card_bottom;
     int ck;                 /* corner bracket arm length */
     int icon_cx, icon_cy;
-    int icon_scale, icon_half;   /* icon_half includes the glow margin */
+    int icon_px, icon_half;      /* icon edge in pixels, drawn 1:1 (no upscale) */
     int fallback_text_size;
+    int label_h;                 /* label font cell height, for hint placement */
     int label_y, hint_y;
     int chevron_y, chevron_size;
     int dots_y;
@@ -138,18 +139,35 @@ static carousel_layout_t compute_layout(void)
     L.card_h      = L.card_bottom - L.card_y;
     L.ck          = 12;
 
-    L.icon_scale = big ? 3 : 2;
+    /* Icon is drawn at NATIVE resolution (the art is 72 px square), never
+     * integer-upscaled, which is what used to make it look blocky. 72 on the
+     * 170-tall T-Embed; a smaller draw on the 135-tall Cardputer so the label
+     * and hint still fit inside the card. */
+    L.icon_px = big ? 96 : 48;
     L.fallback_text_size = big ? 4 : 3;
     int top_gap   = big ? 4 : 2;
     int label_gap = big ? 4 : 2;
     int hint_gap  = big ? 3 : 2;
 
-    L.icon_half = (menu_icon_h() * L.icon_scale) / 2 + L.icon_scale;
-    L.icon_cx   = L.card_x + L.card_w / 2;
-    L.icon_cy   = L.card_y + top_gap + L.icon_half;
+    /* Font cell height for the label (FreeSansBold 9pt on both boards).
+     * Hard-coded rather than queried because the layout is computed before
+     * any font is selected. Stepped down from 12pt so the bigger icon is
+     * clearly the focal point and the caption reads as a caption. */
+    L.label_h = 18;
 
-    L.label_y = L.icon_cy + L.icon_half + label_gap;   /* size-2 text baseline */
-    L.hint_y  = L.label_y + 16 + hint_gap;              /* size-2 glyph = 16 px tall */
+    L.icon_half = L.icon_px / 2;
+    L.icon_cx   = L.card_x + L.card_w / 2;
+
+    /* Centre the icon+label block vertically in the card. The hint line is no
+     * longer drawn, so anchoring to a fixed top gap would leave the content
+     * sitting high with dead space underneath. */
+    const int content_h = L.icon_px + label_gap + L.label_h;
+    int pad = (L.card_h - content_h) / 2;
+    if (pad < top_gap) pad = top_gap;
+
+    L.icon_cy = L.card_y + pad + L.icon_half;
+    L.label_y = L.icon_cy + L.icon_half + label_gap;
+    L.hint_y  = L.label_y + L.label_h + hint_gap;   /* retained; not drawn */
 
     L.chevron_y    = L.card_y + L.card_h / 2;
     L.chevron_size = big ? 2 : 1;
@@ -189,27 +207,38 @@ static dot_layout_t compute_dots(int n, int cursor, const carousel_layout_t &L)
     return dl;
 }
 
-/* Centre a string at (cx, y) using the 6x8 glyph cell, truncating to
- * max_px if needed. Buffer is scratch owned by the caller. */
-static void draw_centered_fit(int cx, int y, int textsize, uint16_t color,
-                              const char *src, int max_px)
+/* Centre a string horizontally at cx with its top at y, in a real
+ * proportional font, truncating (with an ellipsis) to max_px.
+ *
+ * The old version integer-scaled the built-in 6x8 bitmap font, which is what
+ * made every label look like stair-stepped blocks. Proper GFX fonts are drawn
+ * at their designed size instead, so strokes and curves stay clean.
+ *
+ * Truncation measures with textWidth() rather than assuming a fixed cell,
+ * because these fonts are proportional ("W" is far wider than "i"). */
+static void draw_centered_fit(int cx, int y, const lgfx::IFont *font,
+                              uint16_t color, const char *src, int max_px)
 {
     auto &d = M5Cardputer.Display;
-    char buf[48];
-    int  max_chars = max_px / (6 * textsize);
-    if (max_chars < 1)  max_chars = 1;
-    if (max_chars > (int)sizeof(buf) - 1) max_chars = sizeof(buf) - 1;
-    int n = (int)strlen(src);
-    if (n > max_chars) n = max_chars;
-    memcpy(buf, src, n);
-    buf[n] = 0;
-
-    int w = n * 6 * textsize;
-    d.setTextSize(textsize);
-    d.setTextColor(color, T_BG);
-    d.setCursor(cx - w / 2, y);
-    d.print(buf);
+    d.setFont(font);
     d.setTextSize(1);
+    d.setTextColor(color, T_BG);
+
+    char buf[64];
+    strncpy(buf, src, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = 0;
+
+    if (d.textWidth(buf) > max_px) {
+        int n = (int)strlen(buf);
+        while (n > 1 && d.textWidth(buf) > max_px) buf[--n] = 0;
+        /* Leave room for the ellipsis rather than cutting mid-glyph. */
+        if (n > 1) { buf[n - 1] = '.'; buf[n] = 0; }
+    }
+
+    d.setTextDatum(top_center);
+    d.drawString(buf, cx, y);
+    d.setTextDatum(top_left);
+    d.setFont(&fonts::Font0);   /* restore: the rest of the UI assumes it */
 }
 
 /* Full card paint — every layer, every glyph, every bracket. Called on
@@ -260,22 +289,39 @@ static void draw_card_full(const menu_node_t *parent, int cursor, int slide_x)
      * back to the big hotkey letter for nodes with no bitmap (every
      * submenu item — only MENU_ROOT entries have icons). */
     int icon_cx = L.icon_cx + slide_x;
-    if (!picon_draw_hotkey(item->hotkey, icon_cx, L.icon_cy, L.icon_scale, T_ACCENT, 2)) {
-        d.setTextSize(L.fallback_text_size);
-        d.setTextColor(T_ACCENT, T_BG);
-        int cw_px = 6 * L.fallback_text_size;
-        int ch_px = 8 * L.fallback_text_size;
-        d.setCursor(icon_cx - cw_px / 2, L.icon_cy - ch_px / 2);
-        d.printf("%c", toupper(item->hotkey));
+    /* Anti-aliased icon, tinted with the theme's accent gradient (the same
+     * magenta-to-cyan the artwork was drawn in). Falls back to the hotkey
+     * letter for nodes with no pictograph - now in a real font, so the
+     * fallback looks deliberate rather than broken. */
+    /* FLAT accent colour, not a gradient. Blending accent->accent2 across the
+     * icon ran magenta through purple/blue into cyan, which read as rainbow
+     * mush rather than clean neon line art. One colour keeps the strokes
+     * crisp and on-theme; the anti-aliasing alone carries the shape. */
+    /* Pass the parent menu so submenu icons resolve correctly: hotkeys repeat
+     * across menus, so (menu, hotkey) is the only unique key. The root menu is
+     * identified by having no parent label to match. */
+    if (!picon_draw_menu(parent ? parent->label : nullptr, item->hotkey,
+                         icon_cx, L.icon_cy, L.icon_px,
+                         T_ACCENT, T_ACCENT, T_BG)) {
+        char letter[2] = { (char)toupper(item->hotkey), 0 };
+        d.setFont(SCR_H >= 170 ? &fonts::FreeSansBold24pt7b
+                               : &fonts::FreeSansBold18pt7b);
         d.setTextSize(1);
+        d.setTextColor(T_ACCENT, T_BG);
+        d.setTextDatum(middle_center);
+        d.drawString(letter, icon_cx, L.icon_cy);
+        d.setTextDatum(top_left);
+        d.setFont(&fonts::Font0);
     }
 
     /* Label + hint, centred under the icon, truncated to fit. */
     int text_max_px = SCR_W - 32;
-    draw_centered_fit(icon_cx, L.label_y, 2, T_FG, item->label, text_max_px);
-    if (item->hint) {
-        draw_centered_fit(icon_cx, L.hint_y, 1, T_DIM, item->hint, text_max_px);
-    }
+    draw_centered_fit(icon_cx, L.label_y, &fonts::FreeSansBold9pt7b,
+                      T_FG, item->label, text_max_px);
+    /* Hint line intentionally NOT drawn on the carousel card. The icon plus
+     * the label already say what the entry is, and the dim sub-caption under
+     * every category just added visual noise. The full description is still
+     * available on the item's info screen. */
 
     /* Chevrons at the card's vertical centre, near the screen edges.
      * Navigation always wraps, so there's no real boundary to dim for
@@ -475,6 +521,9 @@ void carousel_run_submenu(const menu_node_t *parent)
                 /* Defensive IR park — see menu.cpp comment. */
                 pinMode(44, OUTPUT); digitalWrite(44, HIGH);
                 Serial.printf("[FEAT_EXIT] %s\n", sel->label);
+                /* Feature returned: drop the ring back to ambient so a SCAN/ATTACK
+                 * animation does not persist into the menu. */
+                leds_set_mode(LED_MODE_IDLE);
                 ui_screen_enter();
                 ui_draw_status(radio_name(), "");
                 ui_draw_footer(CAROUSEL_FOOTER);
@@ -505,6 +554,9 @@ void carousel_run_submenu(const menu_node_t *parent)
                     /* Defensive IR park — same as regular path. */
                     pinMode(44, OUTPUT); digitalWrite(44, HIGH);
                     Serial.printf("[FEAT_EXIT] %s\n", sel->label);
+                    /* Feature returned: drop the ring back to ambient so a SCAN/ATTACK
+                     * animation does not persist into the menu. */
+                    leds_set_mode(LED_MODE_IDLE);
                     ui_screen_enter();
                     ui_draw_status(radio_name(), "");
                     ui_draw_footer(CAROUSEL_FOOTER);

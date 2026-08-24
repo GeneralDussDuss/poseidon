@@ -27,6 +27,7 @@
 #include <math.h>
 #include <esp_event.h>
 #include <SD.h>
+#include "../board/leds_tembed.h"
 
 #define MAX_APS 64
 
@@ -72,7 +73,11 @@ static bool ap_matches_filter(const ap_t &a)
     return false;
 }
 
-#define SCAN_ROWS 9
+/* Visible AP rows = however many 11px rows fit the body below the 14px header.
+ * Derived from BODY_H so it fills the panel on any board: 9 on the Cardputer
+ * (135px), 13 on the T-Embed (170px, no footer). Was hardcoded 9, which left
+ * the bottom ~quarter of the taller T-Embed screen blank. */
+#define SCAN_ROWS ((BODY_H - 14) / 11)
 
 /* Build the filtered index list (visible items). Returns count. */
 static int build_filtered(int *idx)
@@ -352,6 +357,7 @@ static bool scan_pass_animated(wifi_scan_config_t *scfg, int pass) {
 
 void feat_wifi_scan(void)
 {
+    leds_set_mode(LED_MODE_SCAN);   /* ring reflects what this screen is doing */
     static int s_saved_cursor = 0;     /* remembered across re-entries */
     static bool s_have_results = false; /* skip re-scan if last scan still fresh */
     radio_switch(RADIO_WIFI);

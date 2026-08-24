@@ -73,4 +73,32 @@ void leds_set_channel(uint8_t ch);
  * byte stores), fine to call often from a WiFi/BLE task. */
 void leds_packet_hit(void);
 
+#else /* ---- non-T-Embed: inert inline no-ops ---- */
+
+/*
+ * The Cardputer has no LED ring. Rather than force every shared feature to
+ * wrap its ring calls in #if POSEIDON_BOARD_TEMBED, provide no-op inlines and
+ * matching enums so feature code can call leds_set_mode()/leds_event() freely
+ * and compile to nothing on this board. Keeps the ~90 feature files free of
+ * board conditionals.
+ */
+typedef enum {
+    LED_MODE_IDLE = 0, LED_MODE_ACTIVE, LED_MODE_SCAN, LED_MODE_ALERT,
+    LED_MODE_RSSI, LED_MODE_CHANNEL, LED_MODE_TRAFFIC, LED_MODE_ATTACK,
+} led_mode_t;
+
+typedef enum {
+    LED_EVENT_NAV_CW = 0, LED_EVENT_NAV_CCW, LED_EVENT_SELECT, LED_EVENT_BACK,
+    LED_EVENT_BOOT, LED_EVENT_HIT, LED_EVENT_ALERT_SPIN,
+} led_event_t;
+
+static inline void leds_begin(void) {}
+static inline void leds_tick(void) {}
+static inline void leds_set_mode(led_mode_t) {}
+static inline void leds_event(led_event_t) {}
+static inline void leds_set_brightness(uint8_t) {}
+static inline void leds_set_rssi(int8_t) {}
+static inline void leds_set_channel(uint8_t) {}
+static inline void leds_packet_hit(void) {}
+
 #endif /* POSEIDON_BOARD_TEMBED */

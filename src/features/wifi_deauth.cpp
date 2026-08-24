@@ -34,6 +34,7 @@
 #include "wifi_deauth_frame.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include "../board/leds_tembed.h"
 
 #define MAX_LEARNED_CLIENTS 16
 
@@ -201,6 +202,7 @@ static inline bool pmf_warning(void) { return wifi_pmf_warning(); }
 
 void feat_wifi_deauth(void)
 {
+    leds_set_mode(LED_MODE_ATTACK);   /* ring reflects what this screen is doing */
     radio_switch(RADIO_WIFI);
     wifi_lean_sta_init();
 
