@@ -214,7 +214,7 @@ static bool pick_favorite(void)
             d.setTextColor(T_ACCENT2, T_BG);
             d.setCursor(4, BODY_Y + 2); d.print("PICK SATELLITE");
             d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
-            const int rows = 8;
+            const int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
             int first = cursor - rows / 2;
             if (first < 0) first = 0;
             if (first + rows > SATCOM_FAVORITES_N)

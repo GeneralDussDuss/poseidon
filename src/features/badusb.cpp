@@ -375,7 +375,7 @@ static int pick_list_scrollable(const char *title,
 {
     int cursor = 0;
     int top = 0;
-    const int rows = 6;        /* visible rows in the body */
+    const int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */        /* visible rows in the body */
     const int row_h = 11;
     auto &d = M5Cardputer.Display;
     int last_top = -1, last_cursor = -1;

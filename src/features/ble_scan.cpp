@@ -195,7 +195,7 @@ static void draw_list(int cursor)
     for (int i = 0; i < s_count; ++i)
         if (dev_matches_filter(s_devs[i])) idx[n++] = i;
 
-    const int rows = 9;
+    const int rows = LIST_ROWS(16, 11);   /* fill the panel: was hardcoded for the 113px Cardputer body */
 
     if (n == 0) {
         d.fillRect(0, BODY_Y + 14, SCR_W, BODY_H - 14, T_BG);
@@ -230,7 +230,7 @@ static void draw_list(int cursor)
         d.setTextColor(sel ? T_ACCENT : T_FG, bg);
         d.setCursor(124, y);
         if (x.name[0]) {
-            d.printf("%.19s", x.name);
+            d.printf("%.*s", FIT_CHARS(124), x.name);   /* was clipped to the 240px panel */
         } else {
             d.printf("%02X:%02X:%02X", x.addr[3], x.addr[4], x.addr[5]);
         }

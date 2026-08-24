@@ -32,6 +32,7 @@
 #include "../theme.h"
 #include "ui.h"
 #include "input.h"
+#include "../ble_db.h"
 #include "radio.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
@@ -419,7 +420,7 @@ static void draw_probe_list(int cursor)
         return;
     }
 
-    int rows = 8;
+    int rows = LIST_ROWS(16, 11);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     int first = cursor - rows / 2;
     if (first < 0) first = 0;
     if (first + rows > count) first = max(0, count - rows);
@@ -458,12 +459,23 @@ static void draw_probe_list(int cursor)
          * identifiable by manufacturer even off a rotating MAC. Field
          * width stays the same (21 chars); the tag just eats into it. */
         const char *ie_vendor = pp.fp.vendor_n ? wifi_ie_fp_vendor(&pp.fp) : nullptr;
+        /* Fall back to the MAC OUI when the IE fingerprint misses. The IE tag is
+         * better where available because it survives MAC randomisation, but a
+         * client using its real burned-in address is still identifiable from the
+         * OUI -- and that is the common case for printers, IoT and older gear. */
+        if (!ie_vendor) {
+            const uint32_t oui = ((uint32_t)pp.client[0] << 16) |
+                                 ((uint32_t)pp.client[1] << 8)  |
+                                  (uint32_t)pp.client[2];
+            if (!(pp.client[0] & 0x02))     /* skip locally-administered/random */
+                ie_vendor = ble_db_oui(oui);
+        }
         if (ie_vendor) {
-            char row[48];  /* sized for worst case; final field still clips to 21 */
-            snprintf(row, sizeof(row), "[%.6s]%.32s", ie_vendor, pp.ssid);
-            d.printf("%.21s", row);
+            char row[64];
+            snprintf(row, sizeof(row), "[%.6s]%.40s", ie_vendor, pp.ssid);
+            d.printf("%.*s", FIT_CHARS(72), row);
         } else {
-            d.printf("%.21s", pp.ssid);
+            d.printf("%.*s", FIT_CHARS(72), pp.ssid);
         }
     }
 }

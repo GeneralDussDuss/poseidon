@@ -151,7 +151,7 @@ static int pick_disguise(void)
     d.drawFastHLine(4, BODY_Y + 12, 130, T_ACCENT);
     while (true) {
         if (cursor != last_cursor) {
-            int rows = 6;
+            int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
             int first = cursor - rows / 2;
             if (first < 0) first = 0;
             if (first + rows > (int)DISG_N) first = max(0, (int)DISG_N - rows);

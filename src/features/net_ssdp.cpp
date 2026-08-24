@@ -186,7 +186,7 @@ void feat_net_ssdp(void)
             d.setCursor(4, BODY_Y + 24);
             d.print("nothing found");
         } else {
-            int rows = 7;
+            int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
             if (cursor < 0) cursor = 0;
             if (cursor >= s_dev_n) cursor = s_dev_n - 1;
             int first = cursor - rows / 2;

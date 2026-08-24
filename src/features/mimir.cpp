@@ -393,7 +393,7 @@ static void draw_targets(bool full)
     if (s_target_sel < 0) s_target_sel = 0;
 
     /* Scrolling 7-row window. */
-    const int rows   = 7;
+    const int rows   = LIST_ROWS(14, 13);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     const int row_h  = 13;
     const int first_y = BODY_Y + 14;
     int first = s_target_sel - rows / 2;

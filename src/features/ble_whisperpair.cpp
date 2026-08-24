@@ -595,7 +595,7 @@ static void draw_picker(int cursor, bool scanning)
         return;
     }
 
-    int rows = 7;
+    int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     if (cursor < 0) cursor = 0;
     if (cursor >= s_tgt_n) cursor = s_tgt_n - 1;
     int first = cursor - rows / 2;

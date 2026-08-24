@@ -287,7 +287,7 @@ void feat_drone_remoteid(void)
             if (s_drone_count == 0) {
                 ui_scanning_indicator("waiting for drones", s_drone_count);
             } else {
-                int rows = 5;
+                int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
                 for (int i = 0; i < rows && i < s_drone_count; i++) {
                     const drone_t &dr = s_drones[i];
                     int y = BODY_Y + 18 + i * 18;

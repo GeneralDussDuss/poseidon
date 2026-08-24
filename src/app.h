@@ -41,6 +41,21 @@
 #define MENU_ROW_H 13
 #define MENU_ROWS  (BODY_H / MENU_ROW_H)
 
+/* Visible rows for a scrolling list: how many `pitch`-px rows fit in the body
+ * below a `top`-px header, where row r is drawn at BODY_Y + top + r * pitch.
+ *
+ * Every list screen used to hardcode this for the Cardputer's 113 px body, so
+ * on the T-Embed (158 px, no footer) they all left roughly a third of the
+ * screen empty -- and several were actually one row too MANY on the Cardputer,
+ * overlapping the footer. Deriving it fixes both directions at once. */
+#define LIST_ROWS(top, pitch)  ((BODY_H - (top)) / (pitch))
+
+/* Characters of the built-in 6px font that fit from x to the right edge.
+ * Trailing text fields (SSID, device name) were clipped to constants chosen for
+ * the 240px Cardputer, so on the 320px T-Embed they truncated with ~80px of
+ * empty panel to their right. Use with "%.*s". */
+#define FIT_CHARS(x)  ((SCR_W - (x) - 2) / 6)
+
 /* ---- build info ---- */
 /* POSEIDON_VERSION comes from -D in platformio.ini; src/version.h
  * provides an #ifndef-guarded fallback. Defining it here too caused

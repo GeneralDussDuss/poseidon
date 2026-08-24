@@ -261,7 +261,7 @@ void feat_wifi_clients_all(void)
     int last_cursor = -1;
     int last_first  = -1;
     while (true) {
-        const int rows = 8;
+        const int rows = LIST_ROWS(18, 10);   /* fill the panel: was hardcoded for the 113px Cardputer body */
         int first = 0;
         if (s_all_n > 0) {
             if (cursor < 0) cursor = 0;

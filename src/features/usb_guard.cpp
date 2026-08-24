@@ -266,7 +266,7 @@ void feat_usb_guard(void)
                 d.setCursor(4, BODY_Y + 54); d.print("can still hide. not a");
                 d.setCursor(4, BODY_Y + 64); d.print("guarantee of safety.");
             } else {
-                int rows = 6;
+                int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
                 int first = cursor - rows / 2;
                 if (first < 0) first = 0;
                 if (first + rows > hit_n) first = (hit_n > rows) ? hit_n - rows : 0;

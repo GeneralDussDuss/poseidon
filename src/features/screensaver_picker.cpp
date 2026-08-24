@@ -34,7 +34,7 @@ void feat_screensaver_picker(void)
         d.drawFastHLine(4, BODY_Y + 12, SCR_W - 8, T_ACCENT2);
         d.drawFastHLine(4, BODY_Y + 13, SCR_W - 8, T_ACCENT2);
 
-        const int rows = 7;
+        const int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
         const int row_h = 12;
         const int first_y = BODY_Y + 18;
         int first = sel - rows / 2;

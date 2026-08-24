@@ -48,7 +48,7 @@ void feat_mesh_nodes(void)
         } else {
             if (cursor < 0) cursor = 0;
             if (cursor >= count) cursor = count - 1;
-            int rows = 7;
+            int rows = LIST_ROWS(16, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
             int first = cursor - rows / 2;
             if (first < 0) first = 0;
             if (first + rows > count) first = count - rows;

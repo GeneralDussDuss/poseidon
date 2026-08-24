@@ -182,7 +182,7 @@ static void draw_picker_force(int cursor, bool scanning, bool force)
         }
         return;
     }
-    int rows = 7;
+    int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     if (cursor < 0) cursor = 0;
     if (cursor >= s_toy_count) cursor = s_toy_count - 1;
     int first = cursor - rows / 2;

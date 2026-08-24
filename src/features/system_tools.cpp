@@ -162,7 +162,7 @@ void feat_file_browser(void)
             d.print("(empty)");
             return;
         }
-        int rows = 9;
+        int rows = LIST_ROWS(16, 11);   /* fill the panel: was hardcoded for the 113px Cardputer body */
         int first = cursor - rows / 2;
         if (first < 0) first = 0;
         if (first + rows > s_fb_count) first = max(0, s_fb_count - rows);

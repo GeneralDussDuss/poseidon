@@ -299,7 +299,7 @@ static void draw_results(int cursor)
         d.print("no live hosts found");
         return;
     }
-    int rows = 7;
+    int rows = LIST_ROWS(18, 12);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     if (cursor < 0) cursor = 0;
     if (cursor >= s_host_count) cursor = s_host_count - 1;
     int first = cursor - rows / 2;

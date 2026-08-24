@@ -238,6 +238,20 @@ static inline float lut_sin01(float phase01)
     return s_sine_lut[idx] / 255.0f;
 }
 
+/* Deterministic per-LED twinkle. Hashes (led, time-bucket) so glints land at
+ * pseudo-random positions but stay stable WITHIN a bucket -- re-rolling every
+ * frame would just look like noise. Returns a 1..0 fade across the bucket so a
+ * glint decays instead of popping off. */
+static inline float sparkle(int i, uint32_t now, uint32_t bucket_ms, float chance)
+{
+    uint32_t h = (uint32_t)i * 2654435761u ^ ((now / bucket_ms) * 2246822519u);
+    h ^= h >> 13; h *= 3266489917u; h ^= h >> 16;
+    if ((h & 0xFFu) > (uint32_t)(chance * 255.0f)) return 0.0f;
+    const float t = (float)(now % bucket_ms) / (float)bucket_ms;
+    return 1.0f - t;
+}
+
+
 /* ================= radio-driven state ================= */
 /* Set via leds_set_rssi()/leds_set_channel()/leds_packet_hit(). All start
  * at safe, inert defaults so a ring nobody wires up never glitches. */
@@ -255,26 +269,35 @@ static uint32_t s_traffic_last_ms = 0;
 
 static void render_idle(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
 {
-    /* Dual-tone wave: two colour stops drifting around the ring at
-     * different, non-multiple periods so the two never resync into a
-     * repeating pattern -- the ring reads as quietly alive, not static,
-     * without ever demanding attention (peak stays low). */
-    uint8_t ar, ag, ab;
-    rgb565_to_888(T_ACCENT, ar, ag, ab);
-    uint8_t br, bg, bb;
+    /* Aurora: three colour stops drifting at non-multiple periods so the ring
+     * never resyncs into a visible loop, over a slow global "breath" that makes
+     * the whole ring swell and ebb. Occasional white glints drift across it.
+     *
+     * The previous version peaked at 0.20 and, under the old 40/255 cap, landed
+     * near 3% output -- technically animated, practically invisible. */
+    uint8_t ar, ag, ab, br, bg, bb;
+    rgb565_to_888(T_ACCENT,  ar, ag, ab);
     rgb565_to_888(T_ACCENT2, br, bg, bb);
 
-    const float period_a = 5200.0f;
-    const float period_b = 7300.0f;
-    float phase_a = fmodf((float)now, period_a) / period_a;
-    float phase_b = fmodf((float)now, period_b) / period_b;
+    const float pa = 5200.0f, pb = 7300.0f, pc = 11100.0f;
+    const float phase_a = fmodf((float)now, pa) / pa;
+    const float phase_b = fmodf((float)now, pb) / pb;
+    const float phase_c = fmodf((float)now, pc) / pc;
+
+    /* Global breath, 0.55..1.0, so quiet moments still read as lit. */
+    const float breath = 0.55f + 0.45f * lut_sin01(phase_c);
 
     for (int i = 0; i < TE_LED_COUNT; i++) {
-        float posf = (float)i / (float)TE_LED_COUNT;
-        float la = lut_sin01(posf + phase_a);
-        float lb = lut_sin01(posf + phase_b + 0.5f);
-        add(buf, i, ar, ag, ab, 0.05f + 0.15f * la);
-        add(buf, i, br, bg, bb, 0.04f + 0.12f * lb);
+        const float posf = (float)i / (float)TE_LED_COUNT;
+        const float la = lut_sin01(posf + phase_a);
+        const float lb = lut_sin01(posf * 2.0f + phase_b + 0.5f);
+
+        add(buf, i, ar, ag, ab, (0.10f + 0.45f * la * la) * breath);
+        add(buf, i, br, bg, bb, (0.08f + 0.38f * lb * lb) * breath);
+
+        /* Cool white glint, rare and short. */
+        const float sp = sparkle(i, now, 900, 0.10f);
+        if (sp > 0.0f) add(buf, i, 200, 235, 255, 0.55f * sp * sp);
     }
 }
 
@@ -294,15 +317,29 @@ static void render_active(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
 
 static void render_scan(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
 {
-    /* Radar sweep: fast orbit with a dim persistence trail. */
-    uint8_t r, g, b;
-    rgb565_to_888(T_ACCENT2, r, g, b);
-    float pos = fmodf(now, 700.0f) / 700.0f * TE_LED_COUNT;
+    /* Two counter-rotating radar sweeps at different rates, each with a hot
+     * near-white core and a persistence trail. Where they cross they add and
+     * flare, which gives the ring an irregular pulse that reads as "actively
+     * hunting" rather than a single dot going round. */
+    uint8_t r1, g1, b1, r2, g2, b2;
+    rgb565_to_888(T_ACCENT2, r1, g1, b1);
+    rgb565_to_888(T_ACCENT,  r2, g2, b2);
+
+    const float pos_a = fmodf(now, 700.0f)  / 700.0f  * TE_LED_COUNT;
+    const float pos_b = TE_LED_COUNT - fmodf(now, 1100.0f) / 1100.0f * TE_LED_COUNT;
+
     for (int i = 0; i < TE_LED_COUNT; i++) {
-        float delta = wrapped_delta(pos, i);
-        float rem = 1.0f - (delta / TE_LED_COUNT);
-        float frac = (delta < 0.5f) ? 1.0f : (rem * rem * rem * rem * 0.35f);
-        put(buf, i, r, g, b, frac);
+        const float da = wrapped_delta(pos_a, i);
+        const float db = wrapped_delta(pos_b, i);
+
+        float fa = 1.0f - (da / TE_LED_COUNT);
+        fa = (da < 0.6f) ? 1.0f : fa * fa * fa * fa * 0.45f;
+        float fb = 1.0f - (db / TE_LED_COUNT);
+        fb = (db < 0.6f) ? 0.8f : fb * fb * fb * fb * 0.30f;
+
+        add(buf, i, r1, g1, b1, fa);
+        add(buf, i, r2, g2, b2, fb);
+        if (da < 0.5f) add(buf, i, 180, 220, 255, 0.5f);   /* hot core */
     }
 }
 
@@ -420,6 +457,13 @@ static void render_attack(uint32_t now, uint8_t buf[TE_LED_COUNT][3])
         float fb = (dbp < tail) ? (1.0f - dbp / tail) : 0.0f;
         add(buf, i, wr, wg, wb, fa);
         add(buf, i, br, bg, bb, fb);
+    }
+
+    /* Random hot flares over the comets: an attack screen should look
+     * unmistakably different from a scan at a glance across a room. */
+    for (int i = 0; i < TE_LED_COUNT; i++) {
+        const float sp = sparkle(i, now, 140, 0.35f);
+        if (sp > 0.0f) add(buf, i, 255, 240, 210, 0.8f * sp);
     }
 }
 
@@ -548,7 +592,11 @@ static led_event_t  s_active_event   = LED_EVENT_SELECT;
 static bool         s_event_pending  = false;
 static uint32_t     s_event_start    = 0;
 static uint32_t     s_last_update    = 0;
-static uint8_t      s_brightness_cap = 40;   /* out of 255 */
+/* Out of 255. This was 40, which combined with idle's 0.20 peak put the ring at
+ * roughly 3% actual output -- present, but almost invisible in daylight. 110
+ * still reads as ambient rather than a torch, and gives the brighter modes
+ * (attack, alert, hit) somewhere to actually punch to. */
+static uint8_t      s_brightness_cap = 110;
 
 /* Previous rendered frame (pre-brightness-cap, pre-gamma), used for the
  * motion-smear blend below. Static storage -> zero-initialized, so the

@@ -184,7 +184,7 @@ static void draw_tree(int cursor)
         d.print("enumerating...");
         return;
     }
-    int rows = 8;
+    int rows = LIST_ROWS(18, 11);   /* fill the panel: was hardcoded for the 113px Cardputer body */
     if (cursor < 0) cursor = 0;
     if (cursor >= s_flat_n) cursor = s_flat_n - 1;
     int first = cursor - rows / 2;
