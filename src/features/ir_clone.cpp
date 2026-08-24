@@ -39,7 +39,7 @@ static void carrier_setup(int hz)
     if (s_half_us < 1) s_half_us = 1;
     gpio_reset_pin((gpio_num_t)IR_TX_PIN);
     pinMode(IR_TX_PIN, OUTPUT);
-    digitalWrite(IR_TX_PIN, HIGH);  /* active-LOW LED: HIGH = OFF */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 }
 
 /* Bit-banged carrier — see ir_remote.cpp for why we don't use LEDC.
@@ -57,7 +57,7 @@ static inline void mark(uint16_t us)
 }
 static inline void space(uint16_t us)
 {
-    digitalWrite(IR_TX_PIN, HIGH);  /* LED off (active-LOW) */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     if (us) delayMicroseconds(us);
 }
 
@@ -218,7 +218,7 @@ static void send_btn(const ir_profile_t &prof, const ir_btn_t &btn)
     case IR_PROTO_SONY:    send_sony12(btn.cmd, btn.addr); break;
     }
     /* Park pin HIGH (LED off) between bursts. */
-    digitalWrite(IR_TX_PIN, HIGH);
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);
     delay(10);
 }
 
@@ -256,6 +256,18 @@ static void profile_screen(const ir_profile_t &prof)
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder path: profile buttons are all printable chars and no profile
+         * contains PK_ENTER, so NO button could ever be sent on the T-Embed. */
+        if (k == PK_ACTIONS || k == PK_ENTER) {
+            const char *labels[24];
+            int n = prof.n_btns; if (n > 24) n = 24;
+            for (int i = 0; i < n; ++i) labels[i] = prof.btns[i].label;
+            const int pick = ui_action_menu(prof.name, labels, n);
+            if (pick < 0) continue;
+            k = (uint16_t)(uint8_t)prof.btns[pick].key;
+        }
+
         char ch = (char)tolower((int)k);
         for (int i = 0; i < prof.n_btns; i++) {
             if (prof.btns[i].key == ch) {
@@ -276,7 +288,7 @@ static void profile_screen(const ir_profile_t &prof)
 void feat_ir_clone(void)
 {
     pinMode(IR_TX_PIN, OUTPUT);
-    digitalWrite(IR_TX_PIN, HIGH);  /* active-LOW LED: HIGH = OFF at idle */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     /* Pre-arm carrier so the first send doesn't pay timer-init latency. */
     s_carrier_hz = 0;
     carrier_setup(38000);
@@ -319,7 +331,7 @@ void feat_ir_clone(void)
         }
     }
     /* Park OFF on exit (active-LOW: HIGH=off). */
-    digitalWrite(IR_TX_PIN, HIGH);
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);
 }
 
 /* =====================================================================
@@ -339,7 +351,7 @@ void blast_raw(uint16_t carrier_khz, const uint16_t *pairs)
         if (p[1]) space(p[1]);
         p += 2;
     }
-    digitalWrite(IR_TX_PIN, HIGH);  /* park OFF (active-LOW: HIGH=off) */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 }
 
 #include "ir_extras_data.h"
@@ -350,7 +362,7 @@ static void prank_run_screen(const char *title, const char *blurb,
                              void (*body)(void))
 {
     pinMode(IR_TX_PIN, OUTPUT);
-    digitalWrite(IR_TX_PIN, HIGH);  /* idle: LED off (active-LOW) */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     s_carrier_hz = 0;
     carrier_setup(38000);
 
@@ -385,7 +397,7 @@ static void prank_run_screen(const char *title, const char *blurb,
     ui_spinner(SCR_W - 16, BODY_Y + 22, T_BAD);
     delay(120);
     body();
-    digitalWrite(IR_TX_PIN, HIGH);  /* park OFF (active-LOW: HIGH=off) */
+    digitalWrite(IR_TX_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 
     /* Done — wait for any key. */
     d.setTextColor(T_GOOD, T_BG);

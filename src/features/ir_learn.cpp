@@ -138,6 +138,20 @@ void feat_ir_learn(void) {
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) return;
+
+        /* Encoder path: capture/replay/save were SPACE/R/S, none of which the
+         * T-Embed can emit -- the feature was 100% dead on the board whose IR
+         * receiver is soldered on. Press = capture (the primary action);
+         * hold = the full menu. */
+        if (k == PK_ENTER) k = PK_SPACE;
+        {
+            static const char *const ACTS[] = { "Capture", "Replay", "Save to SD" };
+            uint16_t kk = k;
+            const int r = ui_encoder_actions(kk, "IR LEARN", ACTS, " rs", 3, false);
+            if (r < 0) continue;
+            if (r > 0) k = (kk == ' ') ? PK_SPACE : kk;
+        }
+
         if (k == PK_SPACE) {
             d.fillRect(0, BODY_Y + 34, SCR_W, 40, T_BG);
             d.setTextColor(T_WARN, T_BG);

@@ -101,7 +101,7 @@ static void carrier_on(uint32_t freq_hz)
      * limitation. Store the half-period for the bit-banger. */
     gpio_reset_pin((gpio_num_t)IR_PIN);
     pinMode(IR_PIN, OUTPUT);
-    digitalWrite(IR_PIN, HIGH);  /* active-LOW LED: HIGH = OFF */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     s_carrier_half_us = 500000 / (int)freq_hz;
     if (s_carrier_half_us < 1) s_carrier_half_us = 1;
 }
@@ -120,7 +120,7 @@ static void mark(uint16_t us)
 
 static void space(uint16_t us)
 {
-    digitalWrite(IR_PIN, HIGH);  /* LED off (active-LOW) */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     if (us) delayMicroseconds(us);
 }
 
@@ -134,7 +134,7 @@ static void blast(const ir_code_t &c)
         p += 2;
     }
     /* Force LED off (active-LOW: HIGH=off). */
-    digitalWrite(IR_PIN, HIGH);
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);
 }
 
 static void blaster_task(void *)
@@ -150,7 +150,7 @@ static void blaster_task(void *)
 void feat_ir_tvbgone(void)
 {
     pinMode(IR_PIN, OUTPUT);
-    digitalWrite(IR_PIN, HIGH);  /* active-LOW LED: HIGH = OFF at idle */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     s_code_idx = 0;
     s_running = true;
     xTaskCreate(blaster_task, "ir_tvbg", 3072, nullptr, 4, nullptr);
@@ -184,5 +184,5 @@ void feat_ir_tvbgone(void)
 
     s_running = false;
     delay(300);
-    digitalWrite(IR_PIN, HIGH);  /* park OFF (active-LOW: HIGH=off) */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 }

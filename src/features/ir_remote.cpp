@@ -108,7 +108,7 @@ static void carrier_on(void)
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, 1);  /* tvbgone */
     gpio_reset_pin((gpio_num_t)IR_PIN);
     pinMode(IR_PIN, OUTPUT);
-    digitalWrite(IR_PIN, HIGH);  /* active-LOW LED: HIGH = OFF */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 }
 
 /* Half-period = 13 us → period = 26 us → ~38.5 kHz, within IR-receiver
@@ -125,7 +125,7 @@ static inline void mark(uint16_t us)
 }
 static inline void space(uint16_t us)
 {
-    digitalWrite(IR_PIN, HIGH);  /* LED off (active-LOW) */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
     if (us) delayMicroseconds(us);
 }
 
@@ -147,7 +147,7 @@ static void send_samsung(uint8_t cmd, uint8_t addr_override)
         }
     }
     mark(560);
-    digitalWrite(IR_PIN, HIGH);  /* park OFF (active-LOW: HIGH=off) */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* emitter OFF (board-correct polarity) */
 }
 
 void feat_ir_remote(void)
@@ -175,6 +175,18 @@ void feat_ir_remote(void)
         if (k == PK_ESC) break;
         /* Letter keys: case-insensitive. Special keys (arrows, ENTER)
          * carry their full 16-bit code through unchanged. */
+        /* Encoder path: every command except OK/Enter is bound to a printable
+         * character, so the T-Embed could fire exactly ONE of ~44 codes. Build
+         * the picker straight from s_cmds so it can never drift from the table,
+         * then rewrite k to the chosen command's key. */
+        if (k == PK_ACTIONS) {
+            const char *labels[CMD_N];
+            for (size_t i = 0; i < CMD_N; ++i) labels[i] = s_cmds[i].label;
+            const int pick = ui_action_menu("IR REMOTE", labels, (int)CMD_N);
+            if (pick < 0) { continue; }
+            k = s_cmds[pick].key;
+        }
+
         uint16_t match_k = (k >= 0x20 && k < 0x7F) ? (uint16_t)tolower((int)k) : k;
         const ir_cmd_t *matched = nullptr;
         for (size_t i = 0; i < CMD_N; ++i) {
@@ -194,7 +206,7 @@ void feat_ir_remote(void)
             d.printf("? raw key = 0x%X (%d)", (unsigned)k, (int)k);
         }
     }
-    digitalWrite(IR_PIN, HIGH);  /* park OFF on exit (active-LOW: HIGH=off) */
+    digitalWrite(IR_PIN, IR_TX_OFF_LEVEL);  /* park OFF on exit (active-LOW: HIGH=off) */
 }
 
 /* ===== IR LED hardware diagnostic =====================================
