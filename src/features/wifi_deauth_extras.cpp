@@ -235,7 +235,7 @@ static void run_broadcast_dashboard(const char *banner)
     {
         const char *headline = banner;
         d.setTextSize(3);
-        int hw = d.textWidth(headline) * 3;
+        int hw = d.textWidth(headline);
         int hx = (SCR_W - hw) / 2;
         d.setTextColor(0xF81F, 0);
         d.setCursor(hx - 2, hy); d.print(headline);

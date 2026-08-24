@@ -254,7 +254,7 @@ static void draw_control_force(bool force)
         d.setTextColor(0xFFFF, T_BG);
         d.setTextSize(4);
         char buf[4]; snprintf(buf, sizeof(buf), "%2d", s_intensity);
-        int w = d.textWidth(buf) * 4;
+        int w = d.textWidth(buf);
         d.setCursor((SCR_W - w) / 2, BODY_Y + 34);
         d.print(buf);
         d.setTextSize(1);

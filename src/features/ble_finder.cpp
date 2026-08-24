@@ -146,7 +146,7 @@ static void draw_meter(void)
         d.fillRect(0, BODY_Y + 22, SCR_W, 24, T_BG);
         d.setTextColor(prox_col, T_BG);
         d.setTextSize(3);
-        int w = d.textWidth(prox) * 3;
+        int w = d.textWidth(prox);
         d.setCursor((SCR_W - w) / 2, BODY_Y + 22);
         d.print(prox);
         d.setTextSize(1);
@@ -161,7 +161,7 @@ static void draw_meter(void)
         char rbuf[16];
         if (rssi <= -99) snprintf(rbuf, sizeof(rbuf), "--- dBm");
         else             snprintf(rbuf, sizeof(rbuf), "%d dBm", rssi);
-        int rw = d.textWidth(rbuf) * 2;
+        int rw = d.textWidth(rbuf);
         d.setCursor((SCR_W - rw) / 2, BODY_Y + 52);
         d.print(rbuf);
         d.setTextSize(1);

@@ -932,7 +932,7 @@ static void run_glitch_bsod(void)
             else if (age < 500)   a = 255;
             else                  a = (uint8_t)(255 - ((age - 500) * 255 / 200));
             d.setTextSize(2);
-            int tw = d.textWidth(msg) * 2;
+            int tw = d.textWidth(msg);
             int tx = (SCR_W - tw) / 2;
             int ty = SCR_H/2 - 8 + msg_dy;
             /* Chromatic split: T_ACCENT slightly left, T_ACCENT2 slightly right, T_FG center hot. */

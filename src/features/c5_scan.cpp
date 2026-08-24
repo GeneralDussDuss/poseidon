@@ -982,7 +982,7 @@ void feat_c5_nuke_5g(void)
     {
         const char *headline = "5 GHz NUKE";
         d.setTextSize(3);
-        int hw = d.textWidth(headline) * 3;
+        int hw = d.textWidth(headline);
         int hx = (SCR_W - hw) / 2;
         int hy = 22;
         d.setTextColor(0xF81F, 0);
