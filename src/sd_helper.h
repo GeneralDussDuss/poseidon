@@ -2,9 +2,15 @@
 
 #include <SPI.h>
 
-/* SD chip-select on the shared HSPI bus. Exposed here (not buried in the .cpp)
- * so CC1101/nRF24 bus-parking can deselect it via one canonical macro. */
-#define SD_CS 12
+/* SD chip-select. Exposed here (not buried in the .cpp) so CC1101/nRF24
+ * bus-parking can deselect it via one canonical macro. Board-gated: on the
+ * T-Embed, GPIO12 is the CC1101 CS (board_tembed.h TE_CC1101_CS) — the SD CS is
+ * TE_SD_CS=13. Using 12 on the T-Embed made SD and CC1101 share a chip-select. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define SD_CS 13   /* TE_SD_CS */
+#else
+#define SD_CS 12   /* Cardputer */
+#endif
 
 /*
  * sd_helper — one place that knows the M5Cardputer SD pins + SPI

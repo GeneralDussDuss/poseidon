@@ -20,17 +20,47 @@
 #include <driver/sdspi_host.h>
 #include <driver/spi_common.h>
 
+/* Board-gated SD/SPI pins. The Cardputer numbers (40/39/14) are, on the T-Embed,
+ * the I2S speaker word-clock (40), PDM mic clock (39) and WS2812 LED-ring data
+ * line (14) — driving SD there stomped audio/LED and never touched the real bus.
+ * T-Embed SD/radio bus = board_tembed.h TE_SPI_SCK=11/MISO=10/MOSI=9.
+ * NOTE: on the T-Embed this bus is shared with the display; verify SPI bus
+ * coordination (CS + locking) between SD and M5GFX before relying on SD there. */
+#if defined(POSEIDON_BOARD_TEMBED)
+#define SD_SCK   11   /* TE_SPI_SCK  */
+#define SD_MISO  10   /* TE_SPI_MISO */
+#define SD_MOSI  9    /* TE_SPI_MOSI */
+#else
 #define SD_SCK   40
 #define SD_MISO  39
 #define SD_MOSI  14
+#endif
 /* SD_CS now lives in sd_helper.h so the shared-bus park logic (cc1101/nrf24)
  * has one source of truth for the SD chip-select. */
 #define SD_FREQ  20000000  /* 20 MHz — reliable on 5cm ribbon in the Cardputer */
 
-/* Dedicated SPI bus for SD. The M5Cardputer display (M5GFX) claims
- * FSPI/SPI2 for the TFT — confirmed by checking M5GFX init paths.
- * That leaves HSPI/SPI3 free for us. */
-static SPIClass sd_spi(HSPI);
+/* SD SPI host, board-gated.
+ *
+ * Cardputer: the display (M5GFX) owns FSPI/SPI2 on pins 40/36/37, while SD
+ * sits on separate pins (40/39/14). Putting SD on HSPI/SPI3 there gives it a
+ * private peripheral with no pad overlap — clean and independent.
+ *
+ * T-Embed: there is only ONE physical SPI bus (SCK 11 / MOSI 9 / MISO 10),
+ * shared by the display, SD, CC1101 and nRF24. The display drives it from
+ * SPI2_HOST (panel_tembed.cpp, bus_shared=true). If SD grabbed a SECOND host
+ * (SPI3) on those same pads, whichever inits last wins the GPIO matrix and the
+ * other peripheral's clock/data route nowhere — that is exactly the "backlit
+ * but blank" panel: sd_mount() steals pads 11/9 from the display. So SD MUST
+ * ride the SAME host as the display (FSPI/SPI2_HOST); the panel's bus_shared
+ * flag makes LovyanGFX re-assert its bus config on every draw, so the two
+ * coexist as long as access stays single-threaded (our UI loop). */
+#if defined(POSEIDON_BOARD_TEMBED)
+static SPIClass sd_spi(FSPI);            /* SPI2_HOST — shared with the display */
+#define SD_FORCEFMT_HOST SPI2_HOST
+#else
+static SPIClass sd_spi(HSPI);            /* SPI3_HOST — private bus on Cardputer */
+#define SD_FORCEFMT_HOST SPI3_HOST
+#endif
 
 static bool s_mounted = false;
 
@@ -211,7 +241,7 @@ bool sd_force_format(void)
     delay(30);
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    host.slot = SPI3_HOST;            /* HSPI — same bus sd_spi uses */
+    host.slot = SD_FORCEFMT_HOST;     /* same host sd_spi uses (board-gated) */
     host.max_freq_khz = 20000;
 
     spi_bus_config_t bus = {};
