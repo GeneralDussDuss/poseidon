@@ -35,26 +35,60 @@ static bool parse_sub_file(const char *path, sub_file_t *out)
     out->raw_len = 0;
     out->preset[0] = '\0';
 
+    /* A RAW_Data line holds up to 512 values (see subghz_record.cpp), i.e.
+     * ~2.8 KB — far more than this buffer. readBytesUntil() stops at the buffer
+     * limit WITHOUT consuming the newline, so the rest of that physical line
+     * arrives as further chunks that do NOT start with "RAW_Data:".
+     *
+     * The old code re-tested the prefix on every chunk, so those continuations
+     * failed the strncmp and were silently dropped: only ~105 of every 512
+     * pulses survived and replay/broadcast keyed the radio with a ~20% skeleton
+     * of the captured waveform. `in_raw` latches instead: once a RAW_Data line
+     * starts, every following chunk keeps feeding the same pulse array until we
+     * actually see a newline-terminated chunk.
+     *
+     * A chunk that filled the buffer is detectable as n == sizeof(line)-1; a
+     * short read means the newline was reached and the record is complete. */
     char line[600];
+    bool in_raw = false;
     while (f.available()) {
         int n = f.readBytesUntil('\n', line, sizeof(line) - 1);
         line[n] = '\0';
+        const bool chunk_full = (n == (int)sizeof(line) - 1);
+
+        const char *p = nullptr;
         if (strncmp(line, "Frequency:", 10) == 0) {
+            in_raw = false;
             unsigned long hz = strtoul(line + 10, nullptr, 10);
             out->freq_mhz = hz / 1000000.0f;
         } else if (strncmp(line, "Preset:", 7) == 0) {
+            in_raw = false;
             strncpy(out->preset, line + 8, sizeof(out->preset) - 1);
         } else if (strncmp(line, "RAW_Data:", 9) == 0) {
-            char *p = line + 9;
-            while (*p && out->raw_len < MAX_REPLAY_PULSES) {
-                while (*p == ' ') p++;
-                if (!*p) break;
-                char *start = p;
-                int16_t v = (int16_t)strtol(p, &p, 10);
-                if (p == start) break;   /* strtol consumed nothing (stray char / CRLF) — stop, don't spin */
-                if (v != 0) out->raw[out->raw_len++] = v;
+            in_raw = true;
+            p = line + 9;
+        } else if (in_raw) {
+            p = line;              /* continuation of the RAW_Data line */
+        }
+
+        if (p) {
+            char *q = (char *)p;
+            while (*q && out->raw_len < MAX_REPLAY_PULSES) {
+                while (*q == ' ') q++;
+                if (!*q) break;
+                /* A buffer-full cut can slice a number in half ("1234" -> "12").
+                 * Drop that trailing partial token; the next chunk re-reads the
+                 * whole value. Only applies when we know the line continues. */
+                char *start = q;
+                long v = strtol(q, &q, 10);
+                if (q == start) break;      /* consumed nothing — stray char */
+                if (chunk_full && *q == '\0') break;   /* partial trailing number */
+                if (v != 0) out->raw[out->raw_len++] = (int16_t)v;
             }
         }
+        /* A chunk that did not fill the buffer reached the newline, so whatever
+         * record we were in is complete. */
+        if (!chunk_full) in_raw = false;
     }
     f.close();
     return out->raw_len > 0;
@@ -66,22 +100,51 @@ static bool parse_sub_file(const char *path, sub_file_t *out)
 static bool pick_sub_file(char *out_path, int max_len)
 {
     auto &d = M5Cardputer.Display;
-    File dir = SD.open("/poseidon");
-    if (!dir) { ui_toast("cant open /poseidon", T_BAD, 1000); return false; }
 
     char names[20][48];
     int count = 0;
-    File f;
-    while ((f = dir.openNextFile()) && count < 20) {
-        String nm = f.name();
-        if (nm.endsWith(".sub")) {
-            strncpy(names[count], f.path(), 47);
-            names[count][47] = '\0';
-            count++;
+
+    /* Scan a directory for .sub files, appending into names[]. */
+    auto scan_dir = [&](const char *path) {
+        File dir = SD.open(path);
+        if (!dir) return;
+        File f;
+        while ((f = dir.openNextFile()) && count < 20) {
+            if (!f.isDirectory()) {
+                String nm = f.name();
+                if (nm.endsWith(".sub")) {
+                    strncpy(names[count], f.path(), 47);
+                    names[count][47] = '\0';
+                    count++;
+                }
+            }
+            f.close();
         }
-        f.close();
+        dir.close();
+    };
+
+    /* Every recorder writes to /poseidon/signals/<category>/ (see
+     * subghz_record.cpp and subghz_scan.cpp), but this picker only ever looked
+     * in /poseidon -- so a signal you had just captured could not be replayed,
+     * which made Record look broken. Scan /poseidon for loose files AND descend
+     * one level into /poseidon/signals' category folders. */
+    scan_dir("/poseidon");
+    File sig = SD.open("/poseidon/signals");
+    if (sig) {
+        File cat;
+        while ((cat = sig.openNextFile()) && count < 20) {
+            if (cat.isDirectory()) {
+                char sub[64];
+                snprintf(sub, sizeof(sub), "%s", cat.path());
+                cat.close();
+                scan_dir(sub);
+            } else {
+                cat.close();
+            }
+        }
+        sig.close();
     }
-    dir.close();
+
     if (count == 0) { ui_toast("no .sub files", T_WARN, 1000); return false; }
 
     int sel = 0;

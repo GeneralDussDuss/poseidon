@@ -8,7 +8,59 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SD.h>
 
+#if defined(POSEIDON_BOARD_TEMBED)
+#include "board/board_tembed.h"
+#endif
+
 static bool s_up = false;
+
+#if defined(POSEIDON_BOARD_TEMBED)
+/*
+ * The T-Embed CC1101 does NOT have a single wideband antenna. It has a
+ * band-switched matching network in front of the chip, steered by SW1 (GPIO47)
+ * and SW0 (GPIO48). Truth table, verified against LilyGO's hardware via Bruce's
+ * boards/lilygo-t-embed-cc1101 (rf_utils.cpp setMHZ) which drives this exact
+ * board -- our pin map (CS 12 / GDO0 3 / GDO2 38 / SW1 47 / SW0 48) matches its
+ * primary variant one for one:
+ *
+ *     SW1=1 SW0=0  ->  315 MHz path
+ *     SW1=1 SW0=1  ->  434 MHz path
+ *     SW1=0 SW0=1  ->  868/915 MHz path
+ *
+ * These pins were declared in board_tembed.h but NEVER driven anywhere in the
+ * firmware, so the switch sat in whatever state it powered up in. The symptom
+ * is not a clean failure: the chip configures fine and reports a healthy
+ * PARTNUM/VERSION, but the RF path is routed through the wrong filter, so
+ * sensitivity collapses and captures look dead or extremely weak.
+ *
+ * Cached so retuning within a band does not re-toggle the switch (each change
+ * needs a settle delay). The 468..778 MHz gap has no defined path; leave the
+ * switch alone there rather than guessing.
+ */
+static void cc1101_select_antenna(float mhz)
+{
+    static int cur_band = -1;
+
+    int band;
+    if      (mhz <= 350.0f)                 band = 0;   /* 315      */
+    else if (mhz > 350.0f && mhz < 468.0f)  band = 1;   /* 434      */
+    else if (mhz > 778.0f)                  band = 2;   /* 868/915  */
+    else                                    return;     /* undefined gap */
+
+    if (band == cur_band) return;
+
+    pinMode(TE_CC1101_SW1, OUTPUT);
+    pinMode(TE_CC1101_SW0, OUTPUT);
+    switch (band) {
+        case 0: digitalWrite(TE_CC1101_SW1, HIGH); digitalWrite(TE_CC1101_SW0, LOW);  break;
+        case 1: digitalWrite(TE_CC1101_SW1, HIGH); digitalWrite(TE_CC1101_SW0, HIGH); break;
+        default:digitalWrite(TE_CC1101_SW1, LOW);  digitalWrite(TE_CC1101_SW0, HIGH); break;
+    }
+    cur_band = band;
+    delay(10);   /* let the switch settle before any TX/RX */
+    Serial.printf("[cc1101] antenna band %d selected for %.3f MHz\n", band, mhz);
+}
+#endif /* POSEIDON_BOARD_TEMBED */
 
 void cc1101_park_others(void)
 {
@@ -44,7 +96,13 @@ bool cc1101_begin(float freq_mhz)
      * instance (already initialised) the pin-mode conflict disappears. */
     ELECHOUSE_cc1101.setSPIinstance(&sd_get_spi());
     pinMode(CC1101_CS, OUTPUT); digitalWrite(CC1101_CS, HIGH);
+    /* Board-gated to match the SD SPI instance we reuse (see sd_helper.cpp). On
+     * the T-Embed the bus is TE_SPI SCK=11/MISO=10/MOSI=9, not the Cardputer pads. */
+#if defined(POSEIDON_BOARD_TEMBED)
+    ELECHOUSE_cc1101.setSpiPin(11, 10, 9, CC1101_CS);
+#else
     ELECHOUSE_cc1101.setSpiPin(40, 39, 14, CC1101_CS);
+#endif
     /* Do NOT call setGDO() — it sets GDO0 to OUTPUT which blocks the
      * CC1101's data signal. The official RCSwitch example skips it.
      * GDO0 must be INPUT so the CC1101 drives it and RCSwitch reads. */
@@ -83,6 +141,10 @@ bool cc1101_begin(float freq_mhz)
      * emit, so GDO0 never transitioned even though RSSI tracked the
      * burst. RxBW 650 + DRate 3.794 matches Flipper's capture range. */
     ELECHOUSE_cc1101.setModulation(2);          /* ASK/OOK */
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Route the antenna network to this frequency's band BEFORE tuning. */
+    cc1101_select_antenna(freq_mhz);
+#endif
     ELECHOUSE_cc1101.setMHZ(freq_mhz);
     ELECHOUSE_cc1101.setRxBW(650);              /* AM650 — wide enough for car fobs */
     ELECHOUSE_cc1101.setClb(1, 13, 15);         /* VCO calibration (Bruce) */
@@ -105,16 +167,42 @@ void cc1101_end(void)
     if (!s_up) return;
     ELECHOUSE_cc1101.setSidle();
     ELECHOUSE_cc1101.goSleep();
-    /* POS-AUDIT-012: restore GDO0 to INPUT (was OUTPUT for some TX paths)
-     * and float CS so the next HSPI user sees a clean bus. Other parked
-     * CS lines (SD=12, nRF24=6, LoRa=5) are released by their owners. */
+    /* Restore GDO0 to INPUT (some TX paths drive it OUTPUT).
+     *
+     * CS must be parked HIGH, not floated. Releasing it to high-Z on a bus
+     * shared with the display, SD and nRF24 leaves the pin free to couple low
+     * while the UI hammers SCK/MOSI to repaint -- and CSn going low is exactly
+     * the documented wake condition out of SPWD, so the sleeping CC1101 can
+     * wake mid-repaint, drive MISO against the SD card, and latch framebuffer
+     * bytes as register writes. Every other driver here parks foreign CS lines
+     * OUTPUT/HIGH (see cc1101_park_others and nrf24_hw.cpp); the CC1101 was the
+     * only one releasing its own.
+     * (Pin numbers deliberately not repeated in this comment -- they differ per
+     * board and the old note here had all three wrong.) */
     pinMode(CC1101_GDO0, INPUT);
-    pinMode(CC1101_CS, INPUT);
+    pinMode(CC1101_CS, OUTPUT);
+    digitalWrite(CC1101_CS, HIGH);
     s_up = false;
 }
 
 bool cc1101_is_up(void)    { return s_up; }
-void cc1101_set_freq(float mhz) { ELECHOUSE_cc1101.setMHZ(mhz); }
+void cc1101_set_freq(float mhz)
+{
+    /* Drop to IDLE before retuning. The CC1101 latches FREQ registers on the
+     * next state transition, so writing them while the chip is in RX can leave
+     * the synthesiser on the previous channel until something else strobes it.
+     * The caller re-strobes RX/TX itself (every sweep does), so IDLE here is
+     * safe for both directions -- unconditionally forcing RX would break the
+     * TX paths that retune through this same helper. */
+    ELECHOUSE_cc1101.setSidle();
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Every retune must re-check the band switch: the spectrum sweep and the
+     * frequency scanner walk across band boundaries, and staying on the old
+     * filter is exactly what makes far-band bins read as dead air. */
+    cc1101_select_antenna(mhz);
+#endif
+    ELECHOUSE_cc1101.setMHZ(mhz);
+}
 void cc1101_set_rx(void)   { ELECHOUSE_cc1101.SetRx(); }
 void cc1101_set_tx(void)   { ELECHOUSE_cc1101.SetTx(); }
 void cc1101_set_idle(void) { ELECHOUSE_cc1101.setSidle(); }

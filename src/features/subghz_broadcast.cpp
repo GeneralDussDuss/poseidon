@@ -134,20 +134,36 @@ static int parse_sub_raw(const char *path, int16_t *raw, int max_pulses)
     File f = SD.open(path, FILE_READ);
     if (!f) return 0;
     int count = 0;
+    /* Same continuation-latch as subghz_replay.cpp's parser -- see the long
+     * comment there. A RAW_Data line carries up to 512 values (~2.8 KB), so it
+     * does not fit this buffer; readBytesUntil() returns it in chunks and only
+     * the FIRST chunk starts with "RAW_Data:". Re-testing the prefix per chunk
+     * discarded ~80% of every captured waveform and transmitted a skeleton of
+     * the real signal. Latch instead. */
     char line[600];
+    bool in_raw = false;
     while (f.available() && count < max_pulses) {
         int n = f.readBytesUntil('\n', line, sizeof(line) - 1);
         line[n] = '\0';
-        if (strncmp(line, "RAW_Data:", 9) != 0) continue;
-        char *p = line + 9;
-        while (*p && count < max_pulses) {
-            while (*p == ' ') p++;
-            if (!*p) break;
-            char *start = p;
-            int16_t v = (int16_t)strtol(p, &p, 10);
-            if (p == start) break;   /* strtol consumed nothing (stray char / CRLF) — stop, don't spin */
-            if (v != 0) raw[count++] = v;
+        const bool chunk_full = (n == (int)sizeof(line) - 1);
+
+        const char *p = nullptr;
+        if (strncmp(line, "RAW_Data:", 9) == 0) { in_raw = true; p = line + 9; }
+        else if (in_raw)                        { p = line; }
+
+        if (p) {
+            char *q = (char *)p;
+            while (*q && count < max_pulses) {
+                while (*q == ' ') q++;
+                if (!*q) break;
+                char *start = q;
+                long v = strtol(q, &q, 10);
+                if (q == start) break;                  /* stray char */
+                if (chunk_full && *q == '\0') break;    /* sliced number */
+                if (v != 0) raw[count++] = (int16_t)v;
+            }
         }
+        if (!chunk_full) in_raw = false;
     }
     f.close();
     return count;
@@ -289,7 +305,7 @@ void feat_subghz_broadcast(void)
             display_name = bk.name;
         } else {
             freq = parse_sub_freq(s_files[file]);
-            ELECHOUSE_cc1101.setMHZ(freq);
+            cc1101_set_freq(freq);
             plen = parse_sub_raw(s_files[file], raw, MAX_PULSES);
             const char *b = strrchr(s_files[file], '/');
             display_name = b ? b + 1 : s_files[file];

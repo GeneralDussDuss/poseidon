@@ -8,9 +8,21 @@
 
 static bool match(int actual, int expected)
 {
-    int lo = expected * 7 / 10;
-    int hi = expected * 13 / 10;
-    int a = abs(actual);
+    /* Compare MAGNITUDES. `actual` was already abs()'d but `expected` was not,
+     * and every sync-gap test passes a NEGATIVE expected width (a low pulse):
+     * try_princeton -(t*31), try_came -11520, try_nice -25200.
+     * For a negative expected the old code produced lo = -8064, hi = -14976,
+     * i.e. hi < lo, while `a` is non-negative -- so `a <= hi` was false for
+     * every possible input and the test could never pass. That silently killed
+     * the Princeton, CAME and NICE decoders outright: three of the five
+     * protocols always fell through to the generic histogram decoder, which
+     * reports a made-up protocol/bit-count for a real fob.
+     * Pulse polarity is already checked by the callers (`if (p[i] <= 0)
+     * continue;`), so magnitude comparison here is correct. */
+    int e  = abs(expected);
+    int lo = e * 7 / 10;
+    int hi = e * 13 / 10;
+    int a  = abs(actual);
     return a >= lo && a <= hi;
 }
 

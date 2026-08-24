@@ -249,7 +249,7 @@ static void run_scope(SX1262 &radio, float freq)
 
     /* Retune only once per frequency change. */
     float cur_freq = -1;
-    int8_t hist[232]; memset(hist, -130, sizeof(hist));
+    int8_t hist[SCR_W]; memset(hist, -130, sizeof(hist)); // SCR_W >= GW (SCR_W-30); avoids T-Embed overrun
     int hp = 0;
 
     ui_force_clear_body();

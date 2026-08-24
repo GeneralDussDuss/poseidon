@@ -15,6 +15,7 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <esp_heap_caps.h>
 #include <math.h>
+#include "../board/leds_tembed.h"
 
 struct freq_range_t { float start; float end; const char *name; };
 static const freq_range_t RANGES[] = {
@@ -54,8 +55,9 @@ static void run_bar_spectrum(const freq_range_t &range)
     int bins = GW;
     float step = (range.end - range.start) / bins;
 
-    float   smooth[232];
-    int8_t  peak[232];
+    // Sized to SCR_W so bins (= GW = SCR_W-30) always fits, incl. the 320px T-Embed build.
+    float   smooth[SCR_W];
+    int8_t  peak[SCR_W];
     for (int i = 0; i < bins; ++i) { smooth[i] = -110.0f; peak[i] = -110; }
 
     M5Canvas canvas(&d);
@@ -186,17 +188,26 @@ static void run_waterfall(const freq_range_t &range)
 {
     auto &d = M5Cardputer.Display;
 
-    static const struct { int rows, vscale; } OPTS[] = { {120, 1}, {60, 2}, {40, 3} };
+    const int GX = 0, GY = 13, GW = WF_MAX_BINS;
+
+    /* Plot height must come from the PANEL, not a constant. The old table
+     * {120,60,40} was sized for the Cardputer's 135 px screen; on the T-Embed
+     * (170 px, no footer) it left a dead band at the bottom of the waterfall
+     * and pushed the axis labels away from the plot edge. Derive the row count
+     * from the space actually available below the header, trying successively
+     * coarser vertical scales until an allocation fits. */
+    const int avail = SCR_H - GY;
     int rows = 0, vscale = 1;
     uint16_t *ring = nullptr;
-    for (unsigned o = 0; o < sizeof(OPTS) / sizeof(OPTS[0]); ++o) {
+    for (int vs = 1; vs <= 3 && !ring; ++vs) {
+        const int r = avail / vs;
+        if (r <= 0) continue;
         ring = (uint16_t *)heap_caps_malloc(
-            (size_t)OPTS[o].rows * WF_MAX_BINS * sizeof(uint16_t), MALLOC_CAP_INTERNAL);
-        if (ring) { rows = OPTS[o].rows; vscale = OPTS[o].vscale; break; }
+            (size_t)r * WF_MAX_BINS * sizeof(uint16_t), MALLOC_CAP_INTERNAL);
+        if (ring) { rows = r; vscale = vs; }
     }
     if (!ring) { ui_toast("OOM", T_BAD, 1000); return; }
 
-    const int GX = 0, GY = 13, GW = WF_MAX_BINS;
     const int plot_h = rows * vscale;
     float step = (range.end - range.start) / GW;
     memset(ring, 0, (size_t)rows * WF_MAX_BINS * sizeof(uint16_t));
@@ -266,8 +277,8 @@ static void run_waveform(float freq)
     const int GDO_Y  = RSSI_Y + RSSI_H + 8;
     const int GDO_H  = 20;
 
-    int8_t  rssi_ring[232];
-    uint8_t gdo_ring[232];
+    int8_t  rssi_ring[SCR_W]; // sized to SCR_W so head % GW (GW = SCR_W-30) never overruns
+    uint8_t gdo_ring[SCR_W];
     memset(rssi_ring, -110, sizeof(rssi_ring));
     memset(gdo_ring, 0, sizeof(gdo_ring));
     int head = 0;
@@ -949,6 +960,7 @@ static void run_blip_sonar(const freq_range_t &range)
 
 void feat_subghz_spectrum(void)
 {
+    leds_set_mode(LED_MODE_SCAN);   /* ring reflects what this screen is doing */
     radio_switch(RADIO_SUBGHZ);
     if (!cc1101_begin(433.0f)) {
         ui_toast("CC1101 not found", T_BAD, 1500);
@@ -1016,7 +1028,10 @@ void feat_subghz_spectrum(void)
         if (k == PK_ESC) break;
         if (k == ';' || k == PK_UP)   mode = (mode + MODE_N - 1) % MODE_N;
         if (k == '.' || k == PK_DOWN) mode = (mode + 1) % MODE_N;
-        if (k == '\t') range = (range + 1) % RANGE_COUNT;
+        /* PK_ACTIONS (encoder hold) mirrors TAB. The T-Embed has no TAB key,
+         * so band select was unreachable there and the analyzer stayed locked
+         * to the first range for the whole session. */
+        if (k == '\t' || k == PK_ACTIONS) range = (range + 1) % RANGE_COUNT;
         if (k == PK_ENTER) {
             switch (mode) {
                 case 0: run_bar_spectrum(RANGES[range]); break;
