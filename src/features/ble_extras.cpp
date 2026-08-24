@@ -206,29 +206,110 @@ void feat_ble_tracker(void)
 /* ========== BLE sniffer → CSV ========== */
 
 static volatile uint32_t s_sniff_count = 0;
+static volatile uint32_t s_sniff_dropped = 0;
 static File s_sniff_file;
+
+/*
+ * The scan callback runs on the NIMBLE HOST TASK, not our UI task. Doing SD
+ * I/O there was wrong in three separate ways:
+ *
+ *   1. FATFS + SPI writes are slow and blocking. Stalling the BLE host task
+ *      inside a callback makes the controller drop advertisements -- the
+ *      sniffer was losing exactly the packets it existed to record.
+ *   2. On the T-Embed the SD card shares one SPI bus with the DISPLAY. Writing
+ *      from the BLE task while the UI task drives LovyanGFX on the same bus is
+ *      a cross-task collision on the peripheral (the bug class that already
+ *      blanked this panel once).
+ *   3. feat_ble_sniff() closed s_sniff_file from the UI task while a callback
+ *      could be mid-printf on it -- a use-after-close race that only shows up
+ *      under heavy advertisement traffic, i.e. exactly when you are using it.
+ *
+ * So the callback is now a pure PRODUCER: it copies the advertisement into a
+ * fixed ring and returns immediately. The UI loop drains the ring and owns all
+ * file access. Single producer, single consumer, so no lock is needed as long
+ * as the record is fully written BEFORE the head index is published.
+ */
+struct sniff_rec_t {
+    uint32_t ms;
+    uint8_t  addr[6];
+    uint8_t  addr_type;
+    int8_t   rssi;
+    uint8_t  payload_len;
+    uint8_t  payload[31];
+    char     name[24];
+};
+
+#define SNIFF_RING 48
+static sniff_rec_t       s_ring[SNIFF_RING];
+static volatile uint16_t s_ring_head = 0;   /* written by NimBLE task */
+static volatile uint16_t s_ring_tail = 0;   /* written by UI task     */
+static volatile bool     s_sniff_active = false;
 
 class sniff_cb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice *d) override {
-        if (!s_sniff_file) return;
-        s_sniff_count++;
-        NimBLEAddress _addr = d->getAddress();   /* bind: getAddress() returns by value */
-        const uint8_t *a = _addr.getBase()->val;
-        s_sniff_file.printf("%lu,%02X:%02X:%02X:%02X:%02X:%02X,%d,%u,",
-                 (unsigned long)millis(),
-                 a[5], a[4], a[3], a[2], a[1], a[0],
-                 d->getRSSI(), d->getAddressType());
-        if (d->haveName()) s_sniff_file.printf("\"%s\"", d->getName().c_str());
-        s_sniff_file.print(",");
-        /* NimBLE 2.x: getPayload() returns std::vector<uint8_t> by value. */
+        if (!s_sniff_active) return;
+
+        const uint16_t head = s_ring_head;
+        const uint16_t next = (uint16_t)((head + 1) % SNIFF_RING);
+        if (next == s_ring_tail) {         /* consumer behind -> drop, don't block */
+            s_sniff_dropped++;
+            return;
+        }
+
+        sniff_rec_t &r = s_ring[head];
+        r.ms = millis();
+        NimBLEAddress _addr = d->getAddress();   /* getAddress() returns by value */
+        memcpy(r.addr, _addr.getBase()->val, 6);
+        r.addr_type = d->getAddressType();
+        r.rssi      = (int8_t)d->getRSSI();
+
         const std::vector<uint8_t> &payload = d->getPayload();
-        for (size_t i = 0; i < payload.size(); ++i) s_sniff_file.printf("%02X", payload[i]);
-        s_sniff_file.print("\n");
-        if ((s_sniff_count & 31) == 0) s_sniff_file.flush();
+        size_t n = payload.size();
+        if (n > sizeof(r.payload)) n = sizeof(r.payload);
+        memcpy(r.payload, payload.data(), n);
+        r.payload_len = (uint8_t)n;
+
+        r.name[0] = '\0';
+        if (d->haveName()) {
+            const std::string nm = d->getName();
+            size_t ln = nm.size();
+            if (ln > sizeof(r.name) - 1) ln = sizeof(r.name) - 1;
+            memcpy(r.name, nm.data(), ln);
+            r.name[ln] = '\0';
+        }
+
+        /* Publish LAST: the consumer must never see a half-written record. */
+        s_ring_head = next;
+        s_sniff_count++;
     }
 };
 static sniff_cb s_sniff_cb_obj;
 static sniff_cb *s_sniff_cb = &s_sniff_cb_obj;
+
+/* Drain whatever the callback has queued. Runs on the UI task, which is the
+ * only task that ever touches s_sniff_file. Returns records written. */
+static int sniff_drain(void)
+{
+    int wrote = 0;
+    while (s_ring_tail != s_ring_head) {
+        const sniff_rec_t &r = s_ring[s_ring_tail];
+        if (s_sniff_file) {
+            s_sniff_file.printf("%lu,%02X:%02X:%02X:%02X:%02X:%02X,%d,%u,",
+                                (unsigned long)r.ms,
+                                r.addr[5], r.addr[4], r.addr[3],
+                                r.addr[2], r.addr[1], r.addr[0],
+                                (int)r.rssi, (unsigned)r.addr_type);
+            if (r.name[0]) s_sniff_file.printf("\"%s\"", r.name);
+            s_sniff_file.print(",");
+            for (uint8_t i = 0; i < r.payload_len; ++i)
+                s_sniff_file.printf("%02X", r.payload[i]);
+            s_sniff_file.print("\n");
+            ++wrote;
+        }
+        s_ring_tail = (uint16_t)((s_ring_tail + 1) % SNIFF_RING);
+    }
+    return wrote;
+}
 
 void feat_ble_sniff(void)
 {
@@ -241,6 +322,9 @@ void feat_ble_sniff(void)
     if (!s_sniff_file) { ui_toast("cant open file", T_BAD, 1500); return; }
     s_sniff_file.println("ms,mac,rssi,addr_type,name,adv_hex");
     s_sniff_count = 0;
+    s_sniff_dropped = 0;
+    s_ring_head = s_ring_tail = 0;
+    s_sniff_active = true;      /* arm the producer only once the file is open */
 
     /* s_sniff_cb is static-allocated. */
     NimBLEScan *scan = NimBLEDevice::getScan();
@@ -260,18 +344,39 @@ void feat_ble_sniff(void)
         d.setCursor(4, BODY_Y + 40); d.printf("%s", path);
     }
     uint32_t last = 0;
+    uint32_t flushed = 0;
     while (true) {
+        /* Drain every iteration, not just on the 300 ms UI tick: the ring is
+         * only 48 deep and a busy RF environment fills it fast. Dropped
+         * records are counted and surfaced rather than hidden, so the operator
+         * can tell "quiet air" from "we could not keep up". */
+        flushed += (uint32_t)sniff_drain();
+
         if (millis() - last > 300) {
             last = millis();
-            ui_text_w(4, BODY_Y + 22, 200, T_FG, "packets: %lu", (unsigned long)s_sniff_count);
+            if (s_sniff_dropped)
+                ui_text_w(4, BODY_Y + 22, SCR_W - 8, T_WARN, "packets: %lu  dropped: %lu",
+                          (unsigned long)s_sniff_count, (unsigned long)s_sniff_dropped);
+            else
+                ui_text_w(4, BODY_Y + 22, SCR_W - 8, T_FG, "packets: %lu",
+                          (unsigned long)s_sniff_count);
+            if (s_sniff_file) s_sniff_file.flush();
             ui_draw_status(radio_name(), "sniff");
         }
         uint16_t k = input_poll();
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
     }
+
+    /* Shutdown ORDER matters. Disarm the producer first so no callback can
+     * touch the ring, then stop the scan, then drain what is still queued, and
+     * only then close the file. Closing while the callback could still be
+     * running was the original use-after-close race. */
+    s_sniff_active = false;
     scan->stop();
+    sniff_drain();
     if (s_sniff_file) { s_sniff_file.flush(); s_sniff_file.close(); }
+    (void)flushed;
 }
 
 /* ========== iBeacon broadcaster ========== */

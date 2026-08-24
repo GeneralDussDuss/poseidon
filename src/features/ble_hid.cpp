@@ -188,12 +188,20 @@ void feat_ble_hid(void)
      * init. Freeing the WiFi controller gives us ~30 KB headroom.
      * SIDE EFFECT: WiFi features dead until reboot — operator's
      * trade-off for Bad-KB sessions. */
+    /* Ask FIRST, tear down second. This teardown is irreversible for the
+     * session, so doing it before the picker meant merely OPENING Bad-KB and
+     * backing out killed WiFi for every later feature until reboot -- the
+     * operator paid the whole cost for a screen they cancelled. Moving it
+     * after the cancel check means the price is only paid when a session
+     * actually starts. */
+    int pick = pick_disguise();
+    if (pick < 0) return;
+
     esp_wifi_stop();
     esp_wifi_deinit();
     Serial.printf("[bad-kb] post-wifi-release heap=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-    int pick = pick_disguise();
-    if (pick < 0) return;
+
     const char *name = s_disguises[pick];
     setup_hid(name);
     Serial.printf("[bad-kb] post-setup_hid heap=%u\n",
@@ -231,6 +239,17 @@ void feat_ble_hid(void)
         if (k == PK_NONE) { delay(20); continue; }
         if (k == PK_ESC) break;
         if (!s_connected) continue;
+
+        /* Encoder path: T/R/L cannot be produced on the T-Embed, so Bad-KB
+         * would pair successfully and then be unable to send ANYTHING -- the
+         * attack silently did nothing after PAIRED appeared. Rewrite the hold
+         * gesture into the same letters so the bodies below stay single-source. */
+        if (k == PK_ACTIONS || k == PK_ENTER) {
+            static const char *const ACTS[] = { "Type text", "Rickroll", "Lock screen" };
+            const int pick = ui_action_menu("BAD-KB", ACTS, 3);
+            if (pick < 0) continue;
+            k = (pick == 0) ? 't' : (pick == 1) ? 'r' : 'l';
+        }
 
         if (k == 't' || k == 'T') {
             char line[100];

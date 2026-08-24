@@ -187,6 +187,18 @@ static void handle_resp_hs(const c5_msg_t *m)
 {
     if (m->payload_len < (int)sizeof(c5_hs_t)) return;
     const c5_hs_t *h = (const c5_hs_t *)m->payload;
+
+    /* eapol_m2_len arrives over ESP-NOW from a peer node: it is UNTRUSTED wire
+     * data, and nothing downstream re-checks it against the real array size.
+     * hs_format_22000() clamps at 256 while c5_hs_t::eapol_m2 is only 128
+     * bytes, so a peer claiming 200 would walk 72 bytes past the buffer while
+     * hexing the EAPOL field. Reject the frame at ingest instead. */
+    if (h->eapol_m2_len > sizeof(h->eapol_m2)) {
+        Serial.printf("[c5] dropping HS: eapol_m2_len=%u > %u\n",
+                      (unsigned)h->eapol_m2_len, (unsigned)sizeof(h->eapol_m2));
+        return;
+    }
+
     portENTER_CRITICAL(&s_mux);
     /* Dedup by (bssid, sta, anonce-tail) — same handshake won't land twice. */
     for (int i = 0; i < s_hs_n; ++i) {

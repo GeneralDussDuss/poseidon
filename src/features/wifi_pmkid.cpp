@@ -28,6 +28,7 @@
 #include <esp_wifi.h>
 #include <SD.h>
 #include "../sd_helper.h"
+#include "../board/leds_tembed.h"
 
 static portMUX_TYPE s_pmkid_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -429,7 +430,15 @@ static void hunt_task(void *)
             portENTER_CRITICAL(&s_pmkid_mux);
             n = s_cache_n;
             if (n > BS_CACHE) n = BS_CACHE;
-            memcpy(snap_bssid, s_cache, n * sizeof(snap_bssid[0]));
+            /* Per-element copy: s_cache is an array of bssid_ssid_t (40 bytes:
+             * bssid[6] + ssid[33] + auth), NOT a packed array of MACs. The old
+             * bulk memcpy copied n*6 CONTIGUOUS bytes, so only snap_bssid[0]
+             * was a real BSSID -- every later entry was ASCII sliced out of the
+             * first AP's SSID. Hunt mode then deauthed fabricated MACs
+             * (SSID "NETGEAR12" -> BSSID 4E:45:54:47:45:41) and never touched
+             * any AP after the first, which is why it provoked no handshakes.
+             * The critical section guarded against tearing, not against stride. */
+            for (int i = 0; i < n; ++i) memcpy(snap_bssid[i], s_cache[i].bssid, 6);
             portEXIT_CRITICAL(&s_pmkid_mux);
 
             for (int i = 0; i < n && s_running && s_hunt; ++i) {
@@ -501,7 +510,7 @@ static void draw_notification(void)
     d.setTextColor(fg, bg);
     d.setTextSize(2);
     const char *hdr = big ? "HANDSHAKE!" : "PMKID!";
-    int tw = d.textWidth(hdr) * 2;
+    int tw = d.textWidth(hdr);
     d.setCursor(bx + (bw - tw) / 2, by + 4);
     d.print(hdr);
 
@@ -534,6 +543,7 @@ static void draw_notification(void)
 
 void feat_wifi_pmkid(void)
 {
+    leds_set_mode(LED_MODE_TRAFFIC);   /* ring reflects what this screen is doing */
     /* SD must be mounted BEFORE radio_switch(RADIO_WIFI). The WiFi driver
      * grabs ~30 KB of heap on init which fragments + leaves no room for
      * FATFS's sector buffer + handle pool allocations — sd_mount then
