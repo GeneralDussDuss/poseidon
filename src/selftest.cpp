@@ -11,7 +11,6 @@
 
 #include "radio.h"
 #include "cc1101_hw.h"
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include "nrf24_hw.h"
 #include "sd_helper.h"
 
@@ -371,145 +370,6 @@ static void test_loopback(void)
     nrf24_end();
     radio_switch(RADIO_NONE);
 }
-/* ------------------------------------------------------- SPI speed sweep */
-
-/* The RF24 library talks to the chip at 10 MHz by default (RF24_config.h:44),
- * on a bus the panel drives at 40 MHz and that also carries the SD card and the
- * CC1101. The failure signature is asymmetric - 1-bits fall to 0, 0-bits never
- * rise, e.g. writing channel 125 (1111101) and reading 29 (0011101) - which is
- * what marginal setup/hold on the MISO sample point looks like. This sweeps the
- * library's own clock to find whether the chip is simply being clocked too fast
- * on this board. A clean result at a lower rate is a firmware fix; identical
- * badness at every rate points back at the part or its supply. */
-static void test_nrf24_speed(void)
-{
-    const uint32_t SPEEDS[] = { 10000000, 8000000, 4000000, 2000000, 1000000, 500000 };
-    const uint8_t  CH[]     = { 2, 40, 76, 101, 125 };
-
-    SPIClass &bus = sd_get_spi();
-    nrf24_end();                       /* release the shared instance first */
-    delay(5);
-
-    for (unsigned si = 0; si < sizeof(SPEEDS) / sizeof(SPEEDS[0]); ++si) {
-        uint32_t t0 = millis();
-        uint32_t hz = SPEEDS[si];
-
-        pinMode(NRF24_CS, OUTPUT); digitalWrite(NRF24_CS, HIGH);
-        pinMode(NRF24_CE, OUTPUT); digitalWrite(NRF24_CE, LOW);
-        delay(5);
-        nrf24_park_others();
-
-        RF24 radio(NRF24_CE, NRF24_CS, hz);
-        bool up = radio.begin(&bus) && radio.isChipConnected();
-        if (!up) {
-            t_result("nrf24_spd", "FAIL", millis() - t0,
-                     "hz=%lu detect=no", (unsigned long)hz);
-            continue;
-        }
-
-        int ok = 0;
-        uint8_t last = 0;
-        for (int pass = 0; pass < 2; ++pass) {
-            for (unsigned i = 0; i < sizeof(CH) / sizeof(CH[0]); ++i) {
-                radio.setChannel(CH[i]);
-                last = radio.getChannel();
-                if (last == CH[i]) ok++;
-            }
-        }
-        radio.powerDown();
-        t_result("nrf24_spd", ok == 10 ? "PASS" : "FAIL", millis() - t0,
-                 "hz=%lu readback=%d/10 last=%u", (unsigned long)hz, ok,
-                 (unsigned)last);
-    }
-
-    nrf24_park_boot();
-}
-
-/* ------------------------------------------- CC1101 GDO1 causation proof */
-
-/* Proves the CC1101's GDO1 is what corrupts nRF24 reads, rather than merely
- * correlating with it. GDO1 IS the CC1101's SO pin and shares the MISO net.
- * IOCFG1 = 0x2E is the 3-state (high-impedance) setting; anything else makes the
- * part drive that net full time, including while its own CSn is high.
- *
- * Sequence: heal, measure, deliberately break by driving GDO1, measure again,
- * restore, measure again. If the middle measurement collapses and the last one
- * recovers, GDO1 is the cause.
- */
-static int nrf_readback_score(void)
-{
-    const uint8_t CH[] = { 2, 40, 76, 101, 125 };
-    if (!nrf24_begin()) return -1;
-    RF24 &r = nrf24_radio();
-    int ok = 0;
-    for (int pass = 0; pass < 2; ++pass)
-        for (unsigned i = 0; i < sizeof(CH) / sizeof(CH[0]); ++i) {
-            r.setChannel(CH[i]);
-            if (r.getChannel() == CH[i]) ok++;
-        }
-    nrf24_end();
-    return ok;
-}
-
-static void test_gdo1_proof(void)
-{
-    uint32_t t0 = millis();
-
-    if (!cc1101_begin(433.92f)) {
-        t_result("gdo1_setup", "SKIP", millis() - t0, "cc1101 would not init");
-        return;
-    }
-    uint8_t before = ELECHOUSE_cc1101.SpiReadReg(CC1101_IOCFG1);
-    t_result("gdo1_iocfg1", "PASS", millis() - t0,
-             "IOCFG1=0x%02X (0x2E = 3-state)", before);
-
-    /* 1. baseline, CC1101 freshly initialised so GDO1 is 3-stated */
-    t0 = millis();
-    int healthy = nrf_readback_score();
-    t_result("gdo1_healthy", healthy == 10 ? "PASS" : "FAIL", millis() - t0,
-             "readback=%d/10 with GDO1 3-stated", healthy);
-
-    /* 2. drive GDO1 and re-measure. 0x2F is HW to 0 - a constant driven level,
-     *    the gentlest way to make the pin an output without generating traffic. */
-    t0 = millis();
-    cc1101_begin(433.92f);
-    ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG1, 0x2F);
-    uint8_t drv = ELECHOUSE_cc1101.SpiReadReg(CC1101_IOCFG1);
-    int broken = nrf_readback_score();
-    t_result("gdo1_driven", broken < 10 ? "PASS" : "FAIL", millis() - t0,
-             "IOCFG1=0x%02X readback=%d/10 (expect collapse)", drv, broken);
-
-    /* 3. restore 3-state and confirm recovery */
-    t0 = millis();
-    cc1101_begin(433.92f);
-    ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG1, 0x2E);
-    int restored = nrf_readback_score();
-    cc1101_end();
-    t_result("gdo1_restored", restored == 10 ? "PASS" : "FAIL", millis() - t0,
-             "readback=%d/10 after IOCFG1=0x2E", restored);
-
-    Serial.printf("[a5] VERDICT: healthy=%d driven=%d restored=%d -> GDO1 %s the cause\n",
-                  healthy, broken, restored,
-                  (healthy == 10 && broken < 10 && restored == 10) ? "IS" : "is NOT");
-    Serial.flush(); delay(40);
-}
-
-/* Leave the CC1101 driving GDO1 and return, simulating the fault state the
- * part can power up in. Used to validate that nrf24_begin()'s one-time quiesce
- * recovers it unaided on the next boot. */
-static void test_break_gdo1(void)
-{
-    uint32_t t0 = millis();
-    if (!cc1101_begin(433.92f)) {
-        t_result("break_gdo1", "SKIP", millis() - t0, "cc1101 would not init");
-        return;
-    }
-    ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG1, 0x2F);
-    uint8_t v = ELECHOUSE_cc1101.SpiReadReg(CC1101_IOCFG1);
-    t_result("break_gdo1", v == 0x2F ? "PASS" : "FAIL", millis() - t0,
-             "IOCFG1 left at 0x%02X - bus deliberately poisoned", v);
-}
-
 /* --------------------------------------------- BLE re-init regression ---- */
 
 /* Regression test for the bug this suite found: NimBLE could not be brought up a
@@ -602,10 +462,7 @@ void selftest_run(char which)
     case 'B': test_ble();      break;
     case 'W': test_wifi();     break;
     case 'L': test_loopback(); break;
-    case 'P': test_nrf24_speed(); break;
-    case 'X': test_gdo1_proof(); break;
     case 'Z': test_ble_reinit(); break;
-    case 'Y': test_break_gdo1(); break;
     case 'A':
         /* SPI radios first (cheap, no coex), then BLE before WiFi so the
          * Bluetooth controller gets the coex slot, then the OTA pairing last
@@ -618,7 +475,7 @@ void selftest_run(char which)
          * be made reliable on this board; run it explicitly with TL. */
         break;
     default:
-        t_result("dispatch", "FAIL", 0, "unknown suite '%c' want W B C N L P A", which);
+        t_result("dispatch", "FAIL", 0, "unknown suite '%c' want W B C N L Z A", which);
         break;
     }
 

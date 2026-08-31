@@ -37,7 +37,3 @@ void  nrf24_park_boot(void);
 /* Park the other chip-selects on the shared SPI bus. */
 void  nrf24_park_others(void);
 
-/* DIAGNOSTIC (temporary): raw SETUP_AW reads under three bus conditions, to
- * separate "module absent" from "bus flaky". Runs automatically whenever
- * detection fails; output goes to serial at 115200. See nrf24_hw.cpp. */
-void  nrf24_diagnose(void);

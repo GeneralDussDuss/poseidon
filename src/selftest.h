@@ -11,6 +11,7 @@
  *   TB   BLE      NimBLE scan, assert advertiser count > 0
  *   TC   CC1101   PARTNUM/VERSION, RSSI floor sane, MARCSTATE transitions
  *   TN   nRF24    CSN parked, 5-byte register read-back, RX chain via RPD
+ *   TZ   BLE re-init regression (BLE -> WiFi -> BLE in one boot)
  *   TL   loopback OTA: ESP32 transmits, nRF24's Received Power Detector
  *                 witnesses it. Real over-the-air proof for the 2.4 GHz group.
  *   TA   run everything in the safe order and print a summary

@@ -12,7 +12,7 @@ so it can gate a build.
   python scripts/radio_selftest.py --suite N        # nRF24 only
   python scripts/radio_selftest.py --port COM3 --json results.json
 
-Suites: W WiFi | B BLE | C CC1101 | N nRF24 | L OTA loopback | A all
+Suites: W WiFi | B BLE | C CC1101 | N nRF24 | Z BLE re-init | L RX chain | A all
 
 Requires pyserial:  python -m pip install pyserial
 """
@@ -36,7 +36,7 @@ BAUD = 115200
 # loopback runs three scan rounds. Give each one room, then give up rather than
 # hang a CI job forever.
 SUITE_TIMEOUT = {
-    "W": 40, "B": 40, "C": 30, "N": 30, "L": 90, "P": 60, "X": 90, "Z": 60, "Y": 40, "A": 180,
+    "W": 40, "B": 40, "C": 30, "N": 30, "L": 90, "Z": 60, "A": 180,
 }
 
 TEST_RE = re.compile(
@@ -161,7 +161,7 @@ def main():
     ap = argparse.ArgumentParser(description="POSEIDON radio self-test runner")
     ap.add_argument("--port", help="serial port (default: auto-detect)")
     ap.add_argument("--suite", default="A",
-                    help="W B C N L A (default A = everything)")
+                    help="W B C N Z L A (default A = everything)")
     ap.add_argument("--json", metavar="FILE", help="write results as JSON")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="echo raw serial output")

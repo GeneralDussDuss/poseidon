@@ -40,85 +40,6 @@ void nrf24_park_others(void)
     pinMode(CC1101_CS, OUTPUT); digitalWrite(CC1101_CS, HIGH);
 }
 
-/* ---------------------------------------------------------------------------
- * DIAGNOSTIC INSTRUMENTATION — intermittent "nRF24 not found" on T-Embed.
- *
- * isChipConnected() is a SINGLE register read (SETUP_AW, expected 0x03). One
- * corrupted byte reports the chip as absent, so a flaky bus and an absent
- * module are indistinguishable from the UI. This reads the register raw,
- * several times, under three different bus conditions, to tell them apart:
- *
- *   all 0x00 or all 0xFF  -> MISO is not being driven. The bus was never
- *                            initialised (sd_spi.begin() only ever runs inside
- *                            try_mount()) or CS is not asserting.
- *   values VARY run to run -> bus contention. Something else (the display, on
- *                            the same SPI2) is transacting underneath us.
- *   steady 0x03            -> the chip is fine and the fault is elsewhere.
- *
- * Remove once the root cause is confirmed.
- * ------------------------------------------------------------------------- */
-static uint8_t nrf24_raw_read(SPIClass &bus, uint8_t reg)
-{
-    uint8_t v;
-    bus.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
-    digitalWrite(NRF24_CS, LOW);
-    bus.transfer((uint8_t)(reg & 0x1F));   /* R_REGISTER | reg */
-    v = bus.transfer(0xFF);
-    digitalWrite(NRF24_CS, HIGH);
-    bus.endTransaction();
-    return v;
-}
-
-static void nrf24_probe_dump(SPIClass &bus, const char *tag)
-{
-    Serial.printf("[nrf24-diag] %-22s SETUP_AW x6:", tag);
-    for (int i = 0; i < 6; ++i) Serial.printf(" %02X", nrf24_raw_read(bus, 0x03));
-    Serial.printf("   CONFIG=%02X STATUS=%02X RF_SETUP=%02X\n",
-                  nrf24_raw_read(bus, 0x00),
-                  nrf24_raw_read(bus, 0x07),
-                  nrf24_raw_read(bus, 0x06));
-}
-
-void nrf24_diagnose(void)
-{
-    SPIClass &bus = sd_get_spi();
-
-    Serial.println();
-    Serial.println("[nrf24-diag] ================ nRF24 bus probe ================");
-    Serial.printf("[nrf24-diag] CE=%d CS=%d   sd_mounted=%s\n",
-                  NRF24_CE, NRF24_CS, sd_is_mounted() ? "YES" : "NO");
-    Serial.println("[nrf24-diag] expected SETUP_AW = 03 (addr_width 5 - 2)");
-
-    pinMode(NRF24_CS, OUTPUT); digitalWrite(NRF24_CS, HIGH);
-    pinMode(NRF24_CE, OUTPUT); digitalWrite(NRF24_CE, LOW);
-
-    /* A: exactly what nrf24_begin() does today. */
-    nrf24_park_others();
-    nrf24_probe_dump(bus, "A as-is");
-
-    /* B: same, but with the DISPLAY's chip-select also parked HIGH. The
-     *    display shares this bus and nrf24_park_others() does not park it.
-     *    If B is clean and A is not, the display is the aggressor. */
-#if defined(POSEIDON_BOARD_TEMBED)
-    pinMode(TE_TFT_CS, OUTPUT); digitalWrite(TE_TFT_CS, HIGH);
-    nrf24_probe_dump(bus, "B +display CS parked");
-#endif
-
-    /* C: force the shared bus to be initialised, then retry. sd_spi.begin()
-     *    only ever runs inside try_mount(); if nothing mounted the SD this
-     *    boot, the bus backing sd_get_spi() was never configured. If C is
-     *    clean and A is not, that ordering dependency is the bug. */
-    bool was = sd_is_mounted();
-    sd_mount();
-    Serial.printf("[nrf24-diag] sd_mount() -> %s (was %s)\n",
-                  sd_is_mounted() ? "mounted" : "FAILED", was ? "mounted" : "unmounted");
-    nrf24_park_others();
-    nrf24_probe_dump(bus, "C after sd_mount()");
-
-    Serial.println("[nrf24-diag] =================================================");
-    Serial.println();
-}
-
 bool nrf24_begin(void)
 {
     if (s_up) nrf24_end();
@@ -179,9 +100,8 @@ bool nrf24_begin(void)
      * WiFi-free path fails at the same rate. Once in that state the chip has
      * been seen to stay there for many consecutive attempts.
      *
-     * The diagnostic scaffolding that established the bit-drop asymmetry is no
-     * longer in the tree; nrf24_diagnose() below is the reduced form that
-     * remains. Do not cite numbers here that this file cannot reproduce. */
+     * Root cause was the CC1101 driving GDO1 on the shared MISO net, which the
+     * quiesce above fixes; this retry is only belt-and-braces. */
     bool ok = false;
     for (int tries = 0; tries < 4 && !ok; ++tries) {
         nrf24_park_others();
@@ -191,7 +111,6 @@ bool nrf24_begin(void)
 
     if (!ok) {
         Serial.println("[nrf24] chip not detected");
-        nrf24_diagnose();
         delete s_radio; s_radio = nullptr;
         /* CRITICAL: re-park before giving up. RF24::begin() leaves CE/CSN in
          * whatever state it reached, and nrf24_end() below cannot help because
