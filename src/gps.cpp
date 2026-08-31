@@ -28,14 +28,28 @@ static volatile bool s_gps_alive = false;
 
 bool gps_begin(void)
 {
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* No GNSS on the T-Embed, and these pins belong to something else entirely:
+     * GPS_UART_TX_PIN 13 is TE_SD_CS and GPS_UART_RX_PIN 15 is TE_PIN_POWER_ON,
+     * the soft power latch the firmware must hold HIGH for the board to stay on.
+     * Handing them to a UART would drive the SD chip-select and release the
+     * latch. radio.cpp's RADIO_SUBGHZ teardown calls gps_begin() unconditionally
+     * on every CC1101 release, so this is reachable even with GPS disabled in
+     * NVS. Board-gate it off rather than rely on that user setting. */
+    return false;
+#else
     if (s_started) return true;
     s_uart.begin(s_baud, SERIAL_8N1, GPS_UART_RX_PIN, GPS_UART_TX_PIN);
     s_started = true;
     return true;
+#endif
 }
 
 void gps_end(void)
 {
+#if defined(POSEIDON_BOARD_TEMBED)
+    return;                 /* never started here - see gps_begin() */
+#else
     if (!s_started) return;
     /* Stop the poller before tearing down the UART so it can't read a
      * half-closed port. Force-deleting the task could fire mid-gps_poll()
@@ -59,6 +73,7 @@ void gps_end(void)
     pinMode(GPS_UART_TX_PIN, INPUT);
     pinMode(GPS_UART_RX_PIN, INPUT);
     s_started = false;
+#endif
 }
 
 uint32_t gps_current_baud(void) { return s_baud; }
@@ -113,12 +128,16 @@ bool gps_ensure_running(void)
 {
     /* Opening the GPS or Wardrive menu IS the opt-in event — record
      * it so future cold-boots also have GPS up. */
+#if defined(POSEIDON_BOARD_TEMBED)
+    return false;           /* no GNSS on this board - see gps_begin() */
+#else
     gps_set_user_enabled(true);
     if (!s_started) gps_begin();
     if (!s_gps_task) {
         s_gps_stop = false;  /* clear any prior cooperative-stop request */
         xTaskCreate(gps_task_fn, "gps", 3072, nullptr, 2, &s_gps_task);
     }
+#endif
     return s_started;
 }
 
@@ -128,6 +147,10 @@ uint32_t gps_cycle_baud(void)
     delay(20);
     s_baud_idx = (s_baud_idx + 1) % (sizeof(BAUD_CYCLE) / sizeof(BAUD_CYCLE[0]));
     s_baud = BAUD_CYCLE[s_baud_idx];
+#if defined(POSEIDON_BOARD_TEMBED)
+    s_pause_poll = false;
+    return s_baud;          /* never touch 13/15 here - see gps_begin() */
+#else
     s_uart.end();
     s_started = false;
     s_uart.begin(s_baud, SERIAL_8N1, GPS_UART_RX_PIN, GPS_UART_TX_PIN);
@@ -137,6 +160,7 @@ uint32_t gps_cycle_baud(void)
     s_pause_poll = false;
     Serial.printf("[gps] baud -> %lu\n", (unsigned long)s_baud);
     return s_baud;
+#endif
 }
 
 /* Returns a live reference — fields may tear under concurrent poller

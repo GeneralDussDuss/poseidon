@@ -3,6 +3,7 @@
  */
 #include "app.h"
 #include "ir_hw.h"
+#include "nrf24_hw.h"
 #include "ui.h"
 #include "input.h"
 #include "menu.h"
@@ -62,6 +63,15 @@ static bool ir_feature_active(void)
 static void ir_watchdog_task(void *_)
 {
     IR_PARK_BUILTIN_LED();
+
+#if defined(POSEIDON_BOARD_TEMBED)
+    /* Park the nRF24 immediately: on this board GPIO44/43 are its CSN/CE, and
+     * they share SPI2 with the panel. Until CSN is driven high the part can
+     * treat display traffic as commands and corrupt its own registers, which
+     * survives a reset because board power stays up. Bruce parks these in its
+     * board interface; this is that parity. */
+    nrf24_park_boot();
+#endif
     while (1) {
         if (!ir_feature_active()) {
             IR_PARK_BUILTIN_LED();

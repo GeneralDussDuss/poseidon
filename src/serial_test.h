@@ -7,6 +7,7 @@
  *   K<hex4>   inject keypress code into input_poll queue. e.g. K001B = ESC
  *   S         dump runtime state (heap, uptime, idle, current feat)
  *   R         soft reset (ESP.restart)
+ *   T<suite>  run a radio self-test suite (W B C N L A) - see selftest.h
  *   ?         banner with version
  *
  * Replies are prefixed with "[CMD]" or "[STATE]" so the host can grep

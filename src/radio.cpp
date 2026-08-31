@@ -42,8 +42,7 @@ bool wifi_lean_sta_init(void)
      * subsequent esp_wifi_set_promiscuous / esp_wifi_set_channel /
      * esp_wifi_80211_tx then all failed with ESP_ERR_WIFI_NOT_STARTED
      * and the WiFi task's coex path eventually panicked, freezing the
-     * device and forcing a reset. Symptom seen as "Deauth All freezes
-     * and restarts". Now we explicitly esp_wifi_start() — a second
+     * device and forcing a reset. Symptom seen as "Deauth All freezes\n* and restarts". Now we explicitly esp_wifi_start() — a second
      * start on an already-started driver returns ESP_ERR_WIFI_STATE
      * (harmless), but covers the stopped-but-inited case which is the
      * only one POS-AUDIT-008 introduced. */
@@ -70,8 +69,7 @@ bool wifi_lean_sta_init(void)
      * Destroy any leftover AP netif first. */
     esp_netif_t *ap_if = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
     if (ap_if) esp_netif_destroy_default_wifi(ap_if);
-    /* The static cache below tracked "we already created the STA netif
-     * this boot". After the AP cleanup above, the STA netif may also
+    /* The static cache below tracked "we already created the STA netif\n* this boot". After the AP cleanup above, the STA netif may also
      * have been collateral-destroyed by a prior call — always probe
      * the handle directly instead of trusting the cache. */
     if (!esp_netif_get_handle_from_ifkey("WIFI_STA_DEF")) {
@@ -148,7 +146,32 @@ static void teardown_current(void)
         /* Only deinit if NimBLE is actually initialized — features that
          * explicitly deinit on exit (ble_hid) leave a dangling state
          * flag, and a second deinit crashes on some NimBLE builds. */
+        /* Deinit to hand back ~62 KB. This is REQUIRED, not optional: leaving
+         * NimBLE resident makes wifi_lean_sta_init() fail outright (measured -
+         * WiFi could not start on any run with the stack held).
+         *
+         * Known limitation, surfaced by the radio self-test suite: once deinit
+         * has run, NimBLE cannot be re-initialised in the same boot
+         * (esp_bt_controller_init -> ESP_ERR_INVALID_STATE 259, controller stuck
+         * at status 2, later scans fail rc=30). Walking the controller down by
+         * hand does not recover it. So BLE -> other radio -> BLE needs a reboot.
+         * Fixing that properly means finding a working NimBLE re-init sequence;
+         * keeping BLE resident instead is NOT a fix, it just breaks WiFi. */
         if (NimBLEDevice::isInitialized()) NimBLEDevice::deinit(true);
+        /* Finish the job NimBLE skips on IDF 5.x. NimBLEDevice::deinit() runs
+         * nimble_port_stop() + nimble_port_deinit(), but its controller teardown
+         * (esp_nimble_hci_and_controller_deinit) is gated on
+         * ESP_IDF_VERSION < 5.0 (NimBLEDevice.cpp:1040-1046) and this build is
+         * IDF 5.5.4 - so the controller was left ENABLED forever. The next
+         * init() then hit esp_bt_controller_init() -> ESP_ERR_INVALID_STATE
+         * (259) and BLE was dead for the rest of the boot: any
+         * BLE -> other radio -> BLE sequence silently stopped working.
+         * Walking it back to IDLE ourselves also returns the controller's own
+         * memory, which the heap budget wants before WiFi comes up. */
+        if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
+            esp_bt_controller_disable();
+        if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED)
+            esp_bt_controller_deinit();
         break;
     case RADIO_LORA:
         if (lora_is_up()) lora_end();
@@ -192,6 +215,48 @@ bool radio_switch(radio_domain_t target)
         if (!NimBLEDevice::isInitialized()) {
             Serial.println("[radio] NimBLEDevice::init() begin"); Serial.flush();
             bool ok = NimBLEDevice::init("");
+            /* Recover a controller that is already up. On a warm reset the BT
+             * controller can still be at status 2 while NimBLE believes it owns
+             * nothing, so esp_bt_controller_init() returns ESP_ERR_INVALID_STATE
+             * (259), init() reports failure, and every later scan dies with
+             * rc=30 - BLE silently does nothing for the rest of the session.
+             * Tear the controller down and take it once more. */
+            if (!ok) {
+                Serial.printf("[radio] NimBLE init failed (bt_ctrl=%d) - "
+                              "deinit and retry\n",
+                              (int)esp_bt_controller_get_status());
+                Serial.flush();
+                /* Recover in the order the failures actually demand. Two causes
+                 * stack up and the sequence is what matters:
+                 *   1. MEMORY. The FIRST real error is esp_nimble_hci_init() ->
+                 *      ESP_ERR_NO_MEM (257) with only ~15 KB free.
+                 *      teardown_current() deliberately leaves the WiFi driver
+                 *      resident (esp_wifi_stop without deinit, POS-AUDIT-008),
+                 *      parking memory exactly where NimBLE needs it.
+                 *   2. CONTROLLER STATE. Every failed init leaves the controller
+                 *      INITED/ENABLED, so the NEXT attempt reports
+                 *      ESP_ERR_INVALID_STATE (259) instead - a different error
+                 *      for the same underlying problem.
+                 * Free the memory FIRST, then walk the controller back to IDLE,
+                 * then try once. Doing it the other way round merely converts a
+                 * NO_MEM failure into an INVALID_STATE one. */
+                NimBLEDevice::deinit(true);
+                esp_wifi_stop();
+                esp_wifi_deinit();
+                delay(150);
+
+                if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
+                    esp_bt_controller_disable();
+                if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED)
+                    esp_bt_controller_deinit();
+                delay(150);
+
+                Serial.printf("[radio] recovered: bt_ctrl=%d heap=%u\n",
+                              (int)esp_bt_controller_get_status(),
+                              (unsigned)ESP.getFreeHeap());
+                Serial.flush();
+                ok = NimBLEDevice::init("");
+            }
             Serial.printf("[radio] NimBLEDevice::init() -> %d bt_ctrl_status=%d\n",
                           (int)ok, (int)esp_bt_controller_get_status());
             Serial.flush();

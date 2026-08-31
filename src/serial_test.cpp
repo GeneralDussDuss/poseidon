@@ -6,6 +6,7 @@
 #include "menu.h"
 #include "version.h"
 #include <Arduino.h>
+#include <ctype.h>
 
 extern const menu_node_t *g_current_feature_item;  /* from menu.cpp */
 
@@ -51,6 +52,12 @@ static void serial_cmd_task(void *)
                     /* TEMP DIAGNOSTIC: CC1101 chip-ID + live RSSI probe. */
                     extern void cc1101_diag(void);
                     cc1101_diag();
+                }
+                else if (buf[0] == 'T' && len >= 2) {
+                    /* Radio self-test suite: TW TB TC TN TL TA. */
+                    extern volatile char g_selftest_req;
+                    g_selftest_req = (char)toupper((int)buf[1]);
+                    Serial.printf("[CMD] selftest %c queued\n", buf[1]);
                 }
                 else if (buf[0] == '?') {
                     Serial.printf("[CMD] poseidon %s harness=v1\n",

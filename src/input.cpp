@@ -50,6 +50,20 @@ static uint16_t input_poll_raw(void);
 
 uint16_t input_poll(void)
 {
+    /* Radio self-test suite, requested over serial (see selftest.h). Runs here
+     * so it executes on the UI task exactly like a real feature would. */
+    {
+        extern volatile char g_selftest_req;
+        extern void selftest_run(char which);
+        static bool running = false;
+        if (g_selftest_req && !running) {
+            running = true;
+            char w = g_selftest_req;
+            g_selftest_req = 0;
+            selftest_run(w);
+            running = false;
+        }
+    }
 #if defined(POSEIDON_BOARD_TEMBED)
     /* Drive the LED ring from here.
      *
